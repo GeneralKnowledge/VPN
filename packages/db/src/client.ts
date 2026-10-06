@@ -9,26 +9,46 @@ export type Db = ReturnType<typeof createDb>["db"];
 function resolveSqlitePath(databaseUrl: string): string {
   const raw = databaseUrl.startsWith("file:") ? databaseUrl.slice("file:".length) : databaseUrl;
   if (raw.startsWith("./") || raw.startsWith("../") || !path.isAbsolute(raw)) {
-    // Resolve relative to monorepo root when possible
     const root = process.env.NORTHSTAR_ROOT ?? process.cwd();
     return path.resolve(root, raw);
   }
   return raw;
 }
 
-export function createDb(databaseUrl = process.env.DATABASE_URL ?? "file:./data/northstar.db") {
+/**
+ * Create a SQLite database client (default for local/dev/CI).
+ *
+ * Production Postgres: apply `postgres.migrate.sql`, then use `createPostgresDb`
+ * from `./client.postgres` (also selected automatically by apps/web `getDb()`
+ * when DATABASE_URL is a postgres URL).
+ */
+export function createDb(databaseUrl = process.env.DATABASE_URL ?? "file:./data/northstar.db"): {
+  db: ReturnType<typeof drizzle<typeof schema>>;
+  sqlite: Database.Database;
+  filePath: string;
+  dialect: "sqlite";
+  close: () => void;
+} {
   if (databaseUrl.startsWith("postgres://") || databaseUrl.startsWith("postgresql://")) {
     throw new Error(
-      "Postgres URL detected. Local development uses SQLite. Set DATABASE_URL=file:./data/northstar.db for mock mode, or wire drizzle-orm/node-postgres for production.",
+      "Postgres URL passed to createDb(). Use createPostgresDb() from @northstar/db/postgres, or apps/web getDb() which selects the dialect automatically.",
     );
   }
   const filePath = resolveSqlitePath(databaseUrl);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const sqlite = new Database(filePath);
+  const sqlite: Database.Database = new Database(filePath);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   const db = drizzle(sqlite, { schema });
-  return { db, sqlite, filePath };
+  return {
+    db,
+    sqlite,
+    filePath,
+    dialect: "sqlite",
+    close: () => {
+      sqlite.close();
+    },
+  };
 }
 
 export * from "./schema";

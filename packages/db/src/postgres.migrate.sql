@@ -1,21 +1,20 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { createDb } from "./client";
+-- Production Postgres migration (mirror of SQLite schema).
+-- Apply with your preferred migrator after provisioning DATABASE_URL=postgres://...
+-- Column types intentionally stay close to the SQLite Drizzle schema (text + bigint timestamps).
 
-const SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
-  email_verified_at INTEGER,
+  email_verified_at BIGINT,
   password_hash TEXT NOT NULL,
   name TEXT,
   role TEXT NOT NULL DEFAULT 'customer',
   lifecycle TEXT NOT NULL DEFAULT 'customer',
   referral_code TEXT NOT NULL,
   referred_by_user_id TEXT,
-  deleted_at INTEGER,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  deleted_at BIGINT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_uidx ON users(email);
 CREATE UNIQUE INDEX IF NOT EXISTS users_referral_uidx ON users(referral_code);
@@ -24,9 +23,9 @@ CREATE INDEX IF NOT EXISTS users_role_idx ON users(role);
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  expires_at INTEGER NOT NULL,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  expires_at BIGINT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
 
@@ -35,10 +34,10 @@ CREATE TABLE IF NOT EXISTS verification_tokens (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type TEXT NOT NULL,
   token_hash TEXT NOT NULL,
-  expires_at INTEGER NOT NULL,
-  used_at INTEGER,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  expires_at BIGINT NOT NULL,
+  used_at BIGINT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS verification_token_hash_uidx ON verification_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS verification_user_idx ON verification_tokens(user_id);
@@ -52,9 +51,9 @@ CREATE TABLE IF NOT EXISTS plans (
   billing_interval TEXT NOT NULL,
   features_json TEXT NOT NULL,
   max_devices INTEGER NOT NULL DEFAULT 5,
-  active INTEGER NOT NULL DEFAULT 1,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS subscriptions (
@@ -64,10 +63,10 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   status TEXT NOT NULL,
   provider TEXT NOT NULL,
   provider_subscription_id TEXT,
-  current_period_end INTEGER,
-  cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  current_period_end BIGINT,
+  cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS subscriptions_user_idx ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS subscriptions_status_idx ON subscriptions(status);
@@ -81,9 +80,9 @@ CREATE TABLE IF NOT EXISTS vpn_accounts (
   status TEXT NOT NULL,
   last_error TEXT,
   provision_attempts INTEGER NOT NULL DEFAULT 0,
-  last_reconciled_at INTEGER,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  last_reconciled_at BIGINT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS vpn_accounts_user_uidx ON vpn_accounts(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS vpn_accounts_provider_uidx ON vpn_accounts(provider_account_id);
@@ -100,9 +99,9 @@ CREATE TABLE IF NOT EXISTS vpn_locations (
   protocol_support_json TEXT NOT NULL,
   latency INTEGER,
   load INTEGER,
-  is_fixture INTEGER NOT NULL DEFAULT 1,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  is_fixture BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS vpn_locations_country_idx ON vpn_locations(country_code);
 CREATE UNIQUE INDEX IF NOT EXISTS vpn_locations_provider_uidx ON vpn_locations(provider_id);
@@ -115,10 +114,10 @@ CREATE TABLE IF NOT EXISTS vpn_connections (
   provider_connection_id TEXT,
   name TEXT NOT NULL,
   protocol TEXT NOT NULL,
-  last_used_at INTEGER,
-  revoked_at INTEGER,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  last_used_at BIGINT,
+  revoked_at BIGINT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS vpn_connections_user_idx ON vpn_connections(user_id);
 CREATE INDEX IF NOT EXISTS vpn_connections_account_idx ON vpn_connections(vpn_account_id);
@@ -129,10 +128,10 @@ CREATE TABLE IF NOT EXISTS devices (
   connection_id TEXT REFERENCES vpn_connections(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   platform TEXT NOT NULL,
-  last_used_at INTEGER,
-  revoked_at INTEGER,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  last_used_at BIGINT,
+  revoked_at BIGINT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS devices_user_idx ON devices(user_id);
 
@@ -145,8 +144,8 @@ CREATE TABLE IF NOT EXISTS payments (
   amount INTEGER NOT NULL,
   currency TEXT NOT NULL DEFAULT 'GBP',
   status TEXT NOT NULL,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS payments_user_idx ON payments(user_id);
 
@@ -159,8 +158,8 @@ CREATE TABLE IF NOT EXISTS invoices (
   currency TEXT NOT NULL DEFAULT 'GBP',
   status TEXT NOT NULL,
   pdf_url TEXT,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS invoices_user_idx ON invoices(user_id);
 
@@ -170,8 +169,8 @@ CREATE TABLE IF NOT EXISTS support_tickets (
   subject TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open',
   assignee_id TEXT REFERENCES users(id),
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS support_tickets_user_idx ON support_tickets(user_id);
 CREATE INDEX IF NOT EXISTS support_tickets_status_idx ON support_tickets(status);
@@ -181,9 +180,9 @@ CREATE TABLE IF NOT EXISTS support_messages (
   ticket_id TEXT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
   author_id TEXT NOT NULL REFERENCES users(id),
   body TEXT NOT NULL,
-  is_staff INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  is_staff BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS support_messages_ticket_idx ON support_messages(ticket_id);
 
@@ -193,9 +192,9 @@ CREATE TABLE IF NOT EXISTS referrals (
   referred_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending',
   reward_json TEXT,
-  converted_at INTEGER,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  converted_at BIGINT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS referrals_referred_uidx ON referrals(referred_user_id);
 CREATE INDEX IF NOT EXISTS referrals_referrer_idx ON referrals(referrer_user_id);
@@ -209,7 +208,7 @@ CREATE TABLE IF NOT EXISTS audit_events (
   target_id TEXT,
   metadata_json TEXT,
   correlation_id TEXT,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  created_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS audit_events_actor_idx ON audit_events(actor_id);
 CREATE INDEX IF NOT EXISTS audit_events_target_idx ON audit_events(target_type, target_id);
@@ -221,11 +220,11 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   event_id TEXT NOT NULL,
   event_type TEXT NOT NULL,
   payload_json TEXT NOT NULL,
-  signature_valid INTEGER NOT NULL,
-  processed_at INTEGER,
+  signature_valid BOOLEAN NOT NULL,
+  processed_at BIGINT,
   processing_error TEXT,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS webhook_events_provider_event_uidx ON webhook_events(provider, event_id);
 
@@ -238,7 +237,7 @@ CREATE TABLE IF NOT EXISTS provider_events (
   target_id TEXT,
   metadata_json TEXT,
   correlation_id TEXT,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  created_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS provider_events_created_idx ON provider_events(created_at);
 
@@ -249,53 +248,9 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
   provider_session_id TEXT NOT NULL,
   status TEXT NOT NULL,
   idempotency_key TEXT,
-  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
-  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS checkout_provider_session_uidx ON checkout_sessions(provider_session_id);
 CREATE UNIQUE INDEX IF NOT EXISTS checkout_idempotency_uidx ON checkout_sessions(idempotency_key);
 CREATE INDEX IF NOT EXISTS checkout_user_idx ON checkout_sessions(user_id);
-`;
-
-/** Additive migrations for existing SQLite databases */
-const ALTERS = [
-  `ALTER TABLE vpn_accounts ADD COLUMN last_reconciled_at INTEGER`,
-];
-
-function monorepoRoot(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, "../../..");
-}
-
-export function migrate(databaseUrl = process.env.DATABASE_URL ?? "file:./data/northstar.db") {
-  process.env.NORTHSTAR_ROOT = process.env.NORTHSTAR_ROOT ?? monorepoRoot();
-  if (databaseUrl.startsWith("postgres://") || databaseUrl.startsWith("postgresql://")) {
-    throw new Error(
-      "Use packages/db/src/postgres.migrate.sql for Postgres. SQLite migrate() is for local file databases.",
-    );
-  }
-  const { sqlite, filePath, close } = createDb(databaseUrl);
-  if (!sqlite || !filePath) throw new Error("SQLite client required for migrate()");
-  sqlite.exec(SQL);
-  for (const alter of ALTERS) {
-    try {
-      sqlite.exec(alter);
-    } catch {
-      // column already exists
-    }
-  }
-  try {
-    sqlite.exec(
-      `CREATE UNIQUE INDEX IF NOT EXISTS checkout_idempotency_uidx ON checkout_sessions(idempotency_key)`,
-    );
-  } catch {
-    // ignore
-  }
-  console.info(`[db] migrated ${filePath}`);
-  void close();
-}
-
-const isDirect = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isDirect || process.argv[1]?.includes("migrate")) {
-  migrate(process.env.DATABASE_URL);
-}

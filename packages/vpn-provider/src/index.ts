@@ -18,6 +18,12 @@ export function createVPNProvider(
   });
 }
 
+export {
+  CUSTOMER_VPN_ERROR,
+  CUSTOMER_CONNECTION_ERROR,
+  CUSTOMER_CONFIG_ERROR,
+} from "./types";
+
 export * from "./types";
 export { MockVPNProvider, MOCK_LOCATIONS } from "./mock";
 export { VPNResellersProvider } from "./vpnresellers";

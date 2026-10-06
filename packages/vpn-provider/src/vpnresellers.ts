@@ -5,6 +5,7 @@ import type {
   VpnAccountStatus,
   VpnConnectionConfig,
   VpnLocation,
+  VpnProtocol,
   VPNProvider,
 } from "./types";
 import { VpnProviderError } from "./types";
@@ -25,6 +26,10 @@ interface VrAccountData {
   status: string;
   expired_at?: string | null;
   created?: string;
+  // WireGuard keys may appear in responses — never log them
+  wg_private_key?: string;
+  wg_public_key?: string;
+  wg_ip?: string;
 }
 
 interface VrServer {
@@ -34,6 +39,20 @@ interface VrServer {
   country_code: string;
   city: string;
   capacity?: number;
+}
+
+interface VrPort {
+  id: number;
+  protocol: string;
+  number: number;
+  default?: number;
+}
+
+interface Paginated<T> {
+  data?: T[];
+  meta?: { current_page?: number; last_page?: number };
+  links?: { next?: string | null };
+  code?: number;
 }
 
 const COUNTRY_NAMES: Record<string, string> = {
@@ -50,6 +69,22 @@ const COUNTRY_NAMES: Record<string, string> = {
   AU: "Australia",
   SG: "Singapore",
   TH: "Thailand",
+  ES: "Spain",
+  IT: "Italy",
+  PL: "Poland",
+  IE: "Ireland",
+  NO: "Norway",
+  FI: "Finland",
+  DK: "Denmark",
+  AT: "Austria",
+  BE: "Belgium",
+  PT: "Portugal",
+  BR: "Brazil",
+  MX: "Mexico",
+  IN: "India",
+  KR: "South Korea",
+  HK: "Hong Kong",
+  NZ: "New Zealand",
 };
 
 function mapStatus(status: string): VpnAccountStatus {
@@ -60,37 +95,57 @@ function mapStatus(status: string): VpnAccountStatus {
   return "pending";
 }
 
-function mapAccount(data: VrAccountData): VpnAccount {
+function mapAccount(data: VrAccountData, customerExternalId?: string): VpnAccount {
   return {
     id: String(data.id),
     providerAccountId: String(data.id),
     username: data.username,
     status: mapStatus(data.status),
+    customerExternalId,
     expiresAt: data.expired_at ?? null,
     createdAt: data.created ? new Date(data.created).toISOString() : new Date().toISOString(),
   };
 }
 
+function toExpireDate(isoOrDate: string): string {
+  // API expects Y-m-d
+  if (/^\d{4}-\d{2}-\d{2}$/.test(isoOrDate)) return isoOrDate;
+  const d = new Date(isoOrDate);
+  if (Number.isNaN(d.getTime())) throw new VpnProviderError("Invalid expiresAt", "validation");
+  return d.toISOString().slice(0, 10);
+}
+
+function configContent(res: unknown): string {
+  if (typeof res === "string") return res;
+  if (res && typeof res === "object") {
+    const obj = res as Record<string, unknown>;
+    if (typeof obj.data === "string") return obj.data;
+    if (obj.data && typeof obj.data === "object" && "content" in (obj.data as object)) {
+      const content = (obj.data as { content?: unknown }).content;
+      if (typeof content === "string") return content;
+    }
+    if (typeof obj.config === "string") return obj.config;
+  }
+  return JSON.stringify(res, null, 2);
+}
+
 /**
  * VPNResellers API v4.1 adapter.
- * Endpoints taken from https://api.vpnresellers.com/docs/v4_1/ — do not invent routes.
- * Compiles and is unit-tested with mocked HTTP; live calls require VPNRESELLERS_API_TOKEN.
+ * Endpoints from https://api.vpnresellers.com/docs/v4_1/ — do not invent routes.
  */
 export class VPNResellersProvider implements VPNProvider {
   private readonly fetchFn: typeof fetch;
   private readonly timeoutMs: number;
+  private defaultOpenVpnPortId: number | null = null;
 
   constructor(private readonly config: VPNResellersConfig) {
     this.fetchFn = config.fetchFn ?? fetch;
     this.timeoutMs = config.timeoutMs ?? 15000;
-    if (!config.apiToken) {
-      // Still constructable for typecheck/tests; live calls will fail with unauthorized
-    }
   }
 
   async getProviderStatus() {
     try {
-      await this.request<unknown>("GET", "/servers");
+      await this.request<unknown>("GET", "/servers?page=1&per_page=1", undefined, "getProviderStatus");
       return { ok: true, provider: "vpnresellers" };
     } catch (err) {
       const message = err instanceof Error ? err.message : "unknown error";
@@ -99,18 +154,18 @@ export class VPNResellersProvider implements VPNProvider {
   }
 
   async listLocations(): Promise<VpnLocation[]> {
-    const [serversRes, vlessRes] = await Promise.all([
-      this.request<{ data: VrServer[] }>("GET", "/servers"),
-      this.request<{ data: VrServer[] }>("GET", "/vless-servers").catch(() => ({ data: [] as VrServer[] })),
+    const [servers, vlessServers] = await Promise.all([
+      this.fetchAllPages<VrServer>("/servers", "listLocations"),
+      this.fetchAllPages<VrServer>("/vless-servers", "listLocations").catch(() => [] as VrServer[]),
     ]);
 
-    const vlessIds = new Set((vlessRes.data ?? []).map((s) => s.id));
+    const vlessIds = new Set(vlessServers.map((s) => s.id));
     const byId = new Map<number, VpnLocation>();
 
-    for (const server of serversRes.data ?? []) {
+    for (const server of servers) {
       byId.set(server.id, this.mapServer(server, vlessIds.has(server.id)));
     }
-    for (const server of vlessRes.data ?? []) {
+    for (const server of vlessServers) {
       const existing = byId.get(server.id);
       if (existing) {
         if (!existing.protocolSupport.includes("vless")) {
@@ -128,107 +183,230 @@ export class VPNResellersProvider implements VPNProvider {
       username: input.username,
       password: input.password,
     };
-    if (input.expiresAt) {
-      // expire endpoint exists separately; create may accept expired_at via expire call after
+
+    if (input.email && this.config.projectId != null) {
+      body.customer = {
+        first_name: input.firstName ?? "Northstar",
+        last_name: input.lastName ?? "Customer",
+        email: input.email,
+        project_id: this.config.projectId,
+      };
     }
-    const res = await this.request<{ data: VrAccountData; code: number }>("POST", "/accounts", body);
-    return mapAccount(res.data);
+
+    let account: VpnAccount;
+    try {
+      const res = await this.request<{ data: VrAccountData; code: number }>(
+        "POST",
+        "/accounts",
+        body,
+        "createAccount",
+      );
+      account = mapAccount(res.data, input.externalCustomerId);
+    } catch (err) {
+      if (err instanceof VpnProviderError && (err.code === "conflict" || err.code === "validation")) {
+        const existing = await this.findAccountByUsername(input.username);
+        if (existing) return existing;
+      }
+      throw err;
+    }
+
+    if (input.expiresAt) {
+      try {
+        await this.request(
+          "PUT",
+          `/accounts/${account.providerAccountId}/expire`,
+          { expire_at: toExpireDate(input.expiresAt) },
+          "expireAccount",
+        );
+        account = await this.getAccount(account.providerAccountId);
+      } catch {
+        // Account exists; expire can be retried via reconcile
+      }
+    }
+
+    return account;
   }
 
   async getAccount(providerAccountId: string): Promise<VpnAccount> {
-    const res = await this.request<{ data: VrAccountData }>("GET", `/accounts/${providerAccountId}`);
+    const res = await this.request<{ data: VrAccountData }>(
+      "GET",
+      `/accounts/${providerAccountId}`,
+      undefined,
+      "getAccount",
+    );
     return mapAccount(res.data);
   }
 
+  async findAccountByUsername(username: string): Promise<VpnAccount | null> {
+    // Prefer filtered list when supported; fall back to scanning pages.
+    const filtered = await this.request<Paginated<VrAccountData>>(
+      "GET",
+      `/accounts?username=${encodeURIComponent(username)}&per_page=50`,
+      undefined,
+      "findAccountByUsername",
+    ).catch(() => null);
+
+    const fromFilter = (filtered?.data ?? []).find((a) => a.username === username);
+    if (fromFilter) return mapAccount(fromFilter);
+
+    const all = await this.fetchAllPages<VrAccountData>("/accounts", "findAccountByUsername");
+    const match = all.find((a) => a.username === username);
+    return match ? mapAccount(match) : null;
+  }
+
   async suspendAccount(providerAccountId: string): Promise<VpnAccount> {
-    await this.request("PUT", `/accounts/${providerAccountId}/disable`);
+    await this.request("PUT", `/accounts/${providerAccountId}/disable`, undefined, "suspendAccount");
     return this.getAccount(providerAccountId);
   }
 
   async reactivateAccount(providerAccountId: string): Promise<VpnAccount> {
-    await this.request("PUT", `/accounts/${providerAccountId}/enable`);
+    await this.request("PUT", `/accounts/${providerAccountId}/enable`, undefined, "reactivateAccount");
     return this.getAccount(providerAccountId);
   }
 
   async deleteAccount(providerAccountId: string): Promise<void> {
-    await this.request("DELETE", `/accounts/${providerAccountId}`);
+    await this.request("DELETE", `/accounts/${providerAccountId}`, undefined, "deleteAccount");
   }
 
   async getConnectionConfig(input: CreateConnectionInput): Promise<VpnConnectionConfig> {
-    const locationId = input.locationId;
-    if (input.protocol === "wireguard") {
-      const res = await this.request<unknown>(
-        "GET",
-        `/configuration/wireguard?server_id=${encodeURIComponent(locationId)}&account_id=${encodeURIComponent(input.accountId)}`,
+    const serverId = input.locationId;
+    const accountId = input.accountId;
+    const protocol = input.protocol;
+
+    if (protocol === "wireguard") {
+      const res = await this.requestConfig(
+        `/configuration/wireguard?server_id=${encodeURIComponent(serverId)}&account_id=${encodeURIComponent(accountId)}`,
+        "getConnectionConfig",
       );
-      const content = typeof res === "string" ? res : JSON.stringify(res, null, 2);
       return {
         protocol: "wireguard",
-        locationId,
-        content,
-        filename: `northstar-${locationId}.conf`,
+        locationId: serverId,
+        content: configContent(res),
+        filename: `northstar-${serverId}.conf`,
         contentType: "text/plain",
         isMock: false,
       };
     }
-    if (input.protocol === "openvpn") {
-      // OpenVPN requires server_id and port_id per docs; port_id=1 is a common default — callers should pass port via location metadata when known
-      const res = await this.request<unknown>(
-        "GET",
-        `/configuration/openvpn?server_id=${encodeURIComponent(locationId)}&port_id=1`,
+
+    if (protocol === "openvpn") {
+      const portId = await this.resolveOpenVpnPortId();
+      const res = await this.requestConfig(
+        `/configuration/openvpn?server_id=${encodeURIComponent(serverId)}&port_id=${portId}`,
+        "getConnectionConfig",
       );
-      const content = typeof res === "string" ? res : JSON.stringify(res, null, 2);
       return {
         protocol: "openvpn",
-        locationId,
-        content,
-        filename: `northstar-${locationId}.ovpn`,
+        locationId: serverId,
+        content: configContent(res),
+        filename: `northstar-${serverId}.ovpn`,
         contentType: "application/x-openvpn-profile",
         isMock: false,
       };
     }
-    const res = await this.request<unknown>(
-      "GET",
-      `/configuration/vless?server_id=${encodeURIComponent(locationId)}&account_id=${encodeURIComponent(input.accountId)}`,
+
+    const res = await this.requestConfig(
+      `/configuration/vless?server_id=${encodeURIComponent(serverId)}&account_id=${encodeURIComponent(accountId)}`,
+      "getConnectionConfig",
     );
-    const content = typeof res === "string" ? res : JSON.stringify(res, null, 2);
     return {
       protocol: "vless",
-      locationId,
-      content,
-      filename: `northstar-${locationId}-vless.txt`,
+      locationId: serverId,
+      content: configContent(res),
+      filename: `northstar-${serverId}-vless.txt`,
       contentType: "text/plain",
       isMock: false,
     };
   }
 
+  private async resolveOpenVpnPortId(): Promise<number> {
+    if (this.defaultOpenVpnPortId != null) return this.defaultOpenVpnPortId;
+    const res = await this.request<{ data: VrPort[] }>("GET", "/ports", undefined, "listPorts");
+    const ports = res.data ?? [];
+    const preferred = ports.find((p) => p.default === 1) ?? ports[0];
+    if (!preferred) {
+      throw new VpnProviderError("No OpenVPN ports available", "not_found", false, undefined, 404, "listPorts");
+    }
+    this.defaultOpenVpnPortId = preferred.id;
+    return preferred.id;
+  }
+
   private mapServer(server: VrServer, hasVless: boolean, vlessOnly = false): VpnLocation {
-    const code = server.country_code.toUpperCase();
+    const code = (server.country_code ?? "").toUpperCase();
+    const protocols: VpnProtocol[] = vlessOnly
+      ? ["vless"]
+      : hasVless
+        ? ["wireguard", "openvpn", "vless"]
+        : ["wireguard", "openvpn"];
     return {
       id: String(server.id),
       providerId: String(server.id),
-      country: COUNTRY_NAMES[code] ?? code,
-      countryCode: code,
-      city: server.city,
-      hostname: server.name,
+      country: COUNTRY_NAMES[code] ?? (code || "Unknown"),
+      countryCode: code || "XX",
+      city: server.city || server.name,
+      hostname: server.name || server.ip,
       status: "online",
-      protocolSupport: vlessOnly
-        ? ["vless"]
-        : hasVless
-          ? ["wireguard", "openvpn", "vless"]
-          : ["wireguard", "openvpn"],
+      protocolSupport: protocols,
       load: typeof server.capacity === "number" ? server.capacity : undefined,
     };
   }
 
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  private async fetchAllPages<T>(path: string, operation: string): Promise<T[]> {
+    const items: T[] = [];
+    let page = 1;
+    let lastPage = 1;
+    const separator = path.includes("?") ? "&" : "?";
+
+    do {
+      const res = await this.request<Paginated<T>>(
+        "GET",
+        `${path}${separator}page=${page}&per_page=100`,
+        undefined,
+        operation,
+      );
+      const batch = Array.isArray(res.data) ? res.data : [];
+      items.push(...batch);
+      const reportedLast =
+        typeof res.meta?.last_page === "number"
+          ? res.meta.last_page
+          : typeof (res as { last_page?: number }).last_page === "number"
+            ? (res as { last_page: number }).last_page
+            : page;
+      lastPage = reportedLast;
+      // Stop if a page returns fewer items than requested and no last_page (defensive)
+      if (!res.meta?.last_page && batch.length === 0) break;
+      page += 1;
+    } while (page <= lastPage && page <= 50);
+
+    return items;
+  }
+
+  private async requestConfig(path: string, operation: string): Promise<unknown> {
+    // Prefer JSON; fall back to file download Accept if needed
+    try {
+      return await this.request<unknown>("GET", path, undefined, operation, "application/json");
+    } catch (err) {
+      if (err instanceof VpnProviderError && err.httpStatus === 406) {
+        return this.request<unknown>("GET", path, undefined, operation, "text/html; charset=UTF-8");
+      }
+      // Some responses return plain text with application/json Accept already handled
+      throw err;
+    }
+  }
+
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    operation = "request",
+    accept = "application/json",
+  ): Promise<T> {
     const url = `${this.config.apiUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const headers: Record<string, string> = {
         Authorization: `Bearer ${this.config.apiToken}`,
-        Accept: "application/json",
+        Accept: accept,
       };
       if (body !== undefined) headers["Content-Type"] = "application/json";
 
@@ -240,45 +418,73 @@ export class VPNResellersProvider implements VPNProvider {
       });
 
       const text = await response.text();
-      let json: { message?: string; code?: number; errors?: unknown } | null = null;
+      let json: {
+        message?: string;
+        code?: number;
+        errors?: Record<string, string[]>;
+        data?: unknown;
+      } | null = null;
       try {
-        json = text ? (JSON.parse(text) as { message?: string; code?: number }) : null;
+        json = text ? (JSON.parse(text) as typeof json) : null;
       } catch {
         if (response.ok) return text as T;
-        throw new VpnProviderError(`Invalid JSON from provider (${response.status})`, "unknown", true);
+        throw new VpnProviderError(
+          `Invalid JSON from provider (${response.status})`,
+          "unknown",
+          true,
+          undefined,
+          response.status,
+          operation,
+        );
       }
 
       if (!response.ok) {
-        throw this.mapHttpError(response.status, json?.message ?? response.statusText);
+        throw this.mapHttpError(response.status, json, operation);
       }
       return (json ?? {}) as T;
     } catch (err) {
       if (err instanceof VpnProviderError) throw err;
       if (err instanceof Error && err.name === "AbortError") {
-        throw new VpnProviderError("VPN provider request timed out", "timeout", true, err);
+        throw new VpnProviderError("VPN provider request timed out", "timeout", true, err, undefined, operation);
       }
-      throw new VpnProviderError("VPN provider unavailable", "unavailable", true, err);
+      throw new VpnProviderError("VPN provider unavailable", "unavailable", true, err, undefined, operation);
     } finally {
       clearTimeout(timer);
     }
   }
 
-  private mapHttpError(status: number, message: string): VpnProviderError {
-    switch (status) {
-      case 401:
-        return new VpnProviderError(message || "Unauthorized", "unauthorized");
-      case 402:
-        return new VpnProviderError(message || "Insufficient balance", "insufficient_balance", true);
-      case 404:
-        return new VpnProviderError(message || "Not found", "not_found");
-      case 422:
-        return new VpnProviderError(message || "Validation error", "validation");
-      case 400:
-        return new VpnProviderError(message || "Bad request", "validation");
-      case 403:
-        return new VpnProviderError(message || "Forbidden", "unauthorized");
-      default:
-        return new VpnProviderError(message || `HTTP ${status}`, "unknown", status >= 500);
+  private mapHttpError(
+    status: number,
+    json: { message?: string; errors?: Record<string, string[]> } | null,
+    operation: string,
+  ): VpnProviderError {
+    const message = json?.message || `HTTP ${status}`;
+    const usernameTaken = Boolean(
+      json?.errors?.username?.some((e) => /taken|already|exist/i.test(e)) ||
+        /already been taken|already exists|username.*taken/i.test(message),
+    );
+
+    if (status === 401 || status === 403) {
+      return new VpnProviderError(message || "Unauthorized", "unauthorized", false, undefined, status, operation);
     }
+    if (status === 402) {
+      return new VpnProviderError(message || "Insufficient balance", "insufficient_balance", true, undefined, status, operation);
+    }
+    if (status === 404) {
+      return new VpnProviderError(message || "Not found", "not_found", false, undefined, status, operation);
+    }
+    if (status === 409 || usernameTaken) {
+      return new VpnProviderError(message || "Conflict", "conflict", false, undefined, status, operation);
+    }
+    if (status === 429) {
+      return new VpnProviderError(message || "Rate limited", "rate_limited", true, undefined, status, operation);
+    }
+    if (status === 400 || status === 422) {
+      return new VpnProviderError(message || "Validation error", "validation", false, undefined, status, operation);
+    }
+    if (status >= 500) {
+      return new VpnProviderError(message || `HTTP ${status}`, "unknown", true, undefined, status, operation);
+    }
+    return new VpnProviderError(message || `HTTP ${status}`, "unknown", false, undefined, status, operation);
   }
 }

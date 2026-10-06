@@ -2,6 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { vpnAccounts, vpnConnections, vpnLocations } from "@northstar/db";
 import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
+import { customerErrorResponse } from "@/lib/http";
 import { getDb, getVpnProvider, track } from "@/lib/providers";
 import { correlationId } from "@/lib/utils";
 
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
     const db = getDb();
     const account = (await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, user.id)).limit(1))[0];
     if (!account || account.status !== "active") {
-      return Response.json({ error: "VPN not active" }, { status: 400 });
+      return Response.json({ error: "Your VPN is not ready yet." }, { status: 400 });
     }
 
     let locationId = body.data.locationId;
@@ -52,10 +53,10 @@ export async function POST(req: Request) {
     if (!location) return Response.json({ error: "Location not found" }, { status: 404 });
 
     const vpn = getVpnProvider();
-    // Ensure mock provider knows about account for config generation in-process
+    // Provider APIs expect server_id = providerId, not local DB id
     const config = await vpn.getConnectionConfig({
       accountId: account.providerAccountId,
-      locationId: location.id,
+      locationId: location.providerId,
       protocol,
     });
 
@@ -75,9 +76,10 @@ export async function POST(req: Request) {
         "Content-Type": config.contentType,
         "Content-Disposition": `attachment; filename="${config.filename}"`,
         "X-Northstar-Mock-Config": config.isMock ? "true" : "false",
+        "Cache-Control": "no-store",
       },
     });
   } catch (err) {
-    return Response.json({ error: err instanceof Error ? err.message : "Failed" }, { status: 400 });
+    return customerErrorResponse(err, "config");
   }
 }

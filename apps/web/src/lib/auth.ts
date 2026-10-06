@@ -118,11 +118,13 @@ export async function writeAudit(
     correlationId?: string;
   },
 ) {
-  // Strip likely secrets from metadata
+  // Strip likely secrets from metadata (never audit VPN configs / keys)
   const meta = input.metadata ? { ...input.metadata } : undefined;
   if (meta) {
     for (const key of Object.keys(meta)) {
-      if (/password|secret|token|key|credential/i.test(key)) delete meta[key];
+      if (/password|secret|token|key|credential|private|authorization|config|wg_/i.test(key)) {
+        delete meta[key];
+      }
     }
   }
   await db.insert(auditEvents).values({

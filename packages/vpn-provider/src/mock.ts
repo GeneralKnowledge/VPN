@@ -159,6 +159,13 @@ export class MockVPNProvider implements VPNProvider {
     return { ...account };
   }
 
+  async findAccountByUsername(username: string): Promise<VpnAccount | null> {
+    for (const account of this.accounts.values()) {
+      if (account.username === username) return { ...account };
+    }
+    return null;
+  }
+
   async suspendAccount(providerAccountId: string): Promise<VpnAccount> {
     const account = await this.getAccount(providerAccountId);
     account.status = "disabled";

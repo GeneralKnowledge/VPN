@@ -2,6 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { devices, plans, subscriptions } from "@northstar/db";
 import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
+import { customerErrorResponse } from "@/lib/http";
 import { getDb } from "@/lib/providers";
 import { newId } from "@/lib/utils";
 
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
     });
     return Response.json({ id });
   } catch (err) {
-    return Response.json({ error: err instanceof Error ? err.message : "Failed" }, { status: 400 });
+    return customerErrorResponse(err, "generic");
   }
 }
 
