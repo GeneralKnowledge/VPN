@@ -1,0 +1,89 @@
+import { cn } from "@/lib/utils";
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+
+export function Button({
+  className,
+  variant = "primary",
+  size = "md",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "secondary" | "ghost" | "danger";
+  size?: "sm" | "md" | "lg";
+}) {
+  return (
+    <button
+      className={cn(
+        "inline-flex items-center justify-center gap-2 rounded-md font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sea disabled:opacity-50",
+        size === "sm" && "h-9 px-3 text-sm",
+        size === "md" && "h-11 px-4 text-sm",
+        size === "lg" && "h-12 px-6 text-base",
+        variant === "primary" && "bg-sea text-white hover:bg-sea-dark",
+        variant === "secondary" && "border border-border bg-surface text-foreground hover:bg-surface-2",
+        variant === "ghost" && "text-foreground hover:bg-surface-2",
+        variant === "danger" && "bg-danger text-white hover:opacity-90",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function Input({
+  className,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      className={cn(
+        "h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground placeholder:text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sea",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function Label({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) {
+  return (
+    <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium text-foreground">
+      {children}
+    </label>
+  );
+}
+
+export function Card({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("rounded-xl border border-border bg-surface p-5 shadow-sm", className)}>
+      {children}
+    </div>
+  );
+}
+
+export function Badge({
+  children,
+  tone = "neutral",
+}: {
+  children: ReactNode;
+  tone?: "neutral" | "success" | "warning" | "danger" | "sea";
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
+        tone === "neutral" && "bg-surface-2 text-muted",
+        tone === "success" && "bg-success/15 text-success",
+        tone === "warning" && "bg-accent-soft text-ink",
+        tone === "danger" && "bg-danger/15 text-danger",
+        tone === "sea" && "bg-sea/15 text-sea-dark",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
