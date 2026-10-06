@@ -8,16 +8,149 @@ import {
   vpnAccounts,
   type Db,
 } from "@northstar/db";
-import { eq } from "drizzle-orm";
-import type { VPNProvider } from "@northstar/vpn-provider";
+import { and, eq, inArray } from "drizzle-orm";
 import type { EmailProvider } from "@northstar/email";
+import { VpnProviderError, type VPNProvider, type VpnAccount } from "@northstar/vpn-provider";
 import { writeAudit } from "./auth";
 import { newId } from "./utils";
 
+/** How long a `pending` claim may block other workers before it is considered stale. */
+const PENDING_STALE_MS = 120_000;
+
+function isPlaceholderProviderId(providerAccountId: string): boolean {
+  return providerAccountId.startsWith("pending_");
+}
+
+function deterministicUsername(userId: string): string {
+  // Stable per user — never invent new usernames on retry (avoids paid duplicate accounts).
+  return `ns_${userId.replace(/[^a-z0-9]/gi, "").slice(-12).toLowerCase()}`;
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /unique|UNIQUE|constraint/i.test(message);
+}
+
+type VpnAccountRow = typeof vpnAccounts.$inferSelect;
+
+/**
+ * Obtain the single vpn_accounts row for this user before any provider create.
+ * Uses the unique(userId) index as a mutex: only one caller wins the insert/claim.
+ */
+async function claimVpnAccountRow(db: Db, userId: string, username: string): Promise<{
+  row: VpnAccountRow;
+  wonClaim: boolean;
+}> {
+  const existing = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, userId)).limit(1);
+  if (existing[0]) {
+    if (existing[0].status === "active" || existing[0].status === "disabled") {
+      return { row: existing[0], wonClaim: false };
+    }
+
+    const stalePending =
+      existing[0].status === "pending" &&
+      existing[0].updatedAt.getTime() < Date.now() - PENDING_STALE_MS;
+
+    if (existing[0].status === "pending" && !stalePending) {
+      return { row: existing[0], wonClaim: false };
+    }
+
+    // Take ownership of error / stale pending for a safe retry (still one row).
+    const updated = await db
+      .update(vpnAccounts)
+      .set({
+        status: "pending",
+        lastError: null,
+        provisionAttempts: existing[0].provisionAttempts + 1,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(vpnAccounts.id, existing[0].id),
+          inArray(vpnAccounts.status, ["error", "pending", "expired"]),
+        ),
+      )
+      .returning();
+
+    if (updated[0]) {
+      return { row: updated[0], wonClaim: true };
+    }
+
+    // Lost CAS — re-read
+    const again = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, userId)).limit(1);
+    if (!again[0]) throw new Error("VPN account row disappeared during claim");
+    return { row: again[0], wonClaim: false };
+  }
+
+  const id = newId("vpn");
+  try {
+    await db.insert(vpnAccounts).values({
+      id,
+      userId,
+      provider: "configured",
+      providerAccountId: `pending_${userId}`,
+      username,
+      status: "pending",
+      provisionAttempts: 1,
+    });
+    const [row] = await db.select().from(vpnAccounts).where(eq(vpnAccounts.id, id)).limit(1);
+    if (!row) throw new Error("Failed to read claimed VPN account row");
+    return { row, wonClaim: true };
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    const again = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, userId)).limit(1);
+    if (!again[0]) throw err;
+    return { row: again[0], wonClaim: false };
+  }
+}
+
+/**
+ * Resolve the provider account without creating a second billable identity when one
+ * already exists. createAccount is only called when we have never stored a real provider id,
+ * or the provider confirms not_found.
+ */
+async function resolveProviderAccount(
+  vpn: VPNProvider,
+  row: VpnAccountRow,
+  username: string,
+): Promise<VpnAccount> {
+  if (!isPlaceholderProviderId(row.providerAccountId)) {
+    try {
+      const account = await vpn.getAccount(row.providerAccountId);
+      if (account.status === "disabled") {
+        return vpn.reactivateAccount(row.providerAccountId);
+      }
+      return account;
+    } catch (err) {
+      if (err instanceof VpnProviderError && err.code === "not_found") {
+        // Provider confirmed gone — safe to create exactly one replacement.
+        return vpn.createAccount({
+          username,
+          password: `Tmp_${newId("pwd").slice(0, 12)}`,
+          externalCustomerId: row.userId,
+        });
+      }
+      // Transient / unknown errors must not trigger a paid createAccount.
+      throw err;
+    }
+  }
+
+  return vpn.createAccount({
+    username,
+    password: `Tmp_${newId("pwd").slice(0, 12)}`,
+    externalCustomerId: row.userId,
+  });
+}
+
 /**
  * Provision VPN after successful subscription.
- * Idempotent: if account exists and active, returns it.
- * On provider failure, records pending/error for reconciliation.
+ *
+ * Money-safe rules:
+ * - At most one vpn_accounts row per user (unique index).
+ * - Claim that row as `pending` before any createAccount call.
+ * - Never mint a new username on retry.
+ * - Never createAccount when a real providerAccountId exists unless provider returns not_found.
+ * - Concurrent callers that lose the claim do not call createAccount.
  */
 export async function provisionVpnForUser(
   db: Db,
@@ -26,52 +159,49 @@ export async function provisionVpnForUser(
   userId: string,
   correlationId: string,
 ) {
-  const existing = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, userId)).limit(1);
-  if (existing[0]?.status === "active") {
-    return existing[0];
-  }
-
   const userRows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   const user = userRows[0];
   if (!user) throw new Error("User not found");
 
-  const username = `ns_${userId.replace(/[^a-z0-9]/gi, "").slice(-12).toLowerCase()}`;
-  const password = `Tmp_${newId("pwd").slice(0, 12)}`;
+  const username = deterministicUsername(userId);
+  const { row: claimed, wonClaim } = await claimVpnAccountRow(db, userId, username);
 
-  const attempts = (existing[0]?.provisionAttempts ?? 0) + 1;
+  if (claimed.status === "active") {
+    return claimed;
+  }
+
+  if (claimed.status === "disabled") {
+    // Admin/payment suspension — do not silently re-create a billable account.
+    return claimed;
+  }
+
+  if (!wonClaim && claimed.status === "pending") {
+    // Another worker owns an in-flight provision. Do not create a second provider account.
+    return claimed;
+  }
+
+  if (!wonClaim) {
+    // Lost claim on an error row that another worker already reclaimed.
+    return claimed;
+  }
 
   try {
-    const account = existing[0]
-      ? await vpn.getAccount(existing[0].providerAccountId).catch(async () =>
-          vpn.createAccount({
-            username: `${username}_${attempts}`,
-            password,
-            externalCustomerId: userId,
-          }),
-        )
-      : await vpn.createAccount({
-          username,
-          password,
-          externalCustomerId: userId,
-        });
+    const account = await resolveProviderAccount(vpn, claimed, username);
 
-    const row = {
-      id: existing[0]?.id ?? newId("vpn"),
-      userId,
-      provider: "configured",
-      providerAccountId: account.providerAccountId,
-      username: account.username,
-      status: "active" as const,
-      lastError: null as string | null,
-      provisionAttempts: attempts,
-      updatedAt: new Date(),
-    };
+    const [row] = await db
+      .update(vpnAccounts)
+      .set({
+        provider: "configured",
+        providerAccountId: account.providerAccountId,
+        username: account.username,
+        status: "active",
+        lastError: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(vpnAccounts.id, claimed.id))
+      .returning();
 
-    if (existing[0]) {
-      await db.update(vpnAccounts).set(row).where(eq(vpnAccounts.id, existing[0].id));
-    } else {
-      await db.insert(vpnAccounts).values({ ...row, createdAt: new Date() });
-    }
+    const finalRow = row ?? claimed;
 
     const lifecycle = nextLifecycleAfterVpnProvisioned(
       user.lifecycle as Parameters<typeof nextLifecycleAfterVpnProvisioned>[0],
@@ -85,8 +215,9 @@ export async function provisionVpnForUser(
       direction: "outbound",
       action: "account.provision",
       status: "success",
-      targetId: row.id,
+      targetId: finalRow.id,
       correlationId,
+      metadataJson: JSON.stringify({ providerAccountId: account.providerAccountId }),
     });
 
     await writeAudit(db, {
@@ -94,7 +225,7 @@ export async function provisionVpnForUser(
       actorType: "system",
       action: "vpn.provisioned",
       targetType: "vpn_account",
-      targetId: row.id,
+      targetId: finalRow.id,
       correlationId,
       metadata: { userId },
     });
@@ -106,31 +237,18 @@ export async function provisionVpnForUser(
       correlationId,
     });
 
-    return row;
+    return finalRow;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Provisioning failed";
-    if (existing[0]) {
-      await db
-        .update(vpnAccounts)
-        .set({
-          status: "error",
-          lastError: message,
-          provisionAttempts: attempts,
-          updatedAt: new Date(),
-        })
-        .where(eq(vpnAccounts.id, existing[0].id));
-    } else {
-      await db.insert(vpnAccounts).values({
-        id: newId("vpn"),
-        userId,
-        provider: "configured",
-        providerAccountId: `pending_${userId}`,
-        username,
+    await db
+      .update(vpnAccounts)
+      .set({
         status: "error",
         lastError: message,
-        provisionAttempts: attempts,
-      });
-    }
+        updatedAt: new Date(),
+      })
+      .where(eq(vpnAccounts.id, claimed.id));
+
     await db.insert(providerEvents).values({
       id: newId("pev"),
       provider: "vpn",
@@ -173,6 +291,15 @@ export async function activateSubscription(
   if (active) {
     await provisionVpnForUser(db, vpn, email, input.userId, input.correlationId);
     return active;
+  }
+
+  // Idempotent on provider subscription id when present (webhook retries).
+  if (input.providerSubscriptionId) {
+    const byProvider = existingSubs.find((s) => s.providerSubscriptionId === input.providerSubscriptionId);
+    if (byProvider) {
+      await provisionVpnForUser(db, vpn, email, input.userId, input.correlationId);
+      return byProvider;
+    }
   }
 
   const periodEnd = new Date();
@@ -246,6 +373,7 @@ export async function reconcileVpnProvisioning(
 
   for (const userId of activeUserIds) {
     const account = byUser.get(userId);
+    // Never touch admin-disabled accounts. Retry only missing / error / stale pending.
     if (!account || account.status === "error" || account.status === "pending") {
       try {
         await provisionVpnForUser(db, vpn, email, userId, correlationId);
