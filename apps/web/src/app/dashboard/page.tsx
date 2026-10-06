@@ -58,6 +58,25 @@ export default async function DashboardHome() {
         <p className="mt-1 text-sm text-muted">Manage your connection, devices, and billing.</p>
       </div>
 
+      {vpnReady ? (
+        <Card className="border-sea/30 bg-sea/5">
+          <h2 className="font-display text-xl">Get connected</h2>
+          <p className="mt-1 text-sm text-muted">
+            Install WireGuard, import your Northstar config (QR on phone, file on desktop), then connect.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/dashboard/get-connected">
+              <Button>Start setup guide</Button>
+            </Link>
+            {activeConns.length > 0 ? (
+              <Link href="/dashboard/vpn">
+                <Button variant="secondary">Download configs</Button>
+              </Link>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <p className="text-sm text-muted">VPN</p>
@@ -85,7 +104,9 @@ export default async function DashboardHome() {
 
       <Card>
         <h2 className="font-display text-xl">Quick Connect</h2>
-        <p className="mt-1 text-sm text-muted">Create a device connection and download a mock configuration.</p>
+        <p className="mt-1 text-sm text-muted">
+          Prefer the guided setup for first time. Or create a connection and download a config here.
+        </p>
         {vpnReady ? (
           <QuickConnect locations={locations.map((l) => ({ id: l.id, city: l.city, country: l.country }))} />
         ) : (
@@ -95,9 +116,14 @@ export default async function DashboardHome() {
             </Link>
           </div>
         )}
-        <Link href="/dashboard/locations" className="mt-4 inline-block text-sm text-sea hover:underline">
-          View all locations
-        </Link>
+        <div className="mt-4 flex flex-wrap gap-4 text-sm">
+          <Link href="/dashboard/get-connected" className="text-sea hover:underline">
+            Open Get connected guide
+          </Link>
+          <Link href="/dashboard/locations" className="text-sea hover:underline">
+            View all locations
+          </Link>
+        </div>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">

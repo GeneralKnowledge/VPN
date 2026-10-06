@@ -13,6 +13,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { EmailProvider } from "@northstar/email";
 import { VpnProviderError, type VPNProvider, type VpnAccount } from "@northstar/vpn-provider";
 import { writeAudit } from "./auth";
+import { ensureDefaultWireGuardConnection } from "./default-connection";
 import { onReferredUserPaid } from "./referrals";
 import { newId } from "./utils";
 
@@ -238,6 +239,16 @@ export async function provisionVpnForUser(
       vars: { name: user.name ?? "there" },
       correlationId,
     });
+
+    // First-connect: auto-create a WireGuard tunnel so the setup wizard has a config ready.
+    try {
+      await ensureDefaultWireGuardConnection(db, userId, finalRow.id);
+    } catch (connErr) {
+      console.error("Failed to create default WireGuard connection", {
+        userId,
+        error: connErr instanceof Error ? connErr.message : "unknown",
+      });
+    }
 
     return finalRow;
   } catch (err) {

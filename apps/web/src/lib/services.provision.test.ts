@@ -12,7 +12,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { eq } from "drizzle-orm";
-import { createDb, migrate, users, vpnAccounts, type Db } from "@northstar/db";
+import { createDb, migrate, users, vpnAccounts, vpnLocations, type Db } from "@northstar/db";
 import {
   MockVPNProvider,
   VpnProviderError,
@@ -70,6 +70,19 @@ describe("provisionVpnForUser money-safety", () => {
       role: "customer",
       lifecycle: "subscribed",
       referralCode: "NORTH-TESTPROV",
+    });
+
+    // Locations required for default WireGuard connection after provision
+    await db.insert(vpnLocations).values({
+      id: "mock-uk-london",
+      providerId: "mock-uk-london",
+      country: "United Kingdom",
+      countryCode: "GB",
+      city: "London",
+      hostname: "london.mock.northstar",
+      status: "online",
+      protocolSupportJson: '["wireguard","openvpn"]',
+      isFixture: true,
     });
   });
 

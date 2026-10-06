@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     });
     track({ name: "subscription_created", userId: user.id });
     track({ name: "vpn_provisioned", userId: user.id });
-    return Response.json({ ok: true, redirectTo: "/dashboard" });
+    return Response.json({ ok: true, redirectTo: "/dashboard/get-connected" });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Completion failed";
     return Response.json({ error: message }, { status: 400 });

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { getDb } from "@/lib/providers";
 import { Badge, Card } from "@/components/ui";
 import { SupportForm } from "./support-form";
+import { SupportWithChecklist } from "./checklist";
 
 export default async function SupportDashPage() {
   const user = await requireUser();
@@ -28,7 +29,7 @@ export default async function SupportDashPage() {
   return (
     <div className="space-y-6">
       <h1 className="font-display text-3xl">Support</h1>
-      <SupportForm />
+      <SupportWithChecklist />
       <div className="space-y-4">
         {withMessages.map((t) => (
           <Card key={t.id}>

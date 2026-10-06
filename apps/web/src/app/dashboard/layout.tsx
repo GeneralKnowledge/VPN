@@ -6,6 +6,7 @@ import { LogoutButton } from "./logout-button";
 
 const customerNav = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/dashboard/get-connected", label: "Get connected" },
   { href: "/dashboard/vpn", label: "VPN" },
   { href: "/dashboard/locations", label: "Locations" },
   { href: "/dashboard/devices", label: "Devices" },
