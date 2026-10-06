@@ -225,6 +225,24 @@ describe("VPN lifecycle services", () => {
     await close();
   });
 
+  it("refuses VPN provision without an active subscription", async () => {
+    await db.insert(users).values({
+      id: "user_f",
+      email: "f@test.local",
+      passwordHash: "x",
+      role: "customer",
+      lifecycle: "customer",
+      referralCode: "NORTH-F",
+    });
+
+    await expect(provisionVpnForUser(db, vpn, email, "user_f", "c9")).rejects.toThrow(
+      /Active subscription required/,
+    );
+    const accounts = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, "user_f"));
+    expect(accounts).toHaveLength(0);
+    await close();
+  });
+
   it("provider failure leaves structured error then reconcile repairs", async () => {
     await db.insert(users).values({
       id: "user_e",

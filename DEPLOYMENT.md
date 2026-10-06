@@ -26,7 +26,8 @@ External APIs
    VPNRESELLERS_PROJECT_ID=...   # optional
    ```
 5. Set `CRON_SECRET` and schedule `POST /api/reconcile` with `Authorization: Bearer $CRON_SECRET` (e.g. every 5–15 minutes)
-6. Optionally activate Stripe / SMTP later via `BILLING_PROVIDER` / `EMAIL_PROVIDER`
+6. Set `STRIPE_WEBHOOK_SECRET` if `/api/webhooks/stripe` is reachable (required even for `BILLING_PROVIDER=mock`; empty secret rejects all webhook activations)
+7. Optionally activate Stripe / SMTP later via `BILLING_PROVIDER` / `EMAIL_PROVIDER`
 7. Replace legal drafts; complete privacy review
 8. Enable monitoring (`ERROR_REPORTER=sentry` when DSN set)
 

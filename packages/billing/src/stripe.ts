@@ -86,8 +86,9 @@ export class StripeBillingProvider implements BillingProvider {
     if (!signature) {
       throw new BillingProviderError("Missing Stripe-Signature header", "unauthorized");
     }
-    // Production: stripe.webhooks.constructEvent(payload, signature, secret)
-    // Without credentials we only validate shape for tests that inject a stub.
+    // Production: stripe.webhooks.constructEvent(payload, signature, secret).
+    // Until the Stripe SDK is wired, never treat a signature as valid — a "t="
+    // prefix check is forgeable and must not activate subscriptions.
     let data: unknown;
     try {
       data = JSON.parse(payload);
@@ -98,7 +99,7 @@ export class StripeBillingProvider implements BillingProvider {
       id: (data as { id?: string }).id ?? "evt_unknown",
       type: (data as { type?: string }).type ?? "unknown",
       data,
-      signatureValid: signature.startsWith("t="),
+      signatureValid: false,
     };
   }
 }

@@ -94,6 +94,7 @@ export async function provisionVpnForUser(
   email: EmailProvider,
   userId: string,
   correlationId: string,
+  options?: { bypassSubscriptionCheck?: boolean },
 ) {
   const existing = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, userId)).limit(1);
   if (existing[0]?.status === "active" && isRealProviderId(existing[0].providerAccountId)) {
@@ -106,11 +107,15 @@ export async function provisionVpnForUser(
 
   const subs = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
   const billingSub = subs.find((s) => s.status === "active" || s.status === "trialing");
-  if (
-    billingSub &&
-    !canProvisionVpn(user.lifecycle as CustomerLifecycle, billingSub.status as SubscriptionStatus)
-  ) {
-    throw new Error("VPN provisioning not allowed for current subscription state");
+  if (!options?.bypassSubscriptionCheck) {
+    if (!billingSub) {
+      throw new Error("Active subscription required for VPN provisioning");
+    }
+    if (
+      !canProvisionVpn(user.lifecycle as CustomerLifecycle, billingSub.status as SubscriptionStatus)
+    ) {
+      throw new Error("VPN provisioning not allowed for current subscription state");
+    }
   }
 
   const username = existing[0]?.username || stableUsername(userId);
