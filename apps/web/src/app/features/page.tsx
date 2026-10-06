@@ -9,7 +9,7 @@ export default function FeaturesPage() {
     { title: "Device management", body: "Add, rename, and revoke devices within your plan limit." },
     { title: "Self-serve billing", body: "Subscribe, cancel at period end, or resume from your dashboard." },
     { title: "Support tickets", body: "Contact the team without third-party helpdesk accounts in development." },
-    { title: "Referrals", body: "Share a referral code. Reward payouts can be added later without redesign." },
+    { title: "Referrals", body: "Share your code. Every few paying friends earns you a free month of Premium — plus a light leaderboard." },
   ];
   return (
     <MarketingPage title="Features" description="What you get with a Northstar subscription.">

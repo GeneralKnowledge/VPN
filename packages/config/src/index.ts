@@ -81,6 +81,22 @@ export const plans: Plan[] = [
       "Lower annual rate",
     ],
   },
+  {
+    id: "premium-referral",
+    name: "Northstar Premium (Referral)",
+    description: "Complimentary Premium earned via paying referrals. Not sold directly.",
+    price: 0,
+    currency: "GBP",
+    billingInterval: "month",
+    maxDevices: 5,
+    active: true,
+    features: [
+      "Up to 5 devices",
+      "All available locations",
+      "WireGuard & OpenVPN configs",
+      "Earned via referrals — not a paid checkout plan",
+    ],
+  },
 ];
 
 export function getPlan(id: string): Plan | undefined {
@@ -88,10 +104,31 @@ export function getPlan(id: string): Plan | undefined {
 }
 
 export function formatPrice(plan: Plan): string {
+  if (plan.price === 0) return "Free";
   const major = (plan.price / 100).toFixed(2);
   const suffix = plan.billingInterval === "month" ? "/month" : "/year";
   return `£${major}${suffix}`;
 }
+
+/** Paid plans shown on the marketing pricing page. */
+export function purchasablePlans(): Plan[] {
+  return plans.filter((p) => p.active && p.price > 0);
+}
+
+/**
+ * Referral rewards — change here, not in UI copy scattered around the app.
+ * Every `payingReferralsRequired` converted paying friends grants `rewardMonths`
+ * of complimentary Premium (plan id `rewardPlanId`).
+ */
+export const referralProgram = {
+  payingReferralsRequired: 3,
+  rewardPlanId: "premium-referral",
+  rewardMonths: 1,
+  leaderboardSize: 10,
+} as const;
+
+export type ReferralProgram = typeof referralProgram;
+
 
 const providerEnum = z.enum(["mock", "vpnresellers", "stripe", "smtp", "posthog", "console", "sentry"]);
 

@@ -72,6 +72,7 @@ export function SiteFooter() {
             <li><Link href="/about">About</Link></li>
             <li><Link href="/contact">Contact</Link></li>
             <li><Link href="/support">Support</Link></li>
+            <li><Link href="/leaderboard">Referrals</Link></li>
           </ul>
         </div>
         <div>

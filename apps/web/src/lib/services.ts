@@ -1,4 +1,5 @@
 import { nextLifecycleAfterPayment, nextLifecycleAfterVpnProvisioned } from "@northstar/billing";
+import { referralProgram } from "@northstar/config";
 import {
   auditEvents,
   payments,
@@ -12,6 +13,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { EmailProvider } from "@northstar/email";
 import { VpnProviderError, type VPNProvider, type VpnAccount } from "@northstar/vpn-provider";
 import { writeAudit } from "./auth";
+import { onReferredUserPaid } from "./referrals";
 import { newId } from "./utils";
 
 /** How long a `pending` claim may block other workers before it is considered stale. */
@@ -347,6 +349,14 @@ export async function activateSubscription(
   });
 
   await provisionVpnForUser(db, vpn, email, input.userId, input.correlationId);
+
+  // Paying checkout only — complimentary referral grants must not count as "paid referrals".
+  if (input.amount > 0 && input.planId !== referralProgram.rewardPlanId) {
+    const { reward } = await onReferredUserPaid(db, email, input.userId, input.correlationId);
+    if (reward.granted) {
+      await provisionVpnForUser(db, vpn, email, reward.referrerUserId, input.correlationId);
+    }
+  }
 
   await db
     .update(users)

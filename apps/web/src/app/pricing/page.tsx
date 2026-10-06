@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatPrice, plans } from "@northstar/config";
+import { formatPrice, purchasablePlans } from "@northstar/config";
 import { MarketingPage } from "@/components/marketing-page";
 import { Button } from "@/components/ui";
 
@@ -9,10 +9,10 @@ export default function PricingPage() {
   return (
     <MarketingPage
       title="Pricing"
-      description="Transparent plans. Prices live in configuration and can be changed without redesigning the product."
+      description="Transparent plans. Prices live in configuration and can be changed without redesigning the product. Earn free months via referrals."
     >
       <div className="grid gap-6 md:grid-cols-2">
-        {plans.filter((p) => p.active).map((plan) => (
+        {purchasablePlans().map((plan) => (
           <div key={plan.id} className="rounded-2xl border border-border bg-surface p-6">
             <h2 className="font-display text-2xl">{plan.name}</h2>
             <p className="mt-2 font-display text-4xl">{formatPrice(plan)}</p>
@@ -28,6 +28,13 @@ export default function PricingPage() {
           </div>
         ))}
       </div>
+      <p className="mt-8 text-sm text-muted">
+        Prefer free Premium? Invite friends on the{" "}
+        <Link href="/leaderboard" className="text-sea hover:underline">
+          referral leaderboard
+        </Link>
+        .
+      </p>
     </MarketingPage>
   );
 }

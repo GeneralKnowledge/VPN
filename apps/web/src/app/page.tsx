@@ -108,21 +108,28 @@ export default async function HomePage() {
             <h2 className="font-display text-3xl">Simple pricing</h2>
             <p className="mt-2 text-muted">No artificial discounts. Change prices in configuration.</p>
             <div className="mt-8 grid gap-6 md:grid-cols-2">
-              {[monthly, annual].map((plan) => (
-                <div key={plan.id} className="rounded-2xl border border-border bg-background p-6">
-                  <p className="text-sm text-muted">{plan.billingInterval === "month" ? "Monthly" : "Annual"}</p>
-                  <p className="mt-2 font-display text-4xl">{formatPrice(plan)}</p>
-                  <p className="mt-2 text-sm text-muted">{plan.description}</p>
-                  <ul className="mt-6 space-y-2 text-sm">
-                    {plan.features.map((f) => (
-                      <li key={f}>· {f}</li>
-                    ))}
-                  </ul>
-                  <Link href={`/register?plan=${plan.id}`} className="mt-6 inline-block">
-                    <Button className="w-full sm:w-auto">Choose {plan.billingInterval}</Button>
-                  </Link>
-                </div>
-              ))}
+            {[monthly, annual].map((plan) => (
+              <div key={plan.id} className="rounded-2xl border border-border bg-background p-6">
+                <p className="text-sm text-muted">{plan.billingInterval === "month" ? "Monthly" : "Annual"}</p>
+                <p className="mt-2 font-display text-4xl">{formatPrice(plan)}</p>
+                <p className="mt-2 text-sm text-muted">{plan.description}</p>
+                <ul className="mt-6 space-y-2 text-sm">
+                  {plan.features.map((f) => (
+                    <li key={f}>· {f}</li>
+                  ))}
+                </ul>
+                <Link href={`/register?plan=${plan.id}`} className="mt-6 inline-block">
+                  <Button className="w-full sm:w-auto">Choose {plan.billingInterval}</Button>
+                </Link>
+              </div>
+            ))}
+            <p className="md:col-span-2 text-sm text-muted">
+              Earn free months when friends subscribe — see the{" "}
+              <Link href="/leaderboard" className="text-sea hover:underline">
+                referral leaderboard
+              </Link>
+              .
+            </p>
             </div>
           </div>
         </section>

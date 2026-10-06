@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPrice, getPlan, plans } from "./index";
+import { formatPrice, getPlan, plans, purchasablePlans, referralProgram } from "./index";
 
 describe("plans", () => {
   it("exposes active monthly and annual plans", () => {
@@ -11,5 +11,15 @@ describe("plans", () => {
   it("formats GBP prices without fake discounts", () => {
     expect(formatPrice(getPlan("premium-monthly")!)).toBe("£4.99/month");
     expect(formatPrice(getPlan("premium-annual")!)).toBe("£39.99/year");
+  });
+
+  it("hides zero-price referral plan from purchasable list", () => {
+    expect(purchasablePlans().every((p) => p.price > 0)).toBe(true);
+    expect(getPlan("premium-referral")?.price).toBe(0);
+  });
+
+  it("configures referral threshold", () => {
+    expect(referralProgram.payingReferralsRequired).toBeGreaterThan(0);
+    expect(referralProgram.rewardPlanId).toBe("premium-referral");
   });
 });

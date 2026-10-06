@@ -134,6 +134,75 @@ export async function seed() {
     status: "pending",
   });
 
+  // Extra users so the referral leaderboard has something to show in mock mode
+  const rivalId = id("user");
+  const paidFriendIds = [id("user"), id("user"), id("user")];
+  const friendHash = await bcrypt.hash("FriendDev123!", 10);
+  await db.insert(schema.users).values([
+    {
+      id: rivalId,
+      email: "river@northstar.local",
+      emailVerifiedAt: new Date(),
+      passwordHash: await bcrypt.hash("RiverDev123!", 10),
+      name: "River Referrer",
+      role: "customer",
+      lifecycle: "active",
+      referralCode: referralCode(),
+    },
+    ...paidFriendIds.map((fid, i) => ({
+      id: fid,
+      email: `friend${i + 1}@northstar.local`,
+      emailVerifiedAt: new Date(),
+      passwordHash: friendHash,
+      name: `Friend ${i + 1}`,
+      role: "customer" as const,
+      lifecycle: "active" as const,
+      referralCode: referralCode(),
+      referredByUserId: rivalId,
+    })),
+  ]);
+
+  await db.insert(schema.referrals).values(
+    paidFriendIds.map((fid) => ({
+      id: id("ref"),
+      referrerUserId: rivalId,
+      referredUserId: fid,
+      status: "rewarded" as const,
+      convertedAt: new Date(),
+      rewardJson: JSON.stringify({
+        type: "free_premium_months",
+        months: 1,
+        planId: "premium-referral",
+        threshold: 3,
+      }),
+    })),
+  );
+
+  // Ada has two converted (not yet rewarded) so leaderboard shows progress
+  const adaFriends = [id("user"), id("user")];
+  await db.insert(schema.users).values(
+    adaFriends.map((fid, i) => ({
+      id: fid,
+      email: `adafriend${i + 1}@northstar.local`,
+      emailVerifiedAt: new Date(),
+      passwordHash: friendHash,
+      name: `AdaFriend ${i + 1}`,
+      role: "customer" as const,
+      lifecycle: "active" as const,
+      referralCode: referralCode(),
+      referredByUserId: customerId,
+    })),
+  );
+  await db.insert(schema.referrals).values(
+    adaFriends.map((fid) => ({
+      id: id("ref"),
+      referrerUserId: customerId,
+      referredUserId: fid,
+      status: "converted" as const,
+      convertedAt: new Date(),
+    })),
+  );
+
   const subId = id("sub");
   const periodEnd = new Date();
   periodEnd.setMonth(periodEnd.getMonth() + 1);

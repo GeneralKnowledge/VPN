@@ -25,7 +25,7 @@ function RegisterForm() {
         password: form.get("password"),
         name: form.get("name"),
         planId: params.get("plan") ?? undefined,
-        referralCode: form.get("referralCode") || undefined,
+        referralCode: form.get("referralCode") || params.get("ref") || undefined,
       }),
     });
     const data = await res.json();
@@ -54,7 +54,12 @@ function RegisterForm() {
       </div>
       <div>
         <Label htmlFor="referralCode">Referral code (optional)</Label>
-        <Input id="referralCode" name="referralCode" placeholder="NORTH-ABCD123" />
+        <Input
+          id="referralCode"
+          name="referralCode"
+          placeholder="NORTH-ABCD123"
+          defaultValue={params.get("ref") ?? ""}
+        />
       </div>
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       <Button type="submit" className="w-full" disabled={loading}>
