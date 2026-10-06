@@ -134,8 +134,10 @@ export const vpnAccounts = sqliteTable(
     status: text("status", {
       enum: ["pending", "active", "disabled", "expired", "error"],
     }).notNull(),
+    /** Structured JSON diagnostics for admins — never show raw to customers */
     lastError: text("last_error"),
     provisionAttempts: integer("provision_attempts").notNull().default(0),
+    lastReconciledAt: integer("last_reconciled_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
   (t) => [
@@ -393,6 +395,7 @@ export const checkoutSessions = sqliteTable(
   },
   (t) => [
     uniqueIndex("checkout_provider_session_uidx").on(t.providerSessionId),
+    uniqueIndex("checkout_idempotency_uidx").on(t.idempotencyKey),
     index("checkout_user_idx").on(t.userId),
   ],
 );

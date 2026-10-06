@@ -2,7 +2,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import { devices, vpnAccounts, vpnConnections, vpnLocations } from "@northstar/db";
 import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
-import { getDb, getVpnProvider, track } from "@/lib/providers";
+import { customerErrorResponse } from "@/lib/http";
+import { getDb, track } from "@/lib/providers";
 import { correlationId, newId } from "@/lib/utils";
 
 const createSchema = z.object({
@@ -24,6 +25,7 @@ export async function GET() {
         locationId: vpnConnections.locationId,
         city: vpnLocations.city,
         country: vpnLocations.country,
+        countryCode: vpnLocations.countryCode,
         lastUsedAt: vpnConnections.lastUsedAt,
         revokedAt: vpnConnections.revokedAt,
         createdAt: vpnConnections.createdAt,
@@ -45,12 +47,15 @@ export async function POST(req: Request) {
     const db = getDb();
     const account = (await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, user.id)).limit(1))[0];
     if (!account || account.status !== "active") {
-      return Response.json({ error: "VPN account not provisioned" }, { status: 400 });
+      return Response.json({ error: "Your VPN is not ready yet. Please try again shortly." }, { status: 400 });
     }
     const location = (
       await db.select().from(vpnLocations).where(eq(vpnLocations.id, body.data.locationId)).limit(1)
     )[0];
     if (!location) return Response.json({ error: "Location not found" }, { status: 404 });
+    if (location.status === "offline") {
+      return Response.json({ error: "That location is temporarily unavailable." }, { status: 400 });
+    }
 
     const connId = newId("conn");
     await db.insert(vpnConnections).values({
@@ -84,10 +89,9 @@ export async function POST(req: Request) {
       metadata: { locationId: location.id, protocol: body.data.protocol },
     });
     track({ name: "location_selected", userId: user.id, properties: { locationId: location.id } });
-    void getVpnProvider;
     return Response.json({ id: connId });
   } catch (err) {
-    return Response.json({ error: err instanceof Error ? err.message : "Failed" }, { status: 400 });
+    return customerErrorResponse(err, "connection");
   }
 }
 

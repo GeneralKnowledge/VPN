@@ -26,7 +26,7 @@ export async function seed() {
   const databaseUrl = process.env.DATABASE_URL ?? "file:./data/northstar.db";
   migrate(databaseUrl);
 
-  const { db, sqlite } = createDb(databaseUrl);
+  const { db, sqlite, close } = createDb(databaseUrl);
 
   // Clear for deterministic seed in development
   const tables = [
@@ -259,7 +259,7 @@ export async function seed() {
   void createHash;
   void eq;
 
-  sqlite.close();
+  close();
 }
 
 const isDirect = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);

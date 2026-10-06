@@ -51,32 +51,52 @@ export interface CreateAccountInput {
   /** Our internal user id for correlation */
   externalCustomerId: string;
   expiresAt?: string;
+  /** Optional email for provider-side customer linkage */
+  email?: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 export interface CreateConnectionInput {
   accountId: string;
+  /** Provider server id (vpnLocations.providerId), not local DB id */
   locationId: string;
   protocol: VpnProtocol;
   name?: string;
 }
 
+export type VpnProviderErrorCode =
+  | "unauthorized"
+  | "not_found"
+  | "validation"
+  | "insufficient_balance"
+  | "timeout"
+  | "unavailable"
+  | "conflict"
+  | "rate_limited"
+  | "unknown";
+
 export class VpnProviderError extends Error {
   constructor(
     message: string,
-    public readonly code:
-      | "unauthorized"
-      | "not_found"
-      | "validation"
-      | "insufficient_balance"
-      | "timeout"
-      | "unavailable"
-      | "conflict"
-      | "unknown",
+    public readonly code: VpnProviderErrorCode,
     public readonly retryable = false,
     public readonly cause?: unknown,
+    public readonly httpStatus?: number,
+    public readonly operation?: string,
   ) {
     super(message);
     this.name = "VpnProviderError";
+  }
+
+  toDiagnostic(): Record<string, unknown> {
+    return {
+      code: this.code,
+      message: this.message,
+      retryable: this.retryable,
+      httpStatus: this.httpStatus ?? null,
+      operation: this.operation ?? null,
+    };
   }
 }
 
@@ -90,6 +110,8 @@ export interface VPNProvider {
   listLocations(): Promise<VpnLocation[]>;
   createAccount(input: CreateAccountInput): Promise<VpnAccount>;
   getAccount(providerAccountId: string): Promise<VpnAccount>;
+  /** Resolve an existing account by username (idempotent provisioning). */
+  findAccountByUsername(username: string): Promise<VpnAccount | null>;
   suspendAccount(providerAccountId: string): Promise<VpnAccount>;
   reactivateAccount(providerAccountId: string): Promise<VpnAccount>;
   deleteAccount(providerAccountId: string): Promise<void>;
@@ -98,3 +120,13 @@ export interface VPNProvider {
 }
 
 export type VPNProviderKind = "mock" | "vpnresellers";
+
+/** Safe customer-facing copy — never expose raw provider messages. */
+export const CUSTOMER_VPN_ERROR =
+  "We couldn’t complete that VPN action. Please try again.";
+
+export const CUSTOMER_CONNECTION_ERROR =
+  "We couldn’t create your VPN connection. Please try again.";
+
+export const CUSTOMER_CONFIG_ERROR =
+  "We couldn’t download your configuration. Please try again.";

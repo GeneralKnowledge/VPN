@@ -10,6 +10,7 @@ import {
   vpnLocations,
 } from "@northstar/db";
 import { requireUser } from "@/lib/auth";
+import { customerVpnStatusLabel } from "@/lib/http";
 import { getDb } from "@/lib/providers";
 import { Badge, Button, Card } from "@/components/ui";
 import { QuickConnect } from "./quick-connect";
@@ -30,7 +31,11 @@ export default async function DashboardHome() {
     .select()
     .from(devices)
     .where(and(eq(devices.userId, user.id), isNull(devices.revokedAt)));
-  const locations = await db.select().from(vpnLocations).limit(20);
+  const locations = await db
+    .select()
+    .from(vpnLocations)
+    .where(eq(vpnLocations.status, "online"))
+    .limit(20);
   const recent = await db
     .select()
     .from(auditEvents)
@@ -61,8 +66,8 @@ export default async function DashboardHome() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <p className="text-sm text-muted">VPN</p>
-          <p className="mt-2 font-display text-2xl">{vpnReady ? "Provisioned" : "Not connected"}</p>
-          <Badge tone={vpnReady ? "success" : "warning"}>{vpn?.status ?? "none"}</Badge>
+          <p className="mt-2 font-display text-2xl">{customerVpnStatusLabel(vpn?.status)}</p>
+          <Badge tone={vpnReady ? "success" : "warning"}>{customerVpnStatusLabel(vpn?.status)}</Badge>
         </Card>
         <Card>
           <p className="text-sm text-muted">Plan</p>
@@ -85,9 +90,16 @@ export default async function DashboardHome() {
 
       <Card>
         <h2 className="font-display text-xl">Quick Connect</h2>
-        <p className="mt-1 text-sm text-muted">Create a device connection and download a mock configuration.</p>
+        <p className="mt-1 text-sm text-muted">Pick a location and download a configuration for your device.</p>
         {vpnReady ? (
-          <QuickConnect locations={locations.map((l) => ({ id: l.id, city: l.city, country: l.country }))} />
+          <QuickConnect
+            locations={locations.map((l) => ({
+              id: l.id,
+              city: l.city,
+              country: l.country,
+              countryCode: l.countryCode,
+            }))}
+          />
         ) : (
           <div className="mt-4">
             <Link href="/dashboard/billing">

@@ -9,8 +9,8 @@ function monorepoRoot(): string {
 
 export function reset(databaseUrl = process.env.DATABASE_URL ?? "file:./data/northstar.db") {
   process.env.NORTHSTAR_ROOT = process.env.NORTHSTAR_ROOT ?? monorepoRoot();
-  const { filePath, sqlite } = createDb(databaseUrl);
-  sqlite.close();
+  const { filePath, close } = createDb(databaseUrl);
+  close();
   for (const p of [filePath, `${filePath}-wal`, `${filePath}-shm`]) {
     if (fs.existsSync(p)) fs.unlinkSync(p);
   }

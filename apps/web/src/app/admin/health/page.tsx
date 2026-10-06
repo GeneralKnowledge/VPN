@@ -8,9 +8,11 @@ export default async function AdminHealthPage() {
   const env = getEnv();
   let database: { ok: boolean; detail?: string } = { ok: true };
   try {
-    const { sqlite } = createDb(env.DATABASE_URL);
-    sqlite.prepare("select 1").get();
-    sqlite.close();
+    const client = createDb(env.DATABASE_URL);
+    if (client.sqlite) {
+      client.sqlite.prepare("select 1").get();
+    }
+    client.close();
   } catch (err) {
     database = { ok: false, detail: err instanceof Error ? err.message : "error" };
   }

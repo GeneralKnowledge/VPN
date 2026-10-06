@@ -1,17 +1,28 @@
 import { createBillingProvider, type BillingProvider } from "@northstar/billing";
 import { parseEnv, type AppEnv } from "@northstar/config";
 import { createDb, type Db } from "@northstar/db";
+import { createPostgresDb } from "@northstar/db/postgres";
 import { createEmailProvider, type EmailProvider } from "@northstar/email";
 import { createVPNProvider, type VPNProvider } from "@northstar/vpn-provider";
 import path from "node:path";
 
 const globalStore = globalThis as unknown as {
   northstarEnv?: AppEnv;
-  northstarDb?: { db: Db; sqlite: { close: () => void } };
+  northstarDb?: { db: Db; close?: () => void };
   northstarVpn?: VPNProvider;
   northstarBilling?: BillingProvider;
   northstarEmail?: EmailProvider;
 };
+
+function assertProductionEnv(env: AppEnv) {
+  if (env.APP_ENV !== "production") return;
+  if (env.AUTH_SECRET.includes("dev-only") || env.AUTH_SECRET.length < 32) {
+    throw new Error("Production AUTH_SECRET must be a strong secret (32+ chars, not the dev default)");
+  }
+  if (env.VPN_PROVIDER === "vpnresellers" && !env.VPNRESELLERS_API_TOKEN) {
+    throw new Error("VPN_PROVIDER=vpnresellers requires VPNRESELLERS_API_TOKEN in production");
+  }
+}
 
 export function getEnv(): AppEnv {
   if (!globalStore.northstarEnv) {
@@ -25,7 +36,9 @@ export function getEnv(): AppEnv {
     if (!process.env.AUTH_SECRET) {
       process.env.AUTH_SECRET = "dev-only-change-me-in-production-use-openssl-rand";
     }
-    globalStore.northstarEnv = parseEnv(process.env);
+    const env = parseEnv(process.env);
+    assertProductionEnv(env);
+    globalStore.northstarEnv = env;
   }
   return globalStore.northstarEnv;
 }
@@ -33,7 +46,13 @@ export function getEnv(): AppEnv {
 export function getDb() {
   if (!globalStore.northstarDb) {
     getEnv();
-    globalStore.northstarDb = createDb(process.env.DATABASE_URL);
+    const url = process.env.DATABASE_URL ?? "file:./data/northstar.db";
+    if (url.startsWith("postgres://") || url.startsWith("postgresql://")) {
+      const pg = createPostgresDb(url);
+      globalStore.northstarDb = { db: pg.db as unknown as Db, close: pg.close };
+    } else {
+      globalStore.northstarDb = createDb(url);
+    }
   }
   return globalStore.northstarDb.db;
 }
@@ -45,6 +64,7 @@ export function getVpnProvider() {
       apiUrl: env.VPNRESELLERS_API_URL,
       apiToken: env.VPNRESELLERS_API_TOKEN,
       timeoutMs: env.VPNRESELLERS_TIMEOUT_MS,
+      projectId: env.VPNRESELLERS_PROJECT_ID,
     });
   }
   return globalStore.northstarVpn;
@@ -79,6 +99,21 @@ export function getEmailProvider() {
   return globalStore.northstarEmail;
 }
 
+const SENSITIVE_KEY = /password|secret|token|key|credential|private|authorization|api[_-]?key|session/i;
+
+function redactProperties(
+  properties?: Record<string, string | number | boolean | null>,
+): Record<string, string | number | boolean | null> | undefined {
+  if (!properties) return undefined;
+  const out: Record<string, string | number | boolean | null> = {};
+  for (const [k, v] of Object.entries(properties)) {
+    if (SENSITIVE_KEY.test(k)) continue;
+    if (typeof v === "string" && (v.includes("BEGIN ") || v.includes("PrivateKey"))) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 export interface AnalyticsEvent {
   name: string;
   properties?: Record<string, string | number | boolean | null>;
@@ -87,17 +122,24 @@ export interface AnalyticsEvent {
 
 export function track(event: AnalyticsEvent) {
   const env = getEnv();
+  const safe = { ...event, properties: redactProperties(event.properties) };
   if (env.ANALYTICS_PROVIDER === "mock") {
-    console.info("[analytics:mock]", event);
+    console.info("[analytics:mock]", safe);
     return;
   }
-  console.info("[analytics]", event.name);
+  console.info("[analytics]", safe.name);
 }
 
 export function reportError(error: unknown, context?: Record<string, unknown>) {
   const env = getEnv();
   const message = error instanceof Error ? error.message : String(error);
-  const safe = { message, ...context };
+  const safeContext = context ? { ...context } : undefined;
+  if (safeContext) {
+    for (const key of Object.keys(safeContext)) {
+      if (SENSITIVE_KEY.test(key)) delete safeContext[key];
+    }
+  }
+  const safe = { message, ...safeContext };
   if (env.ERROR_REPORTER === "console") {
     console.error("[error]", safe);
     return;

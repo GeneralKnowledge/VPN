@@ -106,6 +106,8 @@ export const envSchema = z.object({
   VPNRESELLERS_API_URL: z.string().url().default("https://api.vpnresellers.com/v4_1"),
   VPNRESELLERS_API_TOKEN: z.string().optional().default(""),
   VPNRESELLERS_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  VPNRESELLERS_PROJECT_ID: z.coerce.number().int().positive().optional(),
+  CRON_SECRET: z.string().optional().default(""),
   BILLING_PROVIDER: z.enum(["mock", "stripe"]).default("mock"),
   STRIPE_SECRET_KEY: z.string().optional().default(""),
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(""),

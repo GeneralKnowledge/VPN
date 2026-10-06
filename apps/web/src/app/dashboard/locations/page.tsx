@@ -1,34 +1,77 @@
-import { vpnLocations } from "@northstar/db";
+import { vpnAccounts, vpnLocations } from "@northstar/db";
+import { eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
-import { getDb } from "@/lib/providers";
+import { getDb, getEnv, getVpnProvider } from "@/lib/providers";
+import { syncLocationsFromProvider } from "@/lib/services";
 import { Badge, Card } from "@/components/ui";
 import { CreateConnectionForm } from "./create-form";
 
+function flagEmoji(countryCode: string): string {
+  const code = countryCode.toUpperCase();
+  if (code.length !== 2) return "🌐";
+  const A = 0x1f1e6;
+  return String.fromCodePoint(A + code.charCodeAt(0) - 65, A + code.charCodeAt(1) - 65);
+}
+
 export default async function LocationsDashPage() {
-  await requireUser();
+  const user = await requireUser();
   const db = getDb();
-  const locations = await db.select().from(vpnLocations);
+  const env = getEnv();
+  const [account] = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, user.id)).limit(1);
+
+  let locations = await db.select().from(vpnLocations);
+  if (
+    locations.length === 0 ||
+    (env.VPN_PROVIDER === "vpnresellers" && locations.every((l) => l.isFixture))
+  ) {
+    try {
+      await syncLocationsFromProvider(db, getVpnProvider(), env.VPN_PROVIDER === "vpnresellers");
+      locations = await db.select().from(vpnLocations);
+    } catch {
+      // keep fixtures
+    }
+  }
+
+  const visible = locations.filter((l) => l.status !== "offline");
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-3xl">Locations</h1>
-        <p className="mt-1 text-sm text-muted">
-          Fixture locations for development. Live inventory comes from the VPN provider in production.
-        </p>
+        <p className="mt-1 text-sm text-muted">Choose a city, then connect. Configs download for your device.</p>
       </div>
-      <CreateConnectionForm locations={locations.map((l) => ({ id: l.id, label: `${l.city}, ${l.country}` }))} />
+      {account?.status !== "active" ? (
+        <Card>
+          <p className="text-sm text-muted">
+            Your VPN isn’t ready yet. Finish checkout or wait for setup to complete before connecting.
+          </p>
+        </Card>
+      ) : (
+        <CreateConnectionForm
+          locations={visible.map((l) => ({
+            id: l.id,
+            label: `${flagEmoji(l.countryCode)} ${l.country} — ${l.city}`,
+            countryCode: l.countryCode,
+            city: l.city,
+            country: l.country,
+          }))}
+        />
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
-        {locations.map((l) => (
+        {visible.map((l) => (
           <Card key={l.id}>
             <div className="flex items-start justify-between">
               <div>
-                <p className="font-medium">{l.city}</p>
+                <p className="font-medium">
+                  <span className="mr-2" aria-hidden>
+                    {flagEmoji(l.countryCode)}
+                  </span>
+                  {l.city}
+                </p>
                 <p className="text-sm text-muted">{l.country}</p>
               </div>
               <Badge tone={l.status === "online" ? "success" : "warning"}>{l.status}</Badge>
             </div>
-            <p className="mt-3 font-mono text-xs text-muted">{l.protocolSupportJson}</p>
           </Card>
         ))}
       </div>
