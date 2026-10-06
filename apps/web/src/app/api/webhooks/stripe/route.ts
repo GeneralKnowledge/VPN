@@ -11,7 +11,10 @@ export async function POST(req: Request) {
   const signature = req.headers.get("stripe-signature") ?? req.headers.get("x-northstar-signature");
   const billing = getBillingProvider();
   const event = await billing.verifyWebhook(raw, signature);
-  if (!event.signatureValid && process.env.APP_ENV === "production") {
+  // Always reject invalid signatures — including mock billing in development.
+  // Otherwise an attacker can POST checkout.session.completed for any userId
+  // and receive a free active subscription + VPN provision.
+  if (!event.signatureValid) {
     return Response.json({ error: "Invalid signature" }, { status: 401 });
   }
 
