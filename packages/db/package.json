@@ -1,0 +1,37 @@
+{
+  "name": "@northstar/db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'ok'",
+    "test": "vitest run",
+    "build": "tsc --noEmit",
+    "generate": "drizzle-kit generate",
+    "migrate": "tsx src/migrate.ts",
+    "seed": "tsx src/seed.ts",
+    "reset": "tsx src/reset.ts"
+  },
+  "dependencies": {
+    "@northstar/billing": "workspace:*",
+    "@northstar/config": "workspace:*",
+    "@northstar/vpn-provider": "workspace:*",
+    "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^11.8.1",
+    "drizzle-orm": "^0.40.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.12",
+    "drizzle-kit": "^0.30.5",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "northstar-vpn",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @northstar/web dev",
+    "build": "pnpm -r --filter @northstar/web... build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --filter './packages/**' test && pnpm --filter @northstar/web test",
+    "test:e2e": "pnpm --filter @northstar/web test:e2e",
+    "db:generate": "pnpm --filter @northstar/db generate",
+    "db:migrate": "NORTHSTAR_ROOT=$PWD pnpm --filter @northstar/db migrate",
+    "db:seed": "NORTHSTAR_ROOT=$PWD pnpm --filter @northstar/db seed",
+    "db:reset": "NORTHSTAR_ROOT=$PWD pnpm --filter @northstar/db reset",
+    "setup": "pnpm install && pnpm db:migrate && pnpm db:seed"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
