@@ -3,6 +3,7 @@ import {
   canProvisionVpn,
   createBillingProvider,
   MockBillingProvider,
+  StripeBillingProvider,
   nextLifecycleAfterCancel,
   nextLifecycleAfterPayment,
   nextLifecycleAfterPaymentFailed,
@@ -31,7 +32,7 @@ describe("subscription lifecycle", () => {
 
 describe("MockBillingProvider", () => {
   it("creates checkout idempotently and completes subscription", async () => {
-    const billing = new MockBillingProvider();
+    const billing = new MockBillingProvider("test-webhook-secret");
     const a = await billing.createCheckout({
       customerId: "u1",
       customerEmail: "a@test.local",
@@ -55,7 +56,44 @@ describe("MockBillingProvider", () => {
     expect(cancelled.status).toBe("cancelling");
   });
 
+  it("rejects forgeable mock webhook signatures (null / mock_ / wrong secret)", async () => {
+    const locked = new MockBillingProvider("super-secret-webhook");
+    const payload = JSON.stringify({
+      id: "evt_forge",
+      type: "mock.checkout.completed",
+      userId: "victim_user",
+      planId: "premium-monthly",
+    });
+
+    expect((await locked.verifyWebhook(payload, null)).signatureValid).toBe(false);
+    expect((await locked.verifyWebhook(payload, "mock_anything")).signatureValid).toBe(false);
+    expect((await locked.verifyWebhook(payload, "dev")).signatureValid).toBe(false);
+    expect((await locked.verifyWebhook(payload, "wrong")).signatureValid).toBe(false);
+    expect((await locked.verifyWebhook(payload, "super-secret-webhook")).signatureValid).toBe(true);
+
+    // Empty secret → never valid (fail closed)
+    const open = new MockBillingProvider("");
+    expect((await open.verifyWebhook(payload, null)).signatureValid).toBe(false);
+    expect((await open.verifyWebhook(payload, "dev")).signatureValid).toBe(false);
+  });
+
   it("selects providers", () => {
     expect(createBillingProvider("mock")).toBeInstanceOf(MockBillingProvider);
+    expect(createBillingProvider("mock", { webhookSecret: "x" })).toBeInstanceOf(MockBillingProvider);
+  });
+});
+
+describe("StripeBillingProvider webhook stub", () => {
+  it("never marks forgeable t= signatures as valid before SDK wiring", async () => {
+    const stripe = new StripeBillingProvider({
+      secretKey: "sk_test",
+      webhookSecret: "whsec_test",
+      priceMap: {},
+    });
+    const event = await stripe.verifyWebhook(
+      JSON.stringify({ id: "evt_1", type: "checkout.session.completed" }),
+      "t=123,v1=abcdef",
+    );
+    expect(event.signatureValid).toBe(false);
   });
 });

@@ -45,7 +45,10 @@ export async function POST(req: Request) {
 
     if (action === "provision") {
       try {
-        const row = await provisionVpnForUser(db, vpn, email, userId, cid);
+        // Admin may force-provision for support; customer paths still require billing.
+        const row = await provisionVpnForUser(db, vpn, email, userId, cid, {
+          bypassSubscriptionCheck: true,
+        });
         return Response.json({ ok: true, account: row });
       } catch (err) {
         return Response.json(

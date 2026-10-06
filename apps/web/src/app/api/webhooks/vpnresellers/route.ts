@@ -12,10 +12,12 @@ import { correlationId, newId } from "@/lib/utils";
 export async function POST(req: Request) {
   const raw = await req.text();
   const signature = req.headers.get("x-vpnresellers-signature") ?? req.headers.get("x-northstar-signature");
-  const signatureValid =
-    process.env.VPN_PROVIDER === "mock"
-      ? signature === null || signature.startsWith("mock_") || signature === "dev"
-      : Boolean(signature);
+  // Fail closed: no documented public VR webhooks; require an explicit shared secret.
+  const expected = process.env.VPNRESELLERS_WEBHOOK_SECRET || process.env.CRON_SECRET || "";
+  const signatureValid = Boolean(expected) && signature !== null && signature === expected;
+  if (!signatureValid) {
+    return Response.json({ error: "Invalid signature" }, { status: 401 });
+  }
 
   let parsed: { id?: string; type?: string };
   try {

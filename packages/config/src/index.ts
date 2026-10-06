@@ -110,7 +110,10 @@ export const envSchema = z.object({
   CRON_SECRET: z.string().optional().default(""),
   BILLING_PROVIDER: z.enum(["mock", "stripe"]).default("mock"),
   STRIPE_SECRET_KEY: z.string().optional().default(""),
+  /** Shared secret for /api/webhooks/stripe (required for valid signatures, mock or stripe). */
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(""),
+  /** Optional secret for /api/webhooks/vpnresellers; falls back to CRON_SECRET at the route. */
+  VPNRESELLERS_WEBHOOK_SECRET: z.string().optional().default(""),
   STRIPE_PUBLISHABLE_KEY: z.string().optional().default(""),
   STRIPE_PRICE_MONTHLY: z.string().optional().default(""),
   STRIPE_PRICE_ANNUAL: z.string().optional().default(""),

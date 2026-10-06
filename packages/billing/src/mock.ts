@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import type {
   BillingProvider,
   BillingSubscription,
@@ -13,11 +14,24 @@ function id(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 }
 
+/** Constant-time compare via SHA-256 digests (equal length). */
+function safeEqual(a: string, b: string): boolean {
+  const ah = createHash("sha256").update(a).digest();
+  const bh = createHash("sha256").update(b).digest();
+  return timingSafeEqual(ah, bh);
+}
+
 export class MockBillingProvider implements BillingProvider {
   private checkouts = new Map<string, CheckoutSession & { email: string }>();
   private subscriptions = new Map<string, BillingSubscription>();
   private invoices = new Map<string, Invoice[]>();
   private idempotency = new Map<string, CheckoutSession>();
+
+  /**
+   * Shared secret for mock webhooks (reuse STRIPE_WEBHOOK_SECRET in app wiring).
+   * Empty secret → all webhook signatures are invalid (fail closed).
+   */
+  constructor(private readonly webhookSecret = "") {}
 
   async getProviderStatus() {
     return { ok: true, provider: "mock", detail: "Mock billing operational" };
@@ -138,8 +152,12 @@ export class MockBillingProvider implements BillingProvider {
   }
 
   async verifyWebhook(payload: string, signature: string | null): Promise<BillingWebhookEvent> {
-    // Mock accepts any signature starting with mock_ or null in development
-    const signatureValid = signature === null || signature.startsWith("mock_") || signature === "dev";
+    // Fail closed: unsigned / guessable signatures must never activate billing.
+    const signatureValid =
+      Boolean(this.webhookSecret) &&
+      typeof signature === "string" &&
+      signature.length > 0 &&
+      safeEqual(signature, this.webhookSecret);
     let data: unknown;
     try {
       data = JSON.parse(payload);

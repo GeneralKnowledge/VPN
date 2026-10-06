@@ -10,7 +10,10 @@ export function createBillingProvider(
     priceMap?: Record<string, string>;
   },
 ): BillingProvider {
-  if (kind === "mock") return new MockBillingProvider();
+  if (kind === "mock") {
+    // Same shared secret env as Stripe — mock webhooks must not be forgeable.
+    return new MockBillingProvider(options?.webhookSecret ?? "");
+  }
   return new StripeBillingProvider({
     secretKey: options?.secretKey ?? "",
     webhookSecret: options?.webhookSecret ?? "",
