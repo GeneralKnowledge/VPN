@@ -48,7 +48,6 @@ export default async function AdminCustomersPage({
           </Card>
         ))}
       </div>
-      {void sql}
     </div>
   );
 }
