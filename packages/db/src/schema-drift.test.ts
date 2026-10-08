@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import Database from "better-sqlite3";
-import { getTableConfig } from "drizzle-orm/sqlite-core";
+import { is } from "drizzle-orm";
+import { SQLiteTable, getTableConfig } from "drizzle-orm/sqlite-core";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -18,10 +19,10 @@ describe("migration vs drizzle schema", () => {
   migrate(`file:${file}`);
   const sqlite = new Database(file, { readonly: true });
 
-  const tables = Object.values(schema).filter(
-    (v): v is Parameters<typeof getTableConfig>[0] =>
-      typeof v === "object" && v !== null && Symbol.for("drizzle:IsDrizzleTable") in v,
-  );
+  const tables: SQLiteTable[] = [];
+  for (const value of Object.values(schema) as unknown[]) {
+    if (is(value, SQLiteTable)) tables.push(value);
+  }
 
   it("covers every schema table", () => {
     expect(tables.length).toBeGreaterThan(10);
