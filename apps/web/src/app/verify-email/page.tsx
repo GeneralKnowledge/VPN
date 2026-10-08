@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Logo } from "@/components/logo";
+import { safeJson } from "@/lib/client";
 
 function VerifyInner() {
   const params = useSearchParams();
@@ -24,7 +25,7 @@ function VerifyInner() {
         setMsg("Email verified. Redirecting…");
         setTimeout(() => router.push("/dashboard"), 800);
       } else {
-        const data = await res.json();
+        const data = await safeJson(res);
         setMsg(data.error ?? "Verification failed");
       }
     });

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, Input, Label } from "@/components/ui";
+import { safeJson } from "@/lib/client";
 
 export function DeviceActions({ deviceId, name }: { deviceId?: string; name?: string }) {
   const router = useRouter();
@@ -18,11 +19,12 @@ export function DeviceActions({ deviceId, name }: { deviceId?: string; name?: st
           onClick={async () => {
             const next = window.prompt("Rename device", name);
             if (!next) return;
-            await fetch("/api/devices", {
+            const res = await fetch("/api/devices", {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ id: deviceId, name: next }),
             });
+            if (!res.ok) window.alert((await safeJson(res)).error ?? "Rename failed");
             router.refresh();
           }}
         >
@@ -34,7 +36,8 @@ export function DeviceActions({ deviceId, name }: { deviceId?: string; name?: st
           type="button"
           onClick={async () => {
             if (!window.confirm("Revoke this device?")) return;
-            await fetch(`/api/devices?id=${deviceId}`, { method: "DELETE" });
+            const res = await fetch(`/api/devices?id=${encodeURIComponent(deviceId)}`, { method: "DELETE" });
+            if (!res.ok) window.alert((await safeJson(res)).error ?? "Revoke failed");
             router.refresh();
           }}
         >
@@ -55,7 +58,7 @@ export function DeviceActions({ deviceId, name }: { deviceId?: string; name?: st
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: fd.get("name"), platform: fd.get("platform") }),
         });
-        const data = await res.json();
+        const data = await safeJson(res);
         if (!res.ok) {
           setError(data.error ?? "Failed");
           return;

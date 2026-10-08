@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState, Suspense } from "react";
 import { Logo } from "@/components/logo";
 import { Button, Input, Label } from "@/components/ui";
+import { safeJson } from "@/lib/client";
 
 function RegisterForm() {
   const router = useRouter();
@@ -28,7 +29,7 @@ function RegisterForm() {
         referralCode: form.get("referralCode") || undefined,
       }),
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     setLoading(false);
     if (!res.ok) {
       setError(data.error ?? "Registration failed");

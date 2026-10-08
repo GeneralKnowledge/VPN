@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { Logo } from "@/components/logo";
 import { Button, Input, Label } from "@/components/ui";
+import { safeJson } from "@/lib/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export default function LoginPage() {
         password: form.get("password"),
       }),
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     setLoading(false);
     if (!res.ok) {
       setError(data.error ?? "Login failed");

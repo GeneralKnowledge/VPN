@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
+import { emailVerificationRequired } from "@/lib/providers";
 import { Logo } from "@/components/logo";
 import { LogoutButton } from "./logout-button";
+import { VerifyEmailBanner } from "./verify-banner";
 
 const customerNav = [
   { href: "/dashboard", label: "Dashboard" },
@@ -30,6 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <LogoutButton />
         </div>
       </header>
+      {emailVerificationRequired() && !user.emailVerifiedAt ? <VerifyEmailBanner email={user.email} /> : null}
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row">
         <nav className="flex gap-2 overflow-x-auto pb-1 lg:w-48 lg:flex-col lg:overflow-visible">
           {customerNav.map((item) => (

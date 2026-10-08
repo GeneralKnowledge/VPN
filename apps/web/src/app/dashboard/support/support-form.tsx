@@ -1,28 +1,47 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Button, Input, Label } from "@/components/ui";
+import { safeJson } from "@/lib/client";
+
+async function send(payload: Record<string, unknown>): Promise<string | null> {
+  try {
+    const res = await fetch("/api/support", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) return null;
+    return (await safeJson(res)).error ?? "We couldn’t send that. Please try again.";
+  } catch {
+    return "Network error. Please try again.";
+  }
+}
 
 export function SupportForm({ ticketId }: { ticketId?: string }) {
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+
   if (ticketId) {
     return (
       <form
-        className="mt-4 flex gap-2"
+        className="mt-4 flex flex-wrap gap-2"
         onSubmit={async (e) => {
           e.preventDefault();
-          const fd = new FormData(e.currentTarget);
-          await fetch("/api/support", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ticketId, body: fd.get("body") }),
-          });
-          router.refresh();
-          e.currentTarget.reset();
+          const form = e.currentTarget;
+          const fd = new FormData(form);
+          const failure = await send({ ticketId, body: fd.get("body") });
+          setError(failure);
+          if (!failure) {
+            form.reset();
+            router.refresh();
+          }
         }}
       >
-        <Input name="body" placeholder="Reply…" required />
+        <Input name="body" placeholder="Reply…" required maxLength={5000} />
         <Button type="submit">Reply</Button>
+        {error ? <p className="w-full text-sm text-danger">{error}</p> : null}
       </form>
     );
   }
@@ -31,28 +50,30 @@ export function SupportForm({ ticketId }: { ticketId?: string }) {
       className="space-y-3 rounded-xl border border-border bg-surface p-4"
       onSubmit={async (e) => {
         e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        await fetch("/api/support", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ subject: fd.get("subject"), body: fd.get("body") }),
-        });
-        router.refresh();
-        e.currentTarget.reset();
+        const form = e.currentTarget;
+        const fd = new FormData(form);
+        const failure = await send({ subject: fd.get("subject"), body: fd.get("body") });
+        setError(failure);
+        if (!failure) {
+          form.reset();
+          router.refresh();
+        }
       }}
     >
       <div>
         <Label htmlFor="subject">New ticket</Label>
-        <Input id="subject" name="subject" required placeholder="Subject" />
+        <Input id="subject" name="subject" required maxLength={200} placeholder="Subject" />
       </div>
       <textarea
         name="body"
         required
         rows={3}
+        maxLength={5000}
         className="w-full rounded-md border border-border px-3 py-2 text-sm"
         placeholder="How can we help?"
       />
       <Button type="submit">Create ticket</Button>
+      {error ? <p className="text-sm text-danger">{error}</p> : null}
     </form>
   );
 }

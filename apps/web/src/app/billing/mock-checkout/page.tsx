@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Logo } from "@/components/logo";
 import { Button, Card } from "@/components/ui";
+import { safeJson } from "@/lib/client";
 
 function CheckoutInner() {
   const params = useSearchParams();
@@ -32,7 +33,7 @@ function CheckoutInner() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ sessionId }),
             });
-            const data = await res.json();
+            const data = await safeJson(res);
             setLoading(false);
             if (!res.ok) {
               setError(data.error ?? "Failed");

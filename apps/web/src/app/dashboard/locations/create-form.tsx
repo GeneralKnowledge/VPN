@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, Input, Label } from "@/components/ui";
+import { safeJson } from "@/lib/client";
 
 export function CreateConnectionForm({
   locations,
@@ -33,7 +34,7 @@ export function CreateConnectionForm({
             platform: fd.get("platform") || "other",
           }),
         });
-        const data = await res.json();
+        const data = await safeJson(res);
         if (!res.ok) {
           setError(data.error ?? "We couldn’t create your VPN connection. Please try again.");
           setLoading(false);
@@ -45,17 +46,21 @@ export function CreateConnectionForm({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ connectionId: data.id }),
         });
-        if (cfg.ok) {
-          const blob = await cfg.blob();
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download =
-            cfg.headers.get("Content-Disposition")?.split("filename=")[1]?.replaceAll('"', "") ??
-            "northstar.conf";
-          a.click();
-          URL.revokeObjectURL(url);
+        if (!cfg.ok) {
+          setError((await safeJson(cfg)).error ?? "Your connection was created but the configuration couldn’t be downloaded. Download it from Your VPN.");
+          setLoading(false);
+          router.refresh();
+          return;
         }
+        const blob = await cfg.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download =
+          cfg.headers.get("Content-Disposition")?.split("filename=")[1]?.replaceAll('"', "") ??
+          "northstar.conf";
+        a.click();
+        URL.revokeObjectURL(url);
         router.push("/dashboard/vpn");
         router.refresh();
       }}
