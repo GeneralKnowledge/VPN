@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui";
+import { safeJson } from "@/lib/client";
 
 export function AdminCustomerActions({
   userId,
@@ -25,7 +26,7 @@ export function AdminCustomerActions({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, action, ...extra }),
     });
-    const data = (await res.json()) as {
+    const data = (await safeJson(res)) as {
       ok?: boolean;
       error?: string;
       diagnostic?: unknown;

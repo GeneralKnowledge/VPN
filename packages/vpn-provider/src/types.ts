@@ -115,6 +115,8 @@ export interface VPNProvider {
   suspendAccount(providerAccountId: string): Promise<VpnAccount>;
   reactivateAccount(providerAccountId: string): Promise<VpnAccount>;
   deleteAccount(providerAccountId: string): Promise<void>;
+  /** Set a new password for the account's VPN credentials (used by OpenVPN username/password auth). */
+  changePassword(providerAccountId: string, password: string): Promise<void>;
   /** Generate downloadable connection configuration for a location/protocol */
   getConnectionConfig(input: CreateConnectionInput): Promise<VpnConnectionConfig>;
 }

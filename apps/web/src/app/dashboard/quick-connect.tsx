@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui";
+import { safeJson } from "@/lib/client";
 
 function flagEmoji(countryCode: string): string {
   const code = countryCode.toUpperCase();
@@ -34,7 +35,7 @@ export function QuickConnect({
         platform: "other",
       }),
     });
-    const created = await create.json();
+    const created = await safeJson(create);
     if (!create.ok) {
       setStatus(created.error ?? "We couldn’t create your VPN connection. Please try again.");
       setLoading(false);

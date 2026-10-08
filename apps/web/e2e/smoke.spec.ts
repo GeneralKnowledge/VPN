@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("marketing homepage loads", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("link", { name: /Northstar VPN/i }).first()).toBeVisible();
-  await expect(page.getByText(/Private internet access/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Private internet access/i })).toBeVisible();
 });
 
 test("customer can log in to dashboard", async ({ page }) => {

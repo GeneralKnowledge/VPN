@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { Logo } from "@/components/logo";
 import { Button, Input, Label } from "@/components/ui";
+import { safeJson } from "@/lib/client";
 
 export default function ForgotPasswordPage() {
   const [message, setMessage] = useState<string | null>(null);
@@ -17,7 +18,7 @@ export default function ForgotPasswordPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: form.get("email") }),
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     setMessage(data.message ?? "If that email exists, a reset link was sent.");
     setDevLink(data.devResetUrl ?? null);
   }

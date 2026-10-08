@@ -12,6 +12,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@next/env": "15.5.27",
     "@northstar/billing": "workspace:*",
     "@northstar/config": "workspace:*",
     "@northstar/db": "workspace:*",

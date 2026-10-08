@@ -3,10 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, Card, Input, Label } from "@/components/ui";
+import { safeJson } from "@/lib/client";
 
 export function AccountActions() {
   const router = useRouter();
   const [msg, setMsg] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -25,7 +28,7 @@ export function AccountActions() {
                 newPassword: fd.get("newPassword"),
               }),
             });
-            const data = await res.json();
+            const data = await safeJson(res);
             setMsg(res.ok ? "Password updated" : data.error ?? "Failed");
           }}
         >
@@ -43,22 +46,53 @@ export function AccountActions() {
       </Card>
       <Card>
         <h2 className="font-display text-lg text-danger">Delete account</h2>
-        <p className="mt-2 text-sm text-muted">Soft-deletes your account and revokes access. Confirmation required.</p>
-        <Button
-          className="mt-4"
-          variant="danger"
-          type="button"
-          onClick={async () => {
-            if (!confirm("Delete your account permanently from the app?")) return;
-            const res = await fetch("/api/account/delete", { method: "POST" });
-            if (res.ok) {
-              router.push("/");
-              router.refresh();
-            }
-          }}
-        >
-          Delete account
-        </Button>
+        <p className="mt-2 text-sm text-muted">
+          Cancels your subscription, removes your VPN account and signs you out everywhere. This cannot be undone.
+        </p>
+        {showDelete ? (
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              setDeleteError(null);
+              try {
+                const res = await fetch("/api/account/delete", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ password: fd.get("password") }),
+                });
+                const data = await safeJson(res);
+                if (!res.ok) {
+                  setDeleteError(data.error ?? "We couldn’t delete your account. Please try again.");
+                  return;
+                }
+                router.push("/");
+                router.refresh();
+              } catch {
+                setDeleteError("Network error. Please try again.");
+              }
+            }}
+          >
+            <div>
+              <Label htmlFor="deletePassword">Confirm your password</Label>
+              <Input id="deletePassword" name="password" type="password" required />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="danger" type="submit">
+                Permanently delete
+              </Button>
+              <Button variant="secondary" type="button" onClick={() => setShowDelete(false)}>
+                Keep my account
+              </Button>
+            </div>
+            {deleteError ? <p className="text-sm text-danger">{deleteError}</p> : null}
+          </form>
+        ) : (
+          <Button className="mt-4" variant="danger" type="button" onClick={() => setShowDelete(true)}>
+            Delete account
+          </Button>
+        )}
       </Card>
     </div>
   );

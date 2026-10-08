@@ -1,34 +1,32 @@
 import { eq } from "drizzle-orm";
-import { users, vpnAccounts } from "@northstar/db";
 import { cookies } from "next/headers";
-import { SESSION_COOKIE, destroySession, requireUser, writeAudit } from "@/lib/auth";
-import { getDb, getVpnProvider } from "@/lib/providers";
+import { users } from "@northstar/db";
+import { z } from "zod";
+import { SESSION_COOKIE, requireUser, verifyPassword } from "@/lib/auth";
+import { HttpError, handle, parseBody } from "@/lib/http";
+import { getBillingProvider, getDb, getVpnProvider } from "@/lib/providers";
+import { assertNotRateLimited, recordRateLimitHit } from "@/lib/rate-limit";
+import { deleteUserAccount } from "@/lib/services";
+import { correlationId } from "@/lib/utils";
 
-export async function POST() {
-  const user = await requireUser();
-  const db = getDb();
-  const [vpn] = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, user.id)).limit(1);
-  if (vpn?.providerAccountId && !vpn.providerAccountId.startsWith("pending_")) {
-    try {
-      await getVpnProvider().deleteAccount(vpn.providerAccountId);
-    } catch {
-      // continue soft-delete even if provider fails — reconcile later
+const schema = z.object({ password: z.string().min(1).max(256) });
+
+/** Irreversible, so it requires the current password (a stolen session alone must not be enough). */
+export async function POST(req: Request) {
+  return handle(async () => {
+    const user = await requireUser();
+    const body = await parseBody(req, schema);
+    assertNotRateLimited("delete-account", [`user:${user.id}`], 5);
+
+    const db = getDb();
+    const [row] = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
+    if (!row || !(await verifyPassword(body.password, row.passwordHash))) {
+      recordRateLimitHit("delete-account", [`user:${user.id}`], 15 * 60_000);
+      throw new HttpError(400, "Password incorrect");
     }
-  }
-  await db
-    .update(users)
-    .set({ deletedAt: new Date(), email: `deleted+${user.id}@invalid.local`, updatedAt: new Date() })
-    .where(eq(users.id, user.id));
-  await writeAudit(db, {
-    actorId: user.id,
-    actorType: "user",
-    action: "account.deleted",
-    targetType: "user",
-    targetId: user.id,
+
+    await deleteUserAccount(db, getVpnProvider(), getBillingProvider(), user, correlationId());
+    (await cookies()).delete(SESSION_COOKIE);
+    return Response.json({ ok: true });
   });
-  const jar = await cookies();
-  const sessionId = jar.get(SESSION_COOKIE)?.value;
-  if (sessionId) await destroySession(db, sessionId);
-  jar.delete(SESSION_COOKIE);
-  return Response.json({ ok: true });
 }

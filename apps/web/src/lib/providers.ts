@@ -1,5 +1,5 @@
 import { createBillingProvider, type BillingProvider } from "@northstar/billing";
-import { parseEnv, type AppEnv } from "@northstar/config";
+import { isProductionEnv, parseEnv, productionEnvProblems, type AppEnv } from "@northstar/config";
 import { createDb, type Db } from "@northstar/db";
 import { createPostgresDb } from "@northstar/db/postgres";
 import { createEmailProvider, type EmailProvider } from "@northstar/email";
@@ -15,32 +15,44 @@ const globalStore = globalThis as unknown as {
 };
 
 function assertProductionEnv(env: AppEnv) {
-  if (env.APP_ENV !== "production") return;
-  if (env.AUTH_SECRET.includes("dev-only") || env.AUTH_SECRET.length < 32) {
-    throw new Error("Production AUTH_SECRET must be a strong secret (32+ chars, not the dev default)");
-  }
-  if (env.VPN_PROVIDER === "vpnresellers" && !env.VPNRESELLERS_API_TOKEN) {
-    throw new Error("VPN_PROVIDER=vpnresellers requires VPNRESELLERS_API_TOKEN in production");
+  const problems = productionEnvProblems(env);
+  if (problems.length > 0) {
+    throw new Error(`Invalid production configuration:\n- ${problems.join("\n- ")}`);
   }
 }
 
 export function getEnv(): AppEnv {
   if (!globalStore.northstarEnv) {
-    process.env.NORTHSTAR_ROOT = process.env.NORTHSTAR_ROOT ?? path.resolve(process.cwd(), "../..");
-    if (process.cwd().endsWith("apps/web")) {
-      process.env.NORTHSTAR_ROOT = path.resolve(process.cwd(), "../..");
-    } else {
-      process.env.NORTHSTAR_ROOT = process.cwd();
-    }
+    process.env.NORTHSTAR_ROOT = process.cwd().endsWith("apps/web")
+      ? path.resolve(process.cwd(), "../..")
+      : (process.env.NORTHSTAR_ROOT ?? process.cwd());
     if (!process.env.DATABASE_URL) process.env.DATABASE_URL = "file:./data/northstar.db";
-    if (!process.env.AUTH_SECRET) {
-      process.env.AUTH_SECRET = "dev-only-change-me-in-production-use-openssl-rand";
-    }
-    const env = parseEnv(process.env);
+    const env = parseEnv(
+      process.env.AUTH_SECRET
+        ? process.env
+        : { ...process.env, AUTH_SECRET: "dev-only-change-me-in-production-use-openssl-rand" },
+    );
     assertProductionEnv(env);
     globalStore.northstarEnv = env;
   }
   return globalStore.northstarEnv;
+}
+
+export function isProduction(): boolean {
+  return isProductionEnv(getEnv());
+}
+
+/**
+ * Email verification is only enforced when mail can actually be delivered. With the mock email
+ * provider nobody could ever click a link, so accounts are treated as verified.
+ */
+export function emailVerificationRequired(): boolean {
+  return getEnv().EMAIL_PROVIDER !== "mock";
+}
+
+/** Public base URL for links in emails and checkout redirects. */
+export function appUrl(): string {
+  return getEnv().APP_URL.replace(/\/$/, "");
 }
 
 export function getDb() {

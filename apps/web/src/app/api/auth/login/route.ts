@@ -2,70 +2,63 @@ import { z } from "zod";
 import { and, eq, isNull } from "drizzle-orm";
 import { users } from "@northstar/db";
 import { cookies } from "next/headers";
-import { SESSION_COOKIE, createSession, verifyPassword, writeAudit } from "@/lib/auth";
+import { createSession, hashPassword, setSessionCookie, verifyPassword, writeAudit } from "@/lib/auth";
+import { handle, HttpError, parseBody } from "@/lib/http";
 import { getDb, track } from "@/lib/providers";
+import { assertNotRateLimited, clientIp, recordRateLimitHit } from "@/lib/rate-limit";
 import { correlationId } from "@/lib/utils";
 
 const schema = z.object({
   email: z.string().email(),
-  password: z.string().min(1),
+  password: z.string().min(1).max(256),
 });
 
-// Simple in-memory rate limit for login attempts (per process)
-const attempts = new Map<string, { count: number; resetAt: number }>();
+const FAIL_WINDOW_MS = 15 * 60_000;
+const MAX_FAILURES_PER_EMAIL = 10;
+const MAX_FAILURES_PER_IP = 50;
 
-function rateLimit(key: string, limit = 20, windowMs = 60_000): boolean {
-  const now = Date.now();
-  const row = attempts.get(key);
-  if (!row || row.resetAt < now) {
-    attempts.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-  if (row.count >= limit) return false;
-  row.count += 1;
-  return true;
+// Compared against when the account does not exist so response time does not reveal which emails are registered.
+let dummyHash: Promise<string> | null = null;
+function getDummyHash() {
+  dummyHash ??= hashPassword("northstar-dummy-password");
+  return dummyHash;
 }
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for") ?? "local";
-  if (!rateLimit(`login:${ip}`)) {
-    return Response.json({ error: "Too many attempts. Try again shortly." }, { status: 429 });
-  }
+  return handle(async () => {
+    const body = await parseBody(req, schema);
+    const email = body.email.toLowerCase();
+    const ip = clientIp(req);
+    const keys = [`email:${email}`, ip ? `ip:${ip}` : null];
+    assertNotRateLimited("login", [keys[0]], MAX_FAILURES_PER_EMAIL);
+    assertNotRateLimited("login", [keys[1]], MAX_FAILURES_PER_IP);
 
-  const body = schema.safeParse(await req.json());
-  if (!body.success) return Response.json({ error: "Invalid input" }, { status: 400 });
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.email, email), isNull(users.deletedAt)))
+      .limit(1);
+    const user = rows[0];
+    const valid = await verifyPassword(body.password, user?.passwordHash ?? (await getDummyHash()));
+    if (!user || !valid) {
+      recordRateLimitHit("login", keys, FAIL_WINDOW_MS);
+      throw new HttpError(401, "Invalid email or password");
+    }
 
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(users)
-    .where(and(eq(users.email, body.data.email.toLowerCase()), isNull(users.deletedAt)))
-    .limit(1);
-  const user = rows[0];
-  if (!user || !(await verifyPassword(body.data.password, user.passwordHash))) {
-    return Response.json({ error: "Invalid email or password" }, { status: 401 });
-  }
+    const token = await createSession(db, user.id);
+    setSessionCookie(await cookies(), token);
 
-  const sessionId = await createSession(db, user.id);
-  const jar = await cookies();
-  jar.set(SESSION_COOKIE, sessionId, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.APP_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 14,
+    await writeAudit(db, {
+      actorId: user.id,
+      actorType: user.role === "admin" ? "admin" : "user",
+      action: "auth.login",
+      targetType: "user",
+      targetId: user.id,
+      correlationId: correlationId(),
+    });
+
+    track({ name: "login_completed", userId: user.id });
+    return Response.json({ ok: true, redirectTo: user.role === "admin" ? "/admin" : "/dashboard" });
   });
-
-  await writeAudit(db, {
-    actorId: user.id,
-    actorType: user.role === "admin" ? "admin" : "user",
-    action: "auth.login",
-    targetType: "user",
-    targetId: user.id,
-    correlationId: correlationId(),
-  });
-
-  track({ name: "login_completed", userId: user.id });
-  const redirectTo = user.role === "admin" ? "/admin" : "/dashboard";
-  return Response.json({ ok: true, redirectTo });
 }

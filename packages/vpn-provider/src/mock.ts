@@ -187,6 +187,14 @@ export class MockVPNProvider implements VPNProvider {
     this.accounts.delete(providerAccountId);
   }
 
+  async changePassword(providerAccountId: string, password: string): Promise<void> {
+    if (!password || password.length < 8) {
+      throw new VpnProviderError("Password too short", "validation");
+    }
+    // Mock accounts live in memory and may predate this process; nothing else to update.
+    void providerAccountId;
+  }
+
   async getConnectionConfig(input: CreateConnectionInput): Promise<VpnConnectionConfig> {
     // Mock configs do not require an in-memory account — provisioning may have
     // happened in a previous process/request. Still validate location/protocol.

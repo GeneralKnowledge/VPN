@@ -1,24 +1,13 @@
 import { requireAdmin } from "@/lib/auth";
-import { getBillingProvider, getEmailProvider, getEnv, getVpnProvider } from "@/lib/providers";
-import { createDb } from "@northstar/db";
+import { checkDatabase, getProviderStatuses } from "@/lib/health";
+import { getEnv } from "@/lib/providers";
 import { Badge, Card } from "@/components/ui";
 
 export default async function AdminHealthPage() {
   await requireAdmin();
   const env = getEnv();
-  let database: { ok: boolean; detail?: string } = { ok: true };
-  try {
-    const client = createDb(env.DATABASE_URL);
-    if (client.sqlite) {
-      client.sqlite.prepare("select 1").get();
-    }
-    client.close();
-  } catch (err) {
-    database = { ok: false, detail: err instanceof Error ? err.message : "error" };
-  }
-  const vpn = await getVpnProvider().getProviderStatus();
-  const billing = await getBillingProvider().getProviderStatus();
-  const email = await getEmailProvider().getProviderStatus();
+  const database = await checkDatabase();
+  const { vpn, billing, email } = await getProviderStatuses({ fresh: true });
 
   const rows = [
     { name: "Application", ok: true, detail: env.APP_ENV },

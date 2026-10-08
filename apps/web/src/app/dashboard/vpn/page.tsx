@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { customerVpnStatusLabel } from "@/lib/http";
 import { getDb } from "@/lib/providers";
 import { Badge, Card } from "@/components/ui";
+import { ResetCredentialsButton } from "./credentials-button";
 import { DownloadConfigButton } from "./download-button";
 
 export default async function VpnPage() {
@@ -50,6 +51,7 @@ export default async function VpnPage() {
             Choose a location under Locations, then download a configuration for WireGuard or OpenVPN.
           </p>
         ) : null}
+        {ready ? <ResetCredentialsButton /> : null}
       </Card>
       <Card>
         <h2 className="font-display text-xl">Active connections</h2>

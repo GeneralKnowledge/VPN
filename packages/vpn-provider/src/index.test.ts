@@ -345,3 +345,49 @@ describe("VPNResellersProvider", () => {
     expect(createVPNProvider("vpnresellers", { apiToken: "x" })).toBeInstanceOf(VPNResellersProvider);
   });
 });
+
+describe("VPNResellersProvider lookups and credentials", () => {
+  function provider(fetchFn: ReturnType<typeof vi.fn>) {
+    return new VPNResellersProvider({
+      apiUrl: "https://api.vpnresellers.com/v4_1",
+      apiToken: "test-token",
+      fetchFn: fetchFn as unknown as typeof fetch,
+    });
+  }
+
+  it("does not scan every account page when the filtered lookup returns a short page", async () => {
+    const fetchFn = vi.fn(async () => jsonResponse({ data: [], meta: { last_page: 1 } }));
+    expect(await provider(fetchFn).findAccountByUsername("ns_new_customer")).toBeNull();
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to scanning when the filter appears to be ignored (full page, no match)", async () => {
+    const full = Array.from({ length: 50 }, (_, i) => ({ id: i + 1, username: `other_${i}`, status: "active" }));
+    const fetchFn = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href.includes("per_page=50") && !href.includes("page=")) return jsonResponse({ data: full });
+      return jsonResponse({
+        data: [...full, { id: 99, username: "ns_target", status: "active" }],
+        meta: { current_page: 1, last_page: 1 },
+      });
+    });
+    const found = await provider(fetchFn).findAccountByUsername("ns_target");
+    expect(found?.providerAccountId).toBe("99");
+  });
+
+  it("changes an account password via the documented endpoint", async () => {
+    const fetchFn = vi.fn(async () => jsonResponse({ code: 200 }));
+    await provider(fetchFn).changePassword("42", "a-strong-password");
+    const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.vpnresellers.com/v4_1/accounts/42/change_password");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(String(init.body))).toEqual({ password: "a-strong-password" });
+  });
+
+  it("refuses to hand a JSON blob to the customer as a config file", async () => {
+    const fetchFn = vi.fn(async () => jsonResponse({ unexpected: true }));
+    await expect(
+      provider(fetchFn).getConnectionConfig({ accountId: "1", locationId: "2", protocol: "wireguard" }),
+    ).rejects.toBeInstanceOf(VpnProviderError);
+  });
+});

@@ -1,81 +1,98 @@
 import { getPlan } from "@northstar/config";
 import { checkoutSessions } from "@northstar/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
-import { getBillingProvider, getDb, getEmailProvider, getVpnProvider, track } from "@/lib/providers";
+import { HttpError, handle, parseBody } from "@/lib/http";
+import {
+  emailVerificationRequired,
+  getBillingProvider,
+  getDb,
+  getEmailProvider,
+  getEnv,
+  getVpnProvider,
+  track,
+} from "@/lib/providers";
 import { activateSubscription } from "@/lib/services";
 import { correlationId } from "@/lib/utils";
 
-const schema = z.object({ sessionId: z.string() });
+const schema = z.object({ sessionId: z.string().min(1).max(200) });
+const CHECKOUT_TTL_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Completes a checkout for the in-app mock payment flow only. Real providers confirm payment
+ * through signed webhooks; letting a browser "complete" a real checkout would grant service for free.
+ */
 export async function POST(req: Request) {
-  try {
+  return handle(async () => {
     const user = await requireUser();
-    const body = schema.safeParse(await req.json());
-    if (!body.success) return Response.json({ error: "Invalid session" }, { status: 400 });
+    const body = await parseBody(req, schema);
+    if (getEnv().BILLING_PROVIDER !== "mock") {
+      throw new HttpError(400, "Payments are confirmed by the payment provider.");
+    }
+    if (emailVerificationRequired() && !user.emailVerifiedAt) {
+      throw new HttpError(403, "Please verify your email address before subscribing.");
+    }
 
     const db = getDb();
-    const rows = await db
+    const [checkout] = await db
       .select()
       .from(checkoutSessions)
-      .where(eq(checkoutSessions.providerSessionId, body.data.sessionId))
+      .where(eq(checkoutSessions.providerSessionId, body.sessionId))
       .limit(1);
-    const checkout = rows[0];
-    if (!checkout || checkout.userId !== user.id) {
-      return Response.json({ error: "Checkout not found" }, { status: 404 });
+    if (!checkout || checkout.userId !== user.id) throw new HttpError(404, "Checkout not found");
+
+    // A session can only ever activate one subscription; replays (double-click, saved request) are no-ops.
+    if (checkout.status === "complete") {
+      return Response.json({ ok: true, redirectTo: "/dashboard", alreadyCompleted: true });
+    }
+    if (checkout.status !== "open" || Date.now() - checkout.createdAt.getTime() > CHECKOUT_TTL_MS) {
+      await db
+        .update(checkoutSessions)
+        .set({ status: "expired", updatedAt: new Date() })
+        .where(and(eq(checkoutSessions.id, checkout.id), eq(checkoutSessions.status, "open")));
+      throw new HttpError(400, "This checkout has expired. Please start again.");
     }
 
-    const billing = getBillingProvider();
-    // Prefer DB plan id — mock provider may have reconstructed a placeholder session
-    let sub;
-    try {
-      sub = await billing.completeCheckout(body.data.sessionId);
-    } catch {
-      // Recreate checkout in mock provider from persisted DB row, then complete
-      const recreated = await billing.createCheckout({
-        customerId: user.id,
-        customerEmail: user.email,
-        planId: checkout.planId,
-        successUrl: "http://localhost/success",
-        cancelUrl: "http://localhost/cancel",
-        idempotencyKey: `recover_${checkout.providerSessionId}`,
-      });
-      // Force-complete using recovered session; activate uses DB planId below
-      sub = await billing.completeCheckout(recreated.id).catch(async () =>
-        billing.completeCheckout(body.data.sessionId),
-      );
-    }
-    sub = { ...sub, planId: checkout.planId, customerId: user.id };
-    await db
+    // Claim the session atomically so concurrent requests cannot both activate.
+    const claimed = await db
       .update(checkoutSessions)
       .set({ status: "complete", updatedAt: new Date() })
-      .where(eq(checkoutSessions.id, checkout.id));
+      .where(and(eq(checkoutSessions.id, checkout.id), eq(checkoutSessions.status, "open")))
+      .returning({ id: checkoutSessions.id });
+    if (claimed.length === 0) {
+      return Response.json({ ok: true, redirectTo: "/dashboard", alreadyCompleted: true });
+    }
 
-    const plan = getPlan(checkout.planId);
     const corr = correlationId();
-    await activateSubscription(db, getVpnProvider(), getEmailProvider(), {
-      userId: user.id,
-      planId: checkout.planId,
-      providerSubscriptionId: sub.id,
-      provider: "mock",
-      amount: plan?.price ?? 0,
-      correlationId: corr,
-    });
+    try {
+      const sub = await getBillingProvider().completeCheckout(body.sessionId);
+      const plan = getPlan(checkout.planId);
+      await activateSubscription(db, getVpnProvider(), getEmailProvider(), {
+        userId: user.id,
+        planId: checkout.planId,
+        providerSubscriptionId: sub.id,
+        provider: "mock",
+        amount: plan?.price ?? 0,
+        correlationId: corr,
+      });
+    } catch (err) {
+      await db
+        .update(checkoutSessions)
+        .set({ status: "open", updatedAt: new Date() })
+        .where(eq(checkoutSessions.id, checkout.id));
+      throw err;
+    }
 
     await writeAudit(db, {
       actorId: user.id,
       actorType: "user",
       action: "checkout.completed",
-      targetType: "subscription",
-      targetId: sub.id,
+      targetType: "checkout_session",
+      targetId: checkout.providerSessionId,
       correlationId: corr,
     });
     track({ name: "subscription_created", userId: user.id });
-    track({ name: "vpn_provisioned", userId: user.id });
     return Response.json({ ok: true, redirectTo: "/dashboard" });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Completion failed";
-    return Response.json({ error: message }, { status: 400 });
-  }
+  });
 }

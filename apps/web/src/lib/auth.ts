@@ -1,6 +1,6 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, ne } from "drizzle-orm";
 import {
   auditEvents,
   sessions,
@@ -9,7 +9,7 @@ import {
   type Db,
 } from "@northstar/db";
 import { cookies } from "next/headers";
-import { getDb } from "./providers";
+import { getDb, getEnv, isProduction } from "./providers";
 import { newId } from "./utils";
 
 export const SESSION_COOKIE = "northstar_session";
@@ -41,15 +41,43 @@ export function generateReferralCode(): string {
   return `NORTH-${randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
-export async function createSession(db: Db, userId: string): Promise<string> {
-  const sessionId = newId("sess");
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  await db.insert(sessions).values({ id: sessionId, userId, expiresAt });
-  return sessionId;
+/** Cookie value is a random bearer token; only its keyed hash is stored, so a DB leak cannot be replayed. */
+function sessionKey(token: string): string {
+  return createHmac("sha256", getEnv().AUTH_SECRET).update(token).digest("hex");
 }
 
-export async function destroySession(db: Db, sessionId: string) {
-  await db.delete(sessions).where(eq(sessions.id, sessionId));
+export async function createSession(db: Db, userId: string): Promise<string> {
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+  await db.insert(sessions).values({ id: sessionKey(token), userId, expiresAt });
+  return token;
+}
+
+export async function destroySession(db: Db, token: string) {
+  await db.delete(sessions).where(eq(sessions.id, sessionKey(token)));
+}
+
+/** Revoke every session for a user, optionally keeping the one making the request. */
+export async function destroyUserSessions(db: Db, userId: string, keepToken?: string) {
+  const condition = keepToken
+    ? and(eq(sessions.userId, userId), ne(sessions.id, sessionKey(keepToken)))
+    : eq(sessions.userId, userId);
+  await db.delete(sessions).where(condition);
+}
+
+/** Opportunistic cleanup of expired sessions (called from reconcile). */
+export async function purgeExpiredSessions(db: Db) {
+  await db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
+}
+
+export function setSessionCookie(jar: Awaited<ReturnType<typeof cookies>>, token: string) {
+  jar.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction(),
+    path: "/",
+    maxAge: SESSION_DAYS * 24 * 60 * 60,
+  });
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
@@ -72,7 +100,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
-    .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, new Date()), isNull(users.deletedAt)))
+    .where(and(eq(sessions.id, sessionKey(sessionId)), gt(sessions.expiresAt, new Date()), isNull(users.deletedAt)))
     .limit(1);
   const user = row[0];
   if (!user) return null;
@@ -95,12 +123,15 @@ export async function requireUser(): Promise<SessionUser> {
 
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
-  if (user.role !== "admin") throw new AuthError("Admin access required");
+  if (user.role !== "admin") throw new AuthError("Admin access required", 403);
   return user;
 }
 
 export class AuthError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly status: 401 | 403 = 401,
+  ) {
     super(message);
     this.name = "AuthError";
   }
@@ -144,42 +175,47 @@ export async function createVerificationToken(
   userId: string,
   type: "email_verify" | "password_reset",
 ): Promise<string> {
+  // Only the newest link is valid: retire earlier unused tokens of the same type.
+  await db
+    .update(verificationTokens)
+    .set({ usedAt: new Date() })
+    .where(
+      and(
+        eq(verificationTokens.userId, userId),
+        eq(verificationTokens.type, type),
+        isNull(verificationTokens.usedAt),
+      ),
+    );
   const token = randomBytes(32).toString("hex");
   await db.insert(verificationTokens).values({
     id: newId("vtk"),
     userId,
     type,
     tokenHash: hashToken(token),
-    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+    expiresAt: new Date(Date.now() + (type === "password_reset" ? 1000 * 60 * 60 : 1000 * 60 * 60 * 24)),
   });
   return token;
 }
 
+/** Atomically claim a token: a single conditional UPDATE so concurrent requests cannot both succeed. */
 export async function consumeVerificationToken(
   db: Db,
   token: string,
   type: "email_verify" | "password_reset",
 ): Promise<string | null> {
-  const tokenHash = hashToken(token);
-  const rows = await db
-    .select()
-    .from(verificationTokens)
+  const claimed = await db
+    .update(verificationTokens)
+    .set({ usedAt: new Date() })
     .where(
       and(
-        eq(verificationTokens.tokenHash, tokenHash),
+        eq(verificationTokens.tokenHash, hashToken(token)),
         eq(verificationTokens.type, type),
         gt(verificationTokens.expiresAt, new Date()),
         isNull(verificationTokens.usedAt),
       ),
     )
-    .limit(1);
-  const row = rows[0];
-  if (!row) return null;
-  await db
-    .update(verificationTokens)
-    .set({ usedAt: new Date() })
-    .where(eq(verificationTokens.id, row.id));
-  return row.userId;
+    .returning({ userId: verificationTokens.userId });
+  return claimed[0]?.userId ?? null;
 }
 
 export { hashToken };

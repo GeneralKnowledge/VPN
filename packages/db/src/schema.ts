@@ -118,6 +118,11 @@ export const subscriptions = sqliteTable(
   (t) => [
     index("subscriptions_user_idx").on(t.userId),
     index("subscriptions_status_idx").on(t.status),
+    // At most one live subscription per user, enforced by the database so concurrent
+    // webhook/checkout deliveries cannot create duplicates.
+    uniqueIndex("subscriptions_live_user_uidx")
+      .on(t.userId)
+      .where(sql`status in ('active', 'trialing', 'cancelling', 'past_due')`),
   ],
 );
 

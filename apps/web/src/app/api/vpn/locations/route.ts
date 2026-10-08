@@ -1,10 +1,11 @@
 import { vpnLocations } from "@northstar/db";
 import { requireUser } from "@/lib/auth";
+import { handle } from "@/lib/http";
 import { getDb, getEnv, getVpnProvider } from "@/lib/providers";
 import { syncLocationsFromProvider } from "@/lib/services";
 
 export async function GET() {
-  try {
+  return handle(async () => {
     await requireUser();
     const db = getDb();
     const env = getEnv();
@@ -45,7 +46,5 @@ export async function GET() {
           load: l.load,
         })),
     });
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  });
 }

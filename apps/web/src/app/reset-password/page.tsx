@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
 import { Logo } from "@/components/logo";
 import { Button, Input, Label } from "@/components/ui";
+import { safeJson } from "@/lib/client";
 
 function ResetForm() {
   const params = useSearchParams();
@@ -21,7 +22,7 @@ function ResetForm() {
         password: form.get("password"),
       }),
     });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!res.ok) {
       setError(data.error ?? "Reset failed");
       return;

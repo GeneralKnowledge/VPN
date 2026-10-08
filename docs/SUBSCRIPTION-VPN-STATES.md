@@ -50,6 +50,9 @@ Admin reactivate (with active sub)
   → provider enable → vpn.active
 
 Reconcile
+  → end cancelling subscriptions past currentPeriodEnd (→ cancelled) and unrenewed ones past the 3-day grace (→ expired),
+    suspending the VPN account
+  → retry provider deletion for closed accounts
   → retry provision for active/trialing + missing/pending/error VPN
   → sync provider status for real providerAccountId
   → if provider disabled/expired → local status + revoke connections

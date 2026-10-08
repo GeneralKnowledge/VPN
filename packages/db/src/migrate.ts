@@ -291,6 +291,16 @@ export function migrate(databaseUrl = process.env.DATABASE_URL ?? "file:./data/n
   } catch {
     // ignore
   }
+  try {
+    sqlite.exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS subscriptions_live_user_uidx ON subscriptions(user_id) WHERE status IN ('active', 'trialing', 'cancelling', 'past_due')`,
+    );
+  } catch (err) {
+    console.warn(
+      "[db] could not create subscriptions_live_user_uidx — resolve duplicate live subscriptions per user and re-run migrate",
+      err instanceof Error ? err.message : err,
+    );
+  }
   console.info(`[db] migrated ${filePath}`);
   void close();
 }

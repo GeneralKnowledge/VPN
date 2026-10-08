@@ -108,6 +108,17 @@ export const envSchema = z.object({
   VPNRESELLERS_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   VPNRESELLERS_PROJECT_ID: z.coerce.number().int().positive().optional(),
   CRON_SECRET: z.string().optional().default(""),
+  /** Where the public contact form delivers mail. Defaults to the brand support address. */
+  SUPPORT_INBOX_EMAIL: z.string().email().optional(),
+  /**
+   * Mock billing activates subscriptions without taking payment. It is refused in production
+   * unless this is explicitly set (private beta / manual billing only).
+   */
+  ALLOW_MOCK_BILLING_IN_PRODUCTION: z
+    .enum(["true", "false"])
+    .optional()
+    .default("false")
+    .transform((v) => v === "true"),
   BILLING_PROVIDER: z.enum(["mock", "stripe"]).default("mock"),
   STRIPE_SECRET_KEY: z.string().optional().default(""),
   /** Shared secret for /api/webhooks/stripe (required for valid signatures, mock or stripe). */
@@ -137,7 +148,10 @@ export const envSchema = z.object({
 export type AppEnv = z.infer<typeof envSchema>;
 
 export function parseEnv(raw: Record<string, string | undefined> = process.env): AppEnv {
-  return envSchema.parse(raw);
+  // Fail closed: a production runtime (`next start`) with APP_ENV unset must not behave like
+  // development (non-Secure cookies, reset links in API responses, auto-verified emails).
+  const appEnv = raw.APP_ENV ?? (raw.NODE_ENV === "production" ? "production" : undefined);
+  return envSchema.parse({ ...raw, APP_ENV: appEnv });
 }
 
 export function isMockMode(env: Pick<AppEnv, "VPN_PROVIDER" | "BILLING_PROVIDER" | "EMAIL_PROVIDER">): boolean {
@@ -150,3 +164,32 @@ export function isMockMode(env: Pick<AppEnv, "VPN_PROVIDER" | "BILLING_PROVIDER"
 
 // silence unused in package build
 void providerEnum;
+
+export function isProductionEnv(env: Pick<AppEnv, "APP_ENV">): boolean {
+  return env.APP_ENV === "production";
+}
+
+/** Returns human-readable problems that must block a production boot. */
+export function productionEnvProblems(env: AppEnv): string[] {
+  if (env.APP_ENV !== "production") return [];
+  const problems: string[] = [];
+  if (env.AUTH_SECRET.includes("dev-only") || env.AUTH_SECRET.length < 32) {
+    problems.push("AUTH_SECRET must be a strong secret (32+ chars, not the dev default)");
+  }
+  const appUrl = new URL(env.APP_URL);
+  if (appUrl.protocol !== "https:" || ["localhost", "127.0.0.1", "0.0.0.0"].includes(appUrl.hostname)) {
+    problems.push("APP_URL must be the public https URL (it is used in emailed links and checkout redirects)");
+  }
+  if (env.VPN_PROVIDER === "vpnresellers" && !env.VPNRESELLERS_API_TOKEN) {
+    problems.push("VPN_PROVIDER=vpnresellers requires VPNRESELLERS_API_TOKEN");
+  }
+  if (env.BILLING_PROVIDER === "mock" && !env.ALLOW_MOCK_BILLING_IN_PRODUCTION) {
+    problems.push(
+      "BILLING_PROVIDER=mock grants subscriptions without payment. Use a real provider, or set ALLOW_MOCK_BILLING_IN_PRODUCTION=true for a private beta",
+    );
+  }
+  if (env.BILLING_PROVIDER === "stripe" && !env.STRIPE_WEBHOOK_SECRET) {
+    problems.push("BILLING_PROVIDER=stripe requires STRIPE_WEBHOOK_SECRET");
+  }
+  return problems;
+}

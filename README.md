@@ -106,18 +106,32 @@ DATABASE_URL=file:./data/northstar.db
 
 ## Security considerations
 
-- Passwords hashed with bcrypt  
-- HttpOnly session cookies  
-- Login rate limiting  
-- Server-side ownership checks on VPN/devices/tickets  
-- Admin role gate on `/admin`  
-- Webhook signature verification hooks  
+- Passwords hashed with bcrypt; login timing does not reveal whether an email exists  
+- HttpOnly session cookies; only an HMAC of the session token is stored, and other sessions are revoked on password change/reset  
+- Rate limiting per account/email (login, reset, resend, contact, checkout, credential reset); in-memory, so per instance  
+- Server-side ownership checks on VPN/devices/tickets; plan device limits enforced on every path  
+- Admin role gate on `/admin` (403 for non-admins)  
+- Webhook signature verification; cron/webhook secrets compared in constant time  
+- Production config validation at boot, security headers (HSTS, frame denial, nosniff)  
 - Audit log without secrets  
 - Mock VPN configs clearly marked non-production  
 
+### Billing lifecycle
+
+A user has at most one live subscription (enforced by a partial unique index). Cancelling at period end keeps access until
+`currentPeriodEnd`; `/api/reconcile` then ends the subscription and suspends the VPN account. Failed payments move the
+customer to a grace period and then suspension; a renewal restores access. Mock checkout (`/api/billing/complete`) only
+works with `BILLING_PROVIDER=mock`, and each checkout session can be completed once.
+
+### Known gaps
+
+- The Stripe adapter and SMTP transport are still stubs (webhook verification fails closed until the Stripe SDK is wired).  
+- Rate limits are per process; use a shared store (e.g. Redis) when running several instances.  
+- No 2FA, no session list UI, no referral rewards.  
+
 ## Deployment
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md). Prefer Vercel + managed Postgres + cron for reconciliation (`POST /api/reconcile` as admin or secured cron).
+See [DEPLOYMENT.md](./DEPLOYMENT.md). Prefer Vercel + managed Postgres + cron for reconciliation (`/api/reconcile` with `CRON_SECRET`; required in production because it expires lapsed subscriptions).
 
 ## Legal
 

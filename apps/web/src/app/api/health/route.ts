@@ -1,34 +1,20 @@
-import { getBillingProvider, getEmailProvider, getEnv, getVpnProvider } from "@/lib/providers";
-import { createDb } from "@northstar/db";
+import { checkDatabase, getProviderStatuses } from "@/lib/health";
 
-/** Lightweight health for uptime checks — no secrets. */
+/** Lightweight health for uptime checks — no secrets, no per-request upstream calls. */
 export async function GET() {
-  const env = getEnv();
-  let dbOk = true;
-  try {
-    const { sqlite } = createDb(env.DATABASE_URL);
-    sqlite.prepare("select 1").get();
-    sqlite.close();
-  } catch {
-    dbOk = false;
-  }
-  const [vpn, billing, email] = await Promise.all([
-    getVpnProvider().getProviderStatus(),
-    getBillingProvider().getProviderStatus(),
-    getEmailProvider().getProviderStatus(),
-  ]);
-  const ok = dbOk && vpn.ok && billing.ok && email.ok;
+  const [database, { vpn, billing, email }] = await Promise.all([checkDatabase(), getProviderStatuses()]);
+  const ok = database.ok && vpn.ok && billing.ok && email.ok;
   return Response.json(
     {
       status: ok ? "operational" : "degraded",
       checks: {
         application: "operational",
-        database: dbOk ? "operational" : "degraded",
+        database: database.ok ? "operational" : "degraded",
         vpn: vpn.ok ? "operational" : "degraded",
         billing: billing.ok ? "operational" : "degraded",
         email: email.ok ? "operational" : "degraded",
       },
     },
-    { status: ok ? 200 : 503 },
+    { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } },
   );
 }

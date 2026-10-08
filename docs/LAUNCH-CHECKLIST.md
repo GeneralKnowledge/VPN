@@ -9,6 +9,7 @@
 - [ ] Billing webhooks fail closed (`STRIPE_WEBHOOK_SECRET` set if endpoint is exposed; unsigned mock webhooks rejected)
 - [ ] Provider integration verified (`VPN_PROVIDER=vpnresellers` against real or staging credentials)
 - [ ] Lint clean (`pnpm lint`)
+- [ ] Production boot check passes (app refuses weak `AUTH_SECRET`, mock billing, non-https `APP_URL`)
 
 ## VPNresellers
 
@@ -30,7 +31,8 @@
 - [ ] Secrets set (strong `AUTH_SECRET`, provider tokens, `CRON_SECRET`)
 - [ ] Backups enabled for Postgres
 - [ ] Monitoring (`ERROR_REPORTER` / uptime checks)
-- [ ] Scheduled reconcile → `POST /api/reconcile` with `Authorization: Bearer $CRON_SECRET`
+- [ ] Scheduled reconcile → `POST`/`GET /api/reconcile` with `Authorization: Bearer $CRON_SECRET` (required: it expires lapsed subscriptions)
+- [ ] Security headers present (`curl -I`), including HSTS over https
 
 ## Business
 
@@ -47,6 +49,10 @@
 - [ ] VPN provisioning tested
 - [ ] Admin controls tested (provision/retry, suspend, reactivate, reconcile)
 - [ ] Failure/recovery tested (forced provider error → reconcile repair)
+- [ ] Cancel at period end → access ends after `currentPeriodEnd` once reconcile runs
+- [ ] Payment failure webhook → grace period → suspension; renewal restores access
+- [ ] Account deletion removes the provider VPN account and stops billing
+- [ ] Password change/reset signs out other sessions
 
 ## Explicitly deferred (OK for this stage)
 
