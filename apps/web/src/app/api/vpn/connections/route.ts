@@ -2,22 +2,22 @@ import { and, eq, isNull } from "drizzle-orm";
 import { devices, vpnAccounts, vpnConnections, vpnLocations } from "@northstar/db";
 import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
-import { customerErrorResponse } from "@/lib/http";
+import { HttpError, handle, parseBody } from "@/lib/http";
 import { getDb, track } from "@/lib/providers";
+import { MAX_CONNECTIONS_PER_USER, assertDeviceCapacity } from "@/lib/services";
 import { correlationId, newId } from "@/lib/utils";
 
 const createSchema = z.object({
-  locationId: z.string(),
+  locationId: z.string().min(1),
   protocol: z.enum(["wireguard", "openvpn", "vless"]).default("wireguard"),
-  name: z.string().min(1).max(80),
+  name: z.string().trim().min(1).max(80),
   platform: z.enum(["windows", "macos", "linux", "ios", "android", "other"]).optional(),
 });
 
 export async function GET() {
-  try {
+  return handle(async () => {
     const user = await requireUser();
-    const db = getDb();
-    const rows = await db
+    const rows = await getDb()
       .select({
         id: vpnConnections.id,
         name: vpnConnections.name,
@@ -34,77 +34,84 @@ export async function GET() {
       .innerJoin(vpnLocations, eq(vpnConnections.locationId, vpnLocations.id))
       .where(and(eq(vpnConnections.userId, user.id), isNull(vpnConnections.revokedAt)));
     return Response.json({ connections: rows });
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  });
 }
 
 export async function POST(req: Request) {
-  try {
-    const user = await requireUser();
-    const body = createSchema.safeParse(await req.json());
-    if (!body.success) return Response.json({ error: "Invalid input" }, { status: 400 });
-    const db = getDb();
-    const account = (await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, user.id)).limit(1))[0];
-    if (!account || account.status !== "active") {
-      return Response.json({ error: "Your VPN is not ready yet. Please try again shortly." }, { status: 400 });
-    }
-    const location = (
-      await db.select().from(vpnLocations).where(eq(vpnLocations.id, body.data.locationId)).limit(1)
-    )[0];
-    if (!location) return Response.json({ error: "Location not found" }, { status: 404 });
-    if (location.status === "offline") {
-      return Response.json({ error: "That location is temporarily unavailable." }, { status: 400 });
-    }
+  return handle(
+    async () => {
+      const user = await requireUser();
+      const body = await parseBody(req, createSchema);
+      const db = getDb();
+      const [account] = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, user.id)).limit(1);
+      if (!account || account.status !== "active") {
+        throw new HttpError(400, "Your VPN is not ready yet. Please try again shortly.");
+      }
+      const [location] = await db.select().from(vpnLocations).where(eq(vpnLocations.id, body.locationId)).limit(1);
+      if (!location) throw new HttpError(404, "Location not found");
+      if (location.status === "offline") throw new HttpError(400, "That location is temporarily unavailable.");
+      const supported = JSON.parse(location.protocolSupportJson) as string[];
+      if (!supported.includes(body.protocol)) {
+        throw new HttpError(400, "That protocol isn't available at this location.");
+      }
 
-    const connId = newId("conn");
-    await db.insert(vpnConnections).values({
-      id: connId,
-      userId: user.id,
-      vpnAccountId: account.id,
-      locationId: location.id,
-      name: body.data.name,
-      protocol: body.data.protocol,
-      lastUsedAt: new Date(),
-    });
+      const existing = await db
+        .select({ id: vpnConnections.id })
+        .from(vpnConnections)
+        .where(and(eq(vpnConnections.userId, user.id), isNull(vpnConnections.revokedAt)));
+      if (existing.length >= MAX_CONNECTIONS_PER_USER) {
+        throw new HttpError(400, "You have reached the connection limit. Remove one you no longer use.");
+      }
+      // Creating a device here must respect the same plan limit as the devices endpoint.
+      if (body.platform) await assertDeviceCapacity(db, user.id);
 
-    if (body.data.platform) {
-      await db.insert(devices).values({
-        id: newId("dev"),
+      const connId = newId("conn");
+      await db.insert(vpnConnections).values({
+        id: connId,
         userId: user.id,
-        connectionId: connId,
-        name: body.data.name,
-        platform: body.data.platform,
+        vpnAccountId: account.id,
+        locationId: location.id,
+        name: body.name,
+        protocol: body.protocol,
         lastUsedAt: new Date(),
       });
-    }
+      if (body.platform) {
+        await db.insert(devices).values({
+          id: newId("dev"),
+          userId: user.id,
+          connectionId: connId,
+          name: body.name,
+          platform: body.platform,
+          lastUsedAt: new Date(),
+        });
+      }
 
-    await writeAudit(db, {
-      actorId: user.id,
-      actorType: "user",
-      action: "connection.created",
-      targetType: "vpn_connection",
-      targetId: connId,
-      correlationId: correlationId(),
-      metadata: { locationId: location.id, protocol: body.data.protocol },
-    });
-    track({ name: "location_selected", userId: user.id, properties: { locationId: location.id } });
-    return Response.json({ id: connId });
-  } catch (err) {
-    return customerErrorResponse(err, "connection");
-  }
+      await writeAudit(db, {
+        actorId: user.id,
+        actorType: "user",
+        action: "connection.created",
+        targetType: "vpn_connection",
+        targetId: connId,
+        correlationId: correlationId(),
+        metadata: { locationId: location.id, protocol: body.protocol },
+      });
+      track({ name: "location_selected", userId: user.id, properties: { locationId: location.id } });
+      return Response.json({ id: connId });
+    },
+    { kind: "connection" },
+  );
 }
 
 export async function DELETE(req: Request) {
-  try {
+  return handle(async () => {
     const user = await requireUser();
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-    if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
+    const id = new URL(req.url).searchParams.get("id");
+    if (!id) throw new HttpError(400, "Missing id");
     const db = getDb();
-    const row = (await db.select().from(vpnConnections).where(eq(vpnConnections.id, id)).limit(1))[0];
-    if (!row || row.userId !== user.id) return Response.json({ error: "Not found" }, { status: 404 });
-    await db.update(vpnConnections).set({ revokedAt: new Date(), updatedAt: new Date() }).where(eq(vpnConnections.id, id));
+    const [row] = await db.select().from(vpnConnections).where(eq(vpnConnections.id, id)).limit(1);
+    if (!row || row.userId !== user.id) throw new HttpError(404, "Not found");
+    const now = new Date();
+    await db.update(vpnConnections).set({ revokedAt: now, updatedAt: now }).where(eq(vpnConnections.id, id));
     await writeAudit(db, {
       actorId: user.id,
       actorType: "user",
@@ -113,7 +120,5 @@ export async function DELETE(req: Request) {
       targetId: id,
     });
     return Response.json({ ok: true });
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  });
 }

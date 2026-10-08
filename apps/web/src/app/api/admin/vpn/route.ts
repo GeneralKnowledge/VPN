@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { devices, users, vpnAccounts, vpnConnections } from "@northstar/db";
 import { z } from "zod";
 import { requireAdmin, writeAudit } from "@/lib/auth";
-import { adminErrorResponse } from "@/lib/http";
+import { HttpError, handle, parseBody } from "@/lib/http";
 import { getDb, getEmailProvider, getVpnProvider } from "@/lib/providers";
 import {
   formatProviderError,
@@ -28,20 +28,19 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  try {
+  return handle(async () => {
     const admin = await requireAdmin();
-    const body = schema.safeParse(await req.json());
-    if (!body.success) return Response.json({ error: "Invalid" }, { status: 400 });
-
-    const { userId, action, connectionId, confirm } = body.data;
+    const { userId, action, connectionId, confirm } = await parseBody(req, schema);
     const db = getDb();
     const vpn = getVpnProvider();
     const email = getEmailProvider();
     const cid = correlationId();
 
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    if (!user) return Response.json({ error: "Not found" }, { status: 404 });
+    if (!user) throw new HttpError(404, "Not found");
     const [account] = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, userId)).limit(1);
+
+    if (user.deletedAt) throw new HttpError(400, "This account has been deleted.");
 
     if (action === "provision") {
       try {
@@ -153,7 +152,5 @@ export async function POST(req: Request) {
     }
 
     return Response.json({ error: "Unknown action" }, { status: 400 });
-  } catch (err) {
-    return adminErrorResponse(err);
-  }
+  }, { audience: "admin" });
 }

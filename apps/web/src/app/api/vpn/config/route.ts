@@ -2,7 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { vpnAccounts, vpnConnections, vpnLocations } from "@northstar/db";
 import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
-import { customerErrorResponse } from "@/lib/http";
+import { HttpError, handle, parseBody } from "@/lib/http";
 import { getDb, getVpnProvider, track } from "@/lib/providers";
 import { correlationId } from "@/lib/utils";
 
@@ -13,14 +13,14 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  try {
+  return handle(async () => {
     const user = await requireUser();
-    const body = schema.safeParse(await req.json());
-    if (!body.success) return Response.json({ error: "Invalid input" }, { status: 400 });
+    const input = await parseBody(req, schema);
+    const body = { data: input };
     const db = getDb();
     const account = (await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, user.id)).limit(1))[0];
     if (!account || account.status !== "active") {
-      return Response.json({ error: "Your VPN is not ready yet." }, { status: 400 });
+      throw new HttpError(400, "Your VPN is not ready yet.");
     }
 
     let locationId = body.data.locationId;
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
           )
           .limit(1)
       )[0];
-      if (!conn) return Response.json({ error: "Connection not found" }, { status: 404 });
+      if (!conn) throw new HttpError(404, "Connection not found");
       locationId = conn.locationId;
       protocol = conn.protocol;
       await db
@@ -47,10 +47,14 @@ export async function POST(req: Request) {
         .set({ lastUsedAt: new Date(), updatedAt: new Date() })
         .where(eq(vpnConnections.id, conn.id));
     }
-    if (!locationId) return Response.json({ error: "locationId required" }, { status: 400 });
+    if (!locationId) throw new HttpError(400, "locationId required");
 
     const location = (await db.select().from(vpnLocations).where(eq(vpnLocations.id, locationId)).limit(1))[0];
-    if (!location) return Response.json({ error: "Location not found" }, { status: 404 });
+    if (!location) throw new HttpError(404, "Location not found");
+    if (location.status === "offline") throw new HttpError(400, "That location is temporarily unavailable.");
+    if (!(JSON.parse(location.protocolSupportJson) as string[]).includes(protocol)) {
+      throw new HttpError(400, "That protocol isn't available at this location.");
+    }
 
     const vpn = getVpnProvider();
     // Provider APIs expect server_id = providerId, not local DB id
@@ -79,7 +83,5 @@ export async function POST(req: Request) {
         "Cache-Control": "no-store",
       },
     });
-  } catch (err) {
-    return customerErrorResponse(err, "config");
-  }
+  }, { kind: "config" });
 }

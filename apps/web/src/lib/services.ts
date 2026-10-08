@@ -14,6 +14,7 @@ import {
 import {
   devices,
   invoices,
+  plans,
   providerEvents,
   payments,
   subscriptions,
@@ -33,6 +34,7 @@ import {
 } from "@northstar/vpn-provider";
 import type { EmailProvider } from "@northstar/email";
 import { destroyUserSessions, purgeExpiredSessions, writeAudit } from "./auth";
+import { HttpError } from "./http";
 import { sendEmailSafe } from "./notify";
 import { newId } from "./utils";
 
@@ -1129,4 +1131,24 @@ export async function reactivateVpnForUser(
     targetId: userId,
     correlationId,
   });
+}
+
+export const MAX_CONNECTIONS_PER_USER = 25;
+
+/** Device allowance from the customer's live plan (a lapsed customer falls back to the default). */
+export async function getDeviceLimit(db: Db, userId: string): Promise<number> {
+  const live = await findLiveSubscription(db, userId);
+  if (!live) return 5;
+  const [plan] = await db.select().from(plans).where(eq(plans.id, live.planId)).limit(1);
+  return plan?.maxDevices ?? 5;
+}
+
+/** Throws when the customer already has as many active devices as their plan allows. */
+export async function assertDeviceCapacity(db: Db, userId: string): Promise<void> {
+  const limit = await getDeviceLimit(db, userId);
+  const current = await db
+    .select({ id: devices.id })
+    .from(devices)
+    .where(and(eq(devices.userId, userId), isNull(devices.revokedAt)));
+  if (current.length >= limit) throw new HttpError(400, `Device limit reached (${limit})`);
 }

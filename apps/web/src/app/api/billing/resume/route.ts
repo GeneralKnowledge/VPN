@@ -1,31 +1,14 @@
-import { eq } from "drizzle-orm";
-import { subscriptions } from "@northstar/db";
-import { requireUser, writeAudit } from "@/lib/auth";
+import { HttpError, handle } from "@/lib/http";
 import { getBillingProvider, getDb } from "@/lib/providers";
+import { resumeSubscriptionForUser } from "@/lib/services";
+import { requireUser } from "@/lib/auth";
+import { correlationId } from "@/lib/utils";
 
 export async function POST() {
-  try {
+  return handle(async () => {
     const user = await requireUser();
-    const db = getDb();
-    const rows = await db.select().from(subscriptions).where(eq(subscriptions.userId, user.id));
-    const sub = rows.find((s) => s.status === "cancelling");
-    if (!sub?.providerSubscriptionId) {
-      return Response.json({ error: "No cancelling subscription" }, { status: 404 });
-    }
-    const updated = await getBillingProvider().resumeSubscription(sub.providerSubscriptionId);
-    await db
-      .update(subscriptions)
-      .set({ status: updated.status, cancelAtPeriodEnd: false, updatedAt: new Date() })
-      .where(eq(subscriptions.id, sub.id));
-    await writeAudit(db, {
-      actorId: user.id,
-      actorType: "user",
-      action: "subscription.resumed",
-      targetType: "subscription",
-      targetId: sub.id,
-    });
+    const updated = await resumeSubscriptionForUser(getDb(), getBillingProvider(), user, correlationId());
+    if (!updated) throw new HttpError(404, "No cancelling subscription");
     return Response.json({ ok: true, status: updated.status });
-  } catch (err) {
-    return Response.json({ error: err instanceof Error ? err.message : "Failed" }, { status: 400 });
-  }
+  });
 }

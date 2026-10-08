@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { webhookEvents } from "@northstar/db";
 import { writeAudit } from "@/lib/auth";
 import { getDb } from "@/lib/providers";
+import { secretsMatch } from "@/lib/secrets";
 import { correlationId, newId } from "@/lib/utils";
 
 /**
@@ -12,9 +13,9 @@ import { correlationId, newId } from "@/lib/utils";
 export async function POST(req: Request) {
   const raw = await req.text();
   const signature = req.headers.get("x-vpnresellers-signature") ?? req.headers.get("x-northstar-signature");
-  // Fail closed: no documented public VR webhooks; require an explicit shared secret.
-  const expected = process.env.VPNRESELLERS_WEBHOOK_SECRET || process.env.CRON_SECRET || "";
-  const signatureValid = Boolean(expected) && signature !== null && signature === expected;
+  // Fail closed: no documented public VR webhooks; require an explicit shared secret
+  // (deliberately not shared with CRON_SECRET, which grants reconcile access).
+  const signatureValid = secretsMatch(signature, process.env.VPNRESELLERS_WEBHOOK_SECRET);
   if (!signatureValid) {
     return Response.json({ error: "Invalid signature" }, { status: 401 });
   }

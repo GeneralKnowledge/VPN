@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { desc, like, or, sql } from "drizzle-orm";
+import { and, desc, isNull, like, or } from "drizzle-orm";
 import { users } from "@northstar/db";
 import { requireAdmin } from "@/lib/auth";
 import { getDb } from "@/lib/providers";
@@ -17,10 +17,10 @@ export default async function AdminCustomersPage({
     ? await db
         .select()
         .from(users)
-        .where(or(like(users.email, `%${q}%`), like(users.name, `%${q}%`)))
+        .where(and(isNull(users.deletedAt), or(like(users.email, `%${q}%`), like(users.name, `%${q}%`))))
         .orderBy(desc(users.createdAt))
         .limit(50)
-    : await db.select().from(users).orderBy(desc(users.createdAt)).limit(50);
+    : await db.select().from(users).where(isNull(users.deletedAt)).orderBy(desc(users.createdAt)).limit(50);
 
   return (
     <div className="space-y-6">

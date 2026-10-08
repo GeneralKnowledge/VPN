@@ -1,42 +1,48 @@
-import { AuthError, requireAdmin } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
+import { HttpError, handle } from "@/lib/http";
 import { getDb, getEmailProvider, getEnv, getVpnProvider } from "@/lib/providers";
 import { reconcileVpnProvisioning } from "@/lib/services";
+import { secretsMatch } from "@/lib/secrets";
 import { correlationId } from "@/lib/utils";
 
-function authorizeReconcile(req: Request): Promise<"admin" | "cron"> {
-  const env = getEnv();
-  const auth = req.headers.get("authorization");
-  if (env.CRON_SECRET && auth === `Bearer ${env.CRON_SECRET}`) {
-    return Promise.resolve("cron");
-  }
-  return requireAdmin().then(() => "admin" as const);
+async function authorizeReconcile(req: Request): Promise<void> {
+  const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null;
+  if (secretsMatch(bearer, getEnv().CRON_SECRET)) return;
+  await requireAdmin();
 }
 
-/** Admin or cron-triggered reconciliation of paid users missing VPN + status sync. */
+async function run(options: { userId?: string; syncLocations?: boolean }) {
+  const env = getEnv();
+  const result = await reconcileVpnProvisioning(getDb(), getVpnProvider(), getEmailProvider(), correlationId(), {
+    userId: options.userId,
+    syncLocations: options.syncLocations ?? true,
+    preferLiveLocations: env.VPN_PROVIDER === "vpnresellers",
+  });
+  return Response.json(result);
+}
+
+/** Admin or cron-triggered reconciliation: expire lapsed subscriptions, repair VPN accounts, sync status. */
 export async function POST(req: Request) {
-  try {
-    await authorizeReconcile(req);
-    const env = getEnv();
-    const body = (await req.json().catch(() => ({}))) as {
-      userId?: string;
-      syncLocations?: boolean;
-    };
-    const result = await reconcileVpnProvisioning(
-      getDb(),
-      getVpnProvider(),
-      getEmailProvider(),
-      correlationId(),
-      {
-        userId: body.userId,
-        syncLocations: body.syncLocations ?? true,
-        preferLiveLocations: env.VPN_PROVIDER === "vpnresellers",
-      },
-    );
-    return Response.json(result);
-  } catch (err) {
-    if (err instanceof AuthError) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    return Response.json({ error: "Failed" }, { status: 401 });
-  }
+  return handle(
+    async () => {
+      await authorizeReconcile(req);
+      const body = (await req.json().catch(() => ({}))) as { userId?: unknown; syncLocations?: unknown };
+      if (body.userId !== undefined && typeof body.userId !== "string") {
+        throw new HttpError(400, "Invalid userId");
+      }
+      return run({ userId: body.userId, syncLocations: body.syncLocations !== false });
+    },
+    { audience: "admin" },
+  );
+}
+
+/** Same as POST so schedulers that can only issue GET (e.g. Vercel Cron) can drive reconciliation. */
+export async function GET(req: Request) {
+  return handle(
+    async () => {
+      await authorizeReconcile(req);
+      return run({});
+    },
+    { audience: "admin" },
+  );
 }

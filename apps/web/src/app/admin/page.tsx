@@ -13,7 +13,7 @@ import { Card } from "@/components/ui";
 export default async function AdminOverview() {
   await requireAdmin();
   const db = getDb();
-  const customerCount = (await db.select({ c: sql<number>`count(*)` }).from(users).where(sql`role = 'customer'`))[0]?.c ?? 0;
+  const customerCount = (await db.select({ c: sql<number>`count(*)` }).from(users).where(sql`role = 'customer' and deleted_at is null`))[0]?.c ?? 0;
   const subCount = (await db.select({ c: sql<number>`count(*)` }).from(subscriptions).where(sql`status = 'active'`))[0]?.c ?? 0;
   const vpnCount = (await db.select({ c: sql<number>`count(*)` }).from(vpnAccounts).where(sql`status = 'active'`))[0]?.c ?? 0;
   const openTickets = (await db.select({ c: sql<number>`count(*)` }).from(supportTickets).where(sql`status = 'open'`))[0]?.c ?? 0;

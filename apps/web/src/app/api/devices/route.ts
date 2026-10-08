@@ -1,57 +1,40 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { devices, plans, subscriptions } from "@northstar/db";
+import { devices, vpnConnections } from "@northstar/db";
 import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
-import { customerErrorResponse } from "@/lib/http";
+import { HttpError, handle, parseBody } from "@/lib/http";
 import { getDb } from "@/lib/providers";
+import { assertDeviceCapacity } from "@/lib/services";
 import { newId } from "@/lib/utils";
 
-const createSchema = z.object({
-  name: z.string().min(1).max(80),
-  platform: z.enum(["windows", "macos", "linux", "ios", "android", "other"]),
-});
+const platform = z.enum(["windows", "macos", "linux", "ios", "android", "other"]);
+const createSchema = z.object({ name: z.string().trim().min(1).max(80), platform });
+const renameSchema = z.object({ id: z.string().min(1), name: z.string().trim().min(1).max(80) });
 
 export async function GET() {
-  try {
+  return handle(async () => {
     const user = await requireUser();
-    const db = getDb();
-    const rows = await db
+    const rows = await getDb()
       .select()
       .from(devices)
       .where(and(eq(devices.userId, user.id), isNull(devices.revokedAt)));
     return Response.json({ devices: rows });
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  });
 }
 
 export async function POST(req: Request) {
-  try {
+  return handle(async () => {
     const user = await requireUser();
-    const body = createSchema.safeParse(await req.json());
-    if (!body.success) return Response.json({ error: "Invalid input" }, { status: 400 });
+    const body = await parseBody(req, createSchema);
     const db = getDb();
-
-    const subs = await db.select().from(subscriptions).where(eq(subscriptions.userId, user.id));
-    const active = subs.find((s) => s.status === "active" || s.status === "trialing" || s.status === "cancelling");
-    const plan = active
-      ? (await db.select().from(plans).where(eq(plans.id, active.planId)).limit(1))[0]
-      : null;
-    const maxDevices = plan?.maxDevices ?? 5;
-    const current = await db
-      .select()
-      .from(devices)
-      .where(and(eq(devices.userId, user.id), isNull(devices.revokedAt)));
-    if (current.length >= maxDevices) {
-      return Response.json({ error: `Device limit reached (${maxDevices})` }, { status: 400 });
-    }
+    await assertDeviceCapacity(db, user.id);
 
     const id = newId("dev");
     await db.insert(devices).values({
       id,
       userId: user.id,
-      name: body.data.name,
-      platform: body.data.platform,
+      name: body.name,
+      platform: body.platform,
       lastUsedAt: new Date(),
     });
     await writeAudit(db, {
@@ -62,37 +45,38 @@ export async function POST(req: Request) {
       targetId: id,
     });
     return Response.json({ id });
-  } catch (err) {
-    return customerErrorResponse(err, "generic");
-  }
+  });
 }
 
 export async function PATCH(req: Request) {
-  try {
+  return handle(async () => {
     const user = await requireUser();
-    const body = z
-      .object({ id: z.string(), name: z.string().min(1).max(80) })
-      .safeParse(await req.json());
-    if (!body.success) return Response.json({ error: "Invalid input" }, { status: 400 });
+    const body = await parseBody(req, renameSchema);
     const db = getDb();
-    const row = (await db.select().from(devices).where(eq(devices.id, body.data.id)).limit(1))[0];
-    if (!row || row.userId !== user.id) return Response.json({ error: "Not found" }, { status: 404 });
-    await db.update(devices).set({ name: body.data.name, updatedAt: new Date() }).where(eq(devices.id, row.id));
+    const [row] = await db.select().from(devices).where(eq(devices.id, body.id)).limit(1);
+    if (!row || row.userId !== user.id || row.revokedAt) throw new HttpError(404, "Not found");
+    await db.update(devices).set({ name: body.name, updatedAt: new Date() }).where(eq(devices.id, row.id));
     return Response.json({ ok: true });
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  });
 }
 
 export async function DELETE(req: Request) {
-  try {
+  return handle(async () => {
     const user = await requireUser();
     const id = new URL(req.url).searchParams.get("id");
-    if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
+    if (!id) throw new HttpError(400, "Missing id");
     const db = getDb();
-    const row = (await db.select().from(devices).where(eq(devices.id, id)).limit(1))[0];
-    if (!row || row.userId !== user.id) return Response.json({ error: "Not found" }, { status: 404 });
-    await db.update(devices).set({ revokedAt: new Date(), updatedAt: new Date() }).where(eq(devices.id, id));
+    const [row] = await db.select().from(devices).where(eq(devices.id, id)).limit(1);
+    if (!row || row.userId !== user.id) throw new HttpError(404, "Not found");
+    const now = new Date();
+    await db.update(devices).set({ revokedAt: now, updatedAt: now }).where(eq(devices.id, id));
+    if (row.connectionId) {
+      // Revoking a device also cuts the connection it was created with.
+      await db
+        .update(vpnConnections)
+        .set({ revokedAt: now, updatedAt: now })
+        .where(and(eq(vpnConnections.id, row.connectionId), eq(vpnConnections.userId, user.id)));
+    }
     await writeAudit(db, {
       actorId: user.id,
       actorType: "user",
@@ -101,7 +85,5 @@ export async function DELETE(req: Request) {
       targetId: id,
     });
     return Response.json({ ok: true });
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  });
 }
