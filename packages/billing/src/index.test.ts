@@ -97,3 +97,20 @@ describe("StripeBillingProvider webhook stub", () => {
     expect(event.signatureValid).toBe(false);
   });
 });
+
+describe("subscription helpers", () => {
+  it("keeps access for paid-through cancelling subscriptions", () => {
+    expect(canProvisionVpn("cancelled", "cancelling")).toBe(true);
+    expect(canProvisionVpn("cancelled", "cancelled")).toBe(false);
+    expect(canProvisionVpn("subscribed", "cancelling")).toBe(true);
+  });
+
+  it("restores lifecycle when a cancelling subscription is resumed", async () => {
+    const { nextLifecycleAfterResume, isLiveSubscriptionStatus } = await import("./index");
+    expect(nextLifecycleAfterResume("cancelled", true)).toBe("active");
+    expect(nextLifecycleAfterResume("cancelled", false)).toBe("subscribed");
+    expect(nextLifecycleAfterResume("suspended", true)).toBe("suspended");
+    expect(isLiveSubscriptionStatus("past_due")).toBe(true);
+    expect(isLiveSubscriptionStatus("expired")).toBe(false);
+  });
+});

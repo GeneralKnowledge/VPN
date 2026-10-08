@@ -137,11 +137,37 @@ export function nextLifecycleAfterCancel(
 }
 
 export function canProvisionVpn(lifecycle: CustomerLifecycle, billingStatus: SubscriptionStatus): boolean {
-  const billingOk = billingStatus === "active" || billingStatus === "trialing";
+  // "cancelling" is paid through the end of the period, so access (and repair of it) continues.
+  const billingOk = billingStatus === "active" || billingStatus === "trialing" || billingStatus === "cancelling";
   const lifeOk =
     lifecycle === "subscribed" ||
     lifecycle === "vpn_provisioned" ||
     lifecycle === "active" ||
-    lifecycle === "customer";
+    lifecycle === "customer" ||
+    (lifecycle === "cancelled" && billingStatus === "cancelling");
   return billingOk && lifeOk;
 }
+
+/** Statuses that count as the user's current subscription (mirrors the DB unique index). */
+export const LIVE_SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = [
+  "active",
+  "trialing",
+  "cancelling",
+  "past_due",
+];
+
+export function isLiveSubscriptionStatus(status: string): boolean {
+  return (LIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(status);
+}
+
+/** Resuming a subscription that was set to cancel puts the customer back in a paying lifecycle. */
+export function nextLifecycleAfterResume(
+  current: CustomerLifecycle,
+  vpnActive: boolean,
+): CustomerLifecycle {
+  if (current !== "cancelled") return current;
+  return vpnActive ? "active" : "subscribed";
+}
+
+/** Subscriptions stay usable for a short grace window after a missed renewal before access is cut. */
+export const RENEWAL_GRACE_DAYS = 3;

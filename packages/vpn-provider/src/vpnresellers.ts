@@ -126,7 +126,7 @@ function configContent(res: unknown): string {
     }
     if (typeof obj.config === "string") return obj.config;
   }
-  return JSON.stringify(res, null, 2);
+  throw new VpnProviderError("Provider returned an unrecognised configuration payload", "unknown", true, undefined, undefined, "getConnectionConfig");
 }
 
 /**
@@ -214,7 +214,7 @@ export class VPNResellersProvider implements VPNProvider {
       try {
         await this.request(
           "PUT",
-          `/accounts/${account.providerAccountId}/expire`,
+          `/accounts/${encodeURIComponent(account.providerAccountId)}/expire`,
           { expire_at: toExpireDate(input.expiresAt) },
           "expireAccount",
         );
@@ -230,7 +230,7 @@ export class VPNResellersProvider implements VPNProvider {
   async getAccount(providerAccountId: string): Promise<VpnAccount> {
     const res = await this.request<{ data: VrAccountData }>(
       "GET",
-      `/accounts/${providerAccountId}`,
+      `/accounts/${encodeURIComponent(providerAccountId)}`,
       undefined,
       "getAccount",
     );
@@ -238,16 +238,22 @@ export class VPNResellersProvider implements VPNProvider {
   }
 
   async findAccountByUsername(username: string): Promise<VpnAccount | null> {
-    // Prefer filtered list when supported; fall back to scanning pages.
+    const perPage = 50;
     const filtered = await this.request<Paginated<VrAccountData>>(
       "GET",
-      `/accounts?username=${encodeURIComponent(username)}&per_page=50`,
+      `/accounts?username=${encodeURIComponent(username)}&per_page=${perPage}`,
       undefined,
       "findAccountByUsername",
     ).catch(() => null);
 
-    const fromFilter = (filtered?.data ?? []).find((a) => a.username === username);
+    const rows = filtered?.data ?? [];
+    const fromFilter = rows.find((a) => a.username === username);
     if (fromFilter) return mapAccount(fromFilter);
+
+    // A short page means the list is complete (the filter worked or the account base is tiny), so
+    // "not found" is authoritative. Only a failed lookup or a full page of non-matching rows —
+    // i.e. the filter was ignored — justifies scanning every page.
+    if (filtered && rows.length < perPage) return null;
 
     const all = await this.fetchAllPages<VrAccountData>("/accounts", "findAccountByUsername");
     const match = all.find((a) => a.username === username);
@@ -255,17 +261,26 @@ export class VPNResellersProvider implements VPNProvider {
   }
 
   async suspendAccount(providerAccountId: string): Promise<VpnAccount> {
-    await this.request("PUT", `/accounts/${providerAccountId}/disable`, undefined, "suspendAccount");
+    await this.request("PUT", `/accounts/${encodeURIComponent(providerAccountId)}/disable`, undefined, "suspendAccount");
     return this.getAccount(providerAccountId);
   }
 
   async reactivateAccount(providerAccountId: string): Promise<VpnAccount> {
-    await this.request("PUT", `/accounts/${providerAccountId}/enable`, undefined, "reactivateAccount");
+    await this.request("PUT", `/accounts/${encodeURIComponent(providerAccountId)}/enable`, undefined, "reactivateAccount");
     return this.getAccount(providerAccountId);
   }
 
   async deleteAccount(providerAccountId: string): Promise<void> {
-    await this.request("DELETE", `/accounts/${providerAccountId}`, undefined, "deleteAccount");
+    await this.request("DELETE", `/accounts/${encodeURIComponent(providerAccountId)}`, undefined, "deleteAccount");
+  }
+
+  async changePassword(providerAccountId: string, password: string): Promise<void> {
+    await this.request(
+      "PUT",
+      `/accounts/${encodeURIComponent(providerAccountId)}/change_password`,
+      { password },
+      "changePassword",
+    );
   }
 
   async getConnectionConfig(input: CreateConnectionInput): Promise<VpnConnectionConfig> {
