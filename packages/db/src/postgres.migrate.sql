@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
   referral_code TEXT NOT NULL,
   referred_by_user_id TEXT,
   deleted_at BIGINT,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_uidx ON users(email);
 CREATE UNIQUE INDEX IF NOT EXISTS users_referral_uidx ON users(referral_code);
@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   expires_at BIGINT NOT NULL,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
 
@@ -36,8 +36,8 @@ CREATE TABLE IF NOT EXISTS verification_tokens (
   token_hash TEXT NOT NULL,
   expires_at BIGINT NOT NULL,
   used_at BIGINT,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS verification_token_hash_uidx ON verification_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS verification_user_idx ON verification_tokens(user_id);
@@ -52,8 +52,8 @@ CREATE TABLE IF NOT EXISTS plans (
   features_json TEXT NOT NULL,
   max_devices INTEGER NOT NULL DEFAULT 5,
   active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 
 CREATE TABLE IF NOT EXISTS subscriptions (
@@ -65,11 +65,13 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   provider_subscription_id TEXT,
   current_period_end BIGINT,
   cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS subscriptions_user_idx ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS subscriptions_status_idx ON subscriptions(status);
+CREATE UNIQUE INDEX IF NOT EXISTS subscriptions_live_user_uidx ON subscriptions(user_id)
+  WHERE status IN ('active', 'trialing', 'cancelling', 'past_due');
 
 CREATE TABLE IF NOT EXISTS vpn_accounts (
   id TEXT PRIMARY KEY,
@@ -81,8 +83,8 @@ CREATE TABLE IF NOT EXISTS vpn_accounts (
   last_error TEXT,
   provision_attempts INTEGER NOT NULL DEFAULT 0,
   last_reconciled_at BIGINT,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS vpn_accounts_user_uidx ON vpn_accounts(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS vpn_accounts_provider_uidx ON vpn_accounts(provider_account_id);
@@ -100,8 +102,8 @@ CREATE TABLE IF NOT EXISTS vpn_locations (
   latency INTEGER,
   load INTEGER,
   is_fixture BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS vpn_locations_country_idx ON vpn_locations(country_code);
 CREATE UNIQUE INDEX IF NOT EXISTS vpn_locations_provider_uidx ON vpn_locations(provider_id);
@@ -116,8 +118,8 @@ CREATE TABLE IF NOT EXISTS vpn_connections (
   protocol TEXT NOT NULL,
   last_used_at BIGINT,
   revoked_at BIGINT,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS vpn_connections_user_idx ON vpn_connections(user_id);
 CREATE INDEX IF NOT EXISTS vpn_connections_account_idx ON vpn_connections(vpn_account_id);
@@ -130,8 +132,8 @@ CREATE TABLE IF NOT EXISTS devices (
   platform TEXT NOT NULL,
   last_used_at BIGINT,
   revoked_at BIGINT,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS devices_user_idx ON devices(user_id);
 
@@ -144,8 +146,8 @@ CREATE TABLE IF NOT EXISTS payments (
   amount INTEGER NOT NULL,
   currency TEXT NOT NULL DEFAULT 'GBP',
   status TEXT NOT NULL,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS payments_user_idx ON payments(user_id);
 
@@ -158,8 +160,8 @@ CREATE TABLE IF NOT EXISTS invoices (
   currency TEXT NOT NULL DEFAULT 'GBP',
   status TEXT NOT NULL,
   pdf_url TEXT,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS invoices_user_idx ON invoices(user_id);
 
@@ -169,8 +171,8 @@ CREATE TABLE IF NOT EXISTS support_tickets (
   subject TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open',
   assignee_id TEXT REFERENCES users(id),
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS support_tickets_user_idx ON support_tickets(user_id);
 CREATE INDEX IF NOT EXISTS support_tickets_status_idx ON support_tickets(status);
@@ -181,8 +183,8 @@ CREATE TABLE IF NOT EXISTS support_messages (
   author_id TEXT NOT NULL REFERENCES users(id),
   body TEXT NOT NULL,
   is_staff BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS support_messages_ticket_idx ON support_messages(ticket_id);
 
@@ -193,8 +195,8 @@ CREATE TABLE IF NOT EXISTS referrals (
   status TEXT NOT NULL DEFAULT 'pending',
   reward_json TEXT,
   converted_at BIGINT,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS referrals_referred_uidx ON referrals(referred_user_id);
 CREATE INDEX IF NOT EXISTS referrals_referrer_idx ON referrals(referrer_user_id);
@@ -208,7 +210,7 @@ CREATE TABLE IF NOT EXISTS audit_events (
   target_id TEXT,
   metadata_json TEXT,
   correlation_id TEXT,
-  created_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS audit_events_actor_idx ON audit_events(actor_id);
 CREATE INDEX IF NOT EXISTS audit_events_target_idx ON audit_events(target_type, target_id);
@@ -223,8 +225,8 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   signature_valid BOOLEAN NOT NULL,
   processed_at BIGINT,
   processing_error TEXT,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS webhook_events_provider_event_uidx ON webhook_events(provider, event_id);
 
@@ -237,7 +239,7 @@ CREATE TABLE IF NOT EXISTS provider_events (
   target_id TEXT,
   metadata_json TEXT,
   correlation_id TEXT,
-  created_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS provider_events_created_idx ON provider_events(created_at);
 
@@ -248,8 +250,8 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
   provider_session_id TEXT NOT NULL,
   status TEXT NOT NULL,
   idempotency_key TEXT,
-  created_at BIGINT NOT NULL,
-  updated_at BIGINT NOT NULL
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS checkout_provider_session_uidx ON checkout_sessions(provider_session_id);
 CREATE UNIQUE INDEX IF NOT EXISTS checkout_idempotency_uidx ON checkout_sessions(idempotency_key);

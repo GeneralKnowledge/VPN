@@ -21,7 +21,17 @@ function monorepoRoot(): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 }
 
+
+/** Seeding or resetting wipes data and creates default credentials — never allow it in production. */
+function assertNotProduction(action: string) {
+  const isProd = process.env.APP_ENV === "production" || (!process.env.APP_ENV && process.env.NODE_ENV === "production");
+  if (isProd && process.env.NORTHSTAR_ALLOW_DESTRUCTIVE_DB !== "true") {
+    throw new Error(`Refusing to ${action} in production (set NORTHSTAR_ALLOW_DESTRUCTIVE_DB=true to override)`);
+  }
+}
+
 export async function seed() {
+  assertNotProduction("seed the database");
   process.env.NORTHSTAR_ROOT = process.env.NORTHSTAR_ROOT ?? monorepoRoot();
   const databaseUrl = process.env.DATABASE_URL ?? "file:./data/northstar.db";
   migrate(databaseUrl);
