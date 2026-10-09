@@ -3,6 +3,8 @@ import { MarketingPage } from "@/components/marketing-page";
 import { Badge } from "@/components/ui";
 import { isProduction } from "@/lib/providers";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = { title: "Locations" };
 
 export default function LocationsPage() {

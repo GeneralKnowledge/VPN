@@ -1,6 +1,8 @@
 import { isProduction } from "@/lib/providers";
 import { LoginForm } from "./login-form";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = { title: "Log in" };
 
 export default function LoginPage() {
