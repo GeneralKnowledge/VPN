@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+/** Public marketing routes only — legal drafts are noindex and omitted. */
 const routes = [
   "/",
   "/features",
@@ -11,11 +12,6 @@ const routes = [
   "/about",
   "/trust",
   "/contact",
-  "/privacy",
-  "/terms",
-  "/acceptable-use",
-  "/refund",
-  "/cookies",
   "/login",
   "/register",
 ];

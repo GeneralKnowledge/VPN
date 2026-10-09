@@ -46,7 +46,10 @@ export async function POST(req: Request) {
       throw new HttpError(401, "Invalid email or password");
     }
 
-    const token = await createSession(db, user.id);
+    const token = await createSession(db, user.id, {
+      userAgent: req.headers.get("user-agent"),
+      ipAddress: ip,
+    });
     setSessionCookie(await cookies(), token);
 
     await writeAudit(db, {

@@ -1,6 +1,9 @@
 import { LegalDraftNotice, MarketingPage } from "@/components/marketing-page";
 
-export const metadata = { title: "Acceptable Use" };
+export const metadata = {
+  title: "Acceptable Use",
+  robots: { index: false, follow: false },
+};
 
 export default function AupPage() {
   return (

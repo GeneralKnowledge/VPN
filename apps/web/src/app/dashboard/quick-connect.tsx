@@ -1,21 +1,42 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
-import { Button, Label, Select } from "@/components/ui";
+import { useId, useMemo, useState } from "react";
+import { Button, Input, Label, Select } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 import { flagEmoji } from "@/lib/format";
+
+const platforms = [
+  { value: "windows", label: "Windows" },
+  { value: "macos", label: "macOS" },
+  { value: "linux", label: "Linux" },
+  { value: "ios", label: "iOS" },
+  { value: "android", label: "Android" },
+  { value: "other", label: "Other" },
+] as const;
 
 export function QuickConnect({
   locations,
   connections,
+  preferredLocationId,
 }: {
   locations: Array<{ id: string; city: string; country: string; countryCode?: string }>;
   connections: Array<{ id: string; locationId: string; protocol: string }>;
+  preferredLocationId?: string | null;
 }) {
   const router = useRouter();
   const selectId = useId();
-  const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
+  const platformId = useId();
+  const nameId = useId();
+  const ordered = useMemo(() => {
+    if (!preferredLocationId) return locations;
+    const preferred = locations.find((l) => l.id === preferredLocationId);
+    if (!preferred) return locations;
+    return [preferred, ...locations.filter((l) => l.id !== preferredLocationId)];
+  }, [locations, preferredLocationId]);
+  const [locationId, setLocationId] = useState(ordered[0]?.id ?? "");
+  const [platform, setPlatform] = useState<(typeof platforms)[number]["value"]>("macos");
+  const [deviceName, setDeviceName] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,13 +47,15 @@ export function QuickConnect({
     const loc = locations.find((l) => l.id === locationId);
     let connectionId = connections.find((c) => c.locationId === locationId && c.protocol === "wireguard")?.id;
     if (!connectionId) {
+      const name = deviceName.trim() || `${loc?.city ?? "VPN"} (${platforms.find((p) => p.value === platform)?.label ?? "device"})`;
       const create = await fetch("/api/vpn/connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           locationId,
           protocol: "wireguard",
-          name: `${loc?.city ?? "VPN"} (WireGuard)`,
+          name,
+          platform,
         }),
       });
       const created = await safeJson(create);
@@ -41,7 +64,7 @@ export function QuickConnect({
         setLoading(false);
         return;
       }
-      connectionId = created.id;
+      connectionId = created.id as string;
     }
     const res = await fetch("/api/vpn/config", {
       method: "POST",
@@ -63,7 +86,7 @@ export function QuickConnect({
     const isMock = res.headers.get("X-Northstar-Mock-Config") === "true";
     setStatus(
       isMock
-        ? "Configuration downloaded (development mock — not for production use)."
+        ? "Configuration downloaded (development mock). Import it into WireGuard, then mark setup complete if needed."
         : "Configuration downloaded. Import it into WireGuard to connect.",
     );
     setLoading(false);
@@ -71,26 +94,49 @@ export function QuickConnect({
   }
 
   return (
-    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-      <div className="flex-1">
-        <Label htmlFor={selectId}>Choose a location</Label>
-        <Select
-          id={selectId}
-          value={locationId}
-          onChange={(e) => setLocationId(e.target.value)}
-        >
-          {locations.map((l) => (
+    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <Label htmlFor={selectId}>Location{preferredLocationId && locationId === preferredLocationId ? " (recommended)" : ""}</Label>
+        <Select id={selectId} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+          {ordered.map((l) => (
             <option key={l.id} value={l.id}>
               {flagEmoji(l.countryCode ?? "")} {l.country} — {l.city}
+              {l.id === preferredLocationId ? " · last used" : ""}
             </option>
           ))}
         </Select>
       </div>
-      <Button type="button" onClick={connect} disabled={loading || !locationId}>
-        {loading ? "Preparing…" : "Connect"}
-      </Button>
+      <div>
+        <Label htmlFor={nameId}>Device name</Label>
+        <Input
+          id={nameId}
+          value={deviceName}
+          onChange={(e) => setDeviceName(e.target.value)}
+          placeholder="Laptop"
+          maxLength={80}
+        />
+      </div>
+      <div>
+        <Label htmlFor={platformId}>Platform</Label>
+        <Select
+          id={platformId}
+          value={platform}
+          onChange={(e) => setPlatform(e.target.value as (typeof platforms)[number]["value"])}
+        >
+          {platforms.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div className="sm:col-span-2">
+        <Button type="button" onClick={connect} disabled={loading || !locationId}>
+          {loading ? "Preparing…" : "Connect & download"}
+        </Button>
+      </div>
       {status ? (
-        <p className="w-full text-sm text-muted" role="status">
+        <p className="sm:col-span-2 text-sm text-muted" role="status">
           {status}
         </p>
       ) : null}

@@ -1,5 +1,5 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { vpnAccounts, vpnConnections, vpnLocations } from "@northstar/db";
+import { users, vpnAccounts, vpnConnections, vpnLocations } from "@northstar/db";
 import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
 import { HttpError, handle, parseBody } from "@/lib/http";
@@ -63,6 +63,11 @@ export async function POST(req: Request) {
       locationId: location.providerId,
       protocol,
     });
+
+    await db
+      .update(users)
+      .set({ preferredLocationId: location.id, updatedAt: new Date() })
+      .where(eq(users.id, user.id));
 
     await writeAudit(db, {
       actorId: user.id,

@@ -11,7 +11,8 @@ const createSchema = z.object({
   locationId: z.string().min(1),
   protocol: z.enum(["wireguard", "openvpn", "vless"]).default("wireguard"),
   name: z.string().trim().min(1).max(80),
-  platform: z.enum(["windows", "macos", "linux", "ios", "android", "other"]).optional(),
+  /** Required — every connection is a named device for plan limits and the dashboard. */
+  platform: z.enum(["windows", "macos", "linux", "ios", "android", "other"]),
 });
 
 export async function GET() {
@@ -62,8 +63,7 @@ export async function POST(req: Request) {
       if (existing.length >= MAX_CONNECTIONS_PER_USER) {
         throw new HttpError(400, "You have reached the connection limit. Remove one you no longer use.");
       }
-      // Creating a device here must respect the same plan limit as the devices endpoint.
-      if (body.platform) await assertDeviceCapacity(db, user.id);
+      await assertDeviceCapacity(db, user.id);
 
       const connId = newId("conn");
       await db.insert(vpnConnections).values({
@@ -73,18 +73,14 @@ export async function POST(req: Request) {
         locationId: location.id,
         name: body.name,
         protocol: body.protocol,
-        lastUsedAt: new Date(),
       });
-      if (body.platform) {
-        await db.insert(devices).values({
-          id: newId("dev"),
-          userId: user.id,
-          connectionId: connId,
-          name: body.name,
-          platform: body.platform,
-          lastUsedAt: new Date(),
-        });
-      }
+      await db.insert(devices).values({
+        id: newId("dev"),
+        userId: user.id,
+        connectionId: connId,
+        name: body.name,
+        platform: body.platform,
+      });
 
       await writeAudit(db, {
         actorId: user.id,
@@ -93,7 +89,7 @@ export async function POST(req: Request) {
         targetType: "vpn_connection",
         targetId: connId,
         correlationId: correlationId(),
-        metadata: { locationId: location.id, protocol: body.protocol },
+        metadata: { locationId: location.id, protocol: body.protocol, platform: body.platform },
       });
       track({ name: "location_selected", userId: user.id, properties: { locationId: location.id } });
       return Response.json({ id: connId });
@@ -112,6 +108,10 @@ export async function DELETE(req: Request) {
     if (!row || row.userId !== user.id) throw new HttpError(404, "Not found");
     const now = new Date();
     await db.update(vpnConnections).set({ revokedAt: now, updatedAt: now }).where(eq(vpnConnections.id, id));
+    await db
+      .update(devices)
+      .set({ revokedAt: now, updatedAt: now })
+      .where(and(eq(devices.connectionId, id), eq(devices.userId, user.id), isNull(devices.revokedAt)));
     await writeAudit(db, {
       actorId: user.id,
       actorType: "user",

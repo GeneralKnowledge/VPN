@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { safeJson } from "@/lib/client";
 import { cn } from "@/lib/utils";
 import { Button, Card } from "./ui";
 
@@ -9,22 +14,64 @@ export type OnboardingStep = {
   done: boolean;
   href: string;
   cta: string;
+  /** When set, the CTA runs this action instead of navigating. */
+  ctaAction?: "resend-verification";
 };
 
 export function OnboardingChecklist({
   steps,
   title = "Get set up",
   description = "Finish these steps in your account — no app install from us required.",
+  dismissible = true,
 }: {
   steps: OnboardingStep[];
   title?: string;
   description?: string;
+  dismissible?: boolean;
 }) {
+  const router = useRouter();
   const doneCount = steps.filter((s) => s.done).length;
   const allDone = doneCount === steps.length;
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
   if (allDone) return null;
 
   const next = steps.find((s) => !s.done);
+
+  async function resendVerification() {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const res = await fetch("/api/auth/resend-verification", { method: "POST" });
+      const data = await safeJson(res);
+      setStatus(res.ok ? "Verification email sent." : (data.error ?? "Couldn’t send. Try again later."));
+    } catch {
+      setStatus("Network error. Please try again.");
+    }
+    setBusy(false);
+  }
+
+  async function dismiss() {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const res = await fetch("/api/account/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dismiss: true }),
+      });
+      if (!res.ok) {
+        setStatus((await safeJson(res)).error ?? "Couldn’t dismiss the checklist.");
+        setBusy(false);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setStatus("Network error. Please try again.");
+      setBusy(false);
+    }
+  }
 
   return (
     <Card className="border-sea/30 bg-surface">
@@ -62,15 +109,47 @@ export function OnboardingChecklist({
               </div>
             </div>
             {!step.done ? (
-              <Link href={step.href}>
-                <Button size="sm" variant={step.id === next?.id ? "primary" : "secondary"}>
+              step.ctaAction === "resend-verification" ? (
+                <Button
+                  size="sm"
+                  variant={step.id === next?.id ? "primary" : "secondary"}
+                  type="button"
+                  disabled={busy}
+                  onClick={resendVerification}
+                >
                   {step.cta}
                 </Button>
-              </Link>
+              ) : (
+                <Link href={step.href}>
+                  <Button size="sm" variant={step.id === next?.id ? "primary" : "secondary"}>
+                    {step.cta}
+                  </Button>
+                </Link>
+              )
             ) : null}
           </li>
         ))}
       </ol>
+      {status ? (
+        <p className="mt-3 text-sm text-muted" role="status">
+          {status}
+        </p>
+      ) : null}
+      {dismissible ? (
+        <div className="mt-4 flex flex-wrap gap-3 border-t border-border pt-4">
+          <Button size="sm" variant="secondary" type="button" disabled={busy} onClick={dismiss}>
+            I’ve imported my config
+          </Button>
+          <button
+            type="button"
+            className="text-sm text-muted underline-offset-2 hover:underline disabled:opacity-50"
+            disabled={busy}
+            onClick={dismiss}
+          >
+            Dismiss checklist
+          </button>
+        </div>
+      ) : null}
     </Card>
   );
 }

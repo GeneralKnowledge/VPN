@@ -56,6 +56,15 @@ describe("MockBillingProvider", () => {
     expect(cancelled.status).toBe("cancelling");
   });
 
+  it("hydrates seeded sub_mock_* ids after process restart", async () => {
+    const billing = new MockBillingProvider("test-webhook-secret");
+    const cancelled = await billing.cancelSubscription("sub_mock_seeded_from_db", true);
+    expect(cancelled.id).toBe("sub_mock_seeded_from_db");
+    expect(cancelled.status).toBe("cancelling");
+    const resumed = await billing.resumeSubscription("sub_mock_seeded_from_db");
+    expect(resumed.status).toBe("active");
+  });
+
   it("rejects forgeable mock webhook signatures (null / mock_ / wrong secret)", async () => {
     const locked = new MockBillingProvider("super-secret-webhook");
     const payload = JSON.stringify({

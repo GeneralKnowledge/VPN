@@ -140,14 +140,14 @@ test("customer can show WireGuard QR for a connection", async ({ page }) => {
   await expect(page).toHaveURL(/dashboard/);
 
   // Ensure at least one connection exists via Quick Connect if needed
-  const vpnLink = page.getByRole("navigation", { name: "Dashboard" }).getByRole("link", { name: "VPN" });
-  await vpnLink.click();
+  const devicesLink = page.getByRole("navigation", { name: "Dashboard" }).getByRole("link", { name: "Devices" });
+  await devicesLink.click();
   await expect(page).toHaveURL(/dashboard\/vpn/);
 
   if ((await page.getByRole("button", { name: "Show QR" }).count()) === 0) {
     await page.getByRole("navigation", { name: "Dashboard" }).getByRole("link", { name: "Dashboard", exact: true }).click();
-    await page.getByRole("button", { name: /Quick connect|Connect/i }).first().click();
-    await vpnLink.click();
+    await page.getByRole("button", { name: /Connect & download|Connect/i }).first().click();
+    await devicesLink.click();
   }
 
   await page.getByRole("button", { name: "Show QR" }).first().click();

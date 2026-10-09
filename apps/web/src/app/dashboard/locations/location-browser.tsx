@@ -22,11 +22,23 @@ const protocolLabels: Record<string, string> = {
   vless: "VLESS",
 };
 
-export function LocationBrowser({ locations, canConnect }: { locations: BrowserLocation[]; canConnect: boolean }) {
+export function LocationBrowser({
+  locations,
+  canConnect,
+  preferredLocationId,
+}: {
+  locations: BrowserLocation[];
+  canConnect: boolean;
+  preferredLocationId?: string | null;
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
-  const [selectedId, setSelectedId] = useState(locations[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState(
+    preferredLocationId && locations.some((l) => l.id === preferredLocationId)
+      ? preferredLocationId
+      : (locations[0]?.id ?? ""),
+  );
   const [protocol, setProtocol] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -69,7 +81,7 @@ export function LocationBrowser({ locations, canConnect }: { locations: BrowserL
           locationId: selected.id,
           name: String(fd.get("name") || "").trim() || `${selected.city} device`,
           protocol: effectiveProtocol,
-          platform: "other",
+          platform: String(fd.get("platform") || "other"),
         }),
       });
       const data = await safeJson(res);
@@ -115,12 +127,27 @@ export function LocationBrowser({ locations, canConnect }: { locations: BrowserL
           <div className="sm:col-span-4">
             <p className="text-sm text-muted">Selected location</p>
             <p className="font-medium">
-              {selected ? `${flagEmoji(selected.countryCode)} ${selected.city}, ${selected.country}` : "Choose a location below"}
+              {selected
+                ? `${flagEmoji(selected.countryCode)} ${selected.city}, ${selected.country}${
+                    selected.id === preferredLocationId ? " · last used" : ""
+                  }`
+                : "Choose a location below"}
             </p>
           </div>
-          <div className="sm:col-span-2">
+          <div>
             <Label htmlFor="name">Device name</Label>
             <Input id="name" name="name" placeholder="Laptop" maxLength={80} />
+          </div>
+          <div>
+            <Label htmlFor="platform">Platform</Label>
+            <Select id="platform" name="platform" defaultValue="macos">
+              <option value="windows">Windows</option>
+              <option value="macos">macOS</option>
+              <option value="linux">Linux</option>
+              <option value="ios">iOS</option>
+              <option value="android">Android</option>
+              <option value="other">Other</option>
+            </Select>
           </div>
           <div>
             <Label htmlFor="protocol">Protocol</Label>
