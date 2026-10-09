@@ -44,7 +44,30 @@ test("customer can log in to dashboard", async ({ page }) => {
   await page.getByLabel("Password").fill("CustomerDev123!");
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/dashboard/);
-  await expect(page.getByText(/Welcome back/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Welcome/i })).toBeVisible();
+});
+
+test("trust page and self-serve onboarding checklist", async ({ page }) => {
+  await page.goto("/trust");
+  await expect(page.getByRole("heading", { name: /Trust/i })).toBeVisible();
+  await expect(page.getByText(/Self-serve by design/i)).toBeVisible();
+
+  // Lead seed user has no plan yet — checklist should guide them to billing.
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("lead@northstar.local");
+  await page.getByLabel("Password").fill("LeadDev123!");
+  await page.getByRole("button", { name: /Sign in/i }).click();
+  await expect(page).toHaveURL(/dashboard/);
+  await expect(page.getByRole("heading", { name: "Get set up" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Go to billing" }).first()).toBeVisible();
+});
+
+test("download guides include platform anchors", async ({ page }) => {
+  await page.goto("/download");
+  await expect(page.getByRole("heading", { name: /Download/i })).toBeVisible();
+  await expect(page.locator("#ios")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "iOS" })).toBeVisible();
+  await expect(page.getByText(/Show QR for WireGuard/i)).toBeVisible();
 });
 
 test("admin can open customers table", async ({ page }) => {

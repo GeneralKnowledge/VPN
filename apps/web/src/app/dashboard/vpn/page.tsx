@@ -3,7 +3,8 @@ import { vpnAccounts, vpnConnections, vpnLocations } from "@northstar/db";
 import { requireUser } from "@/lib/auth";
 import { customerVpnStatusLabel } from "@/lib/http";
 import { getDb } from "@/lib/providers";
-import { Badge, Card } from "@/components/ui";
+import Link from "next/link";
+import { Badge, Button, Card, EmptyState, PageHeader } from "@/components/ui";
 import { ResetCredentialsButton } from "./credentials-button";
 import { DownloadConfigButton } from "./download-button";
 import { flagEmoji } from "@/lib/format";
@@ -31,10 +32,17 @@ export default async function VpnPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl">Your VPN</h1>
-        <p className="mt-1 text-sm text-muted">See whether you’re set up, and download configs for your devices.</p>
-      </div>
+      <PageHeader
+        title="Your VPN"
+        description="Check status, download configs, or show a WireGuard QR — then follow the setup guide for your device."
+        actions={
+          <Link href="/download">
+            <Button size="sm" variant="secondary">
+              Setup guides
+            </Button>
+          </Link>
+        }
+      />
       <Card>
         <p className="text-sm text-muted">Status</p>
         <div className="mt-2 flex items-center gap-3">
@@ -74,7 +82,17 @@ export default async function VpnPage() {
             </li>
           ))}
           {conns.length === 0 ? (
-            <li className="text-sm text-muted">No connections yet. Pick a location to get started.</li>
+            <li>
+              <EmptyState
+                title="No connections yet"
+                description="Pick a location to create a WireGuard or OpenVPN connection, then download the config here."
+                action={
+                  <Link href="/dashboard/locations">
+                    <Button size="sm">Browse locations</Button>
+                  </Link>
+                }
+              />
+            </li>
           ) : null}
         </ul>
       </Card>

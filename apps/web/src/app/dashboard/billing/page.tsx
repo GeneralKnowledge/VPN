@@ -28,11 +28,15 @@ export default async function BillingPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Billing" description="Manage your plan, payment status and invoices." />
+      <PageHeader
+        title="Billing"
+        description="Subscribe, cancel, resume, and download invoices — all from this page."
+      />
       {params.checkout === "cancel" ? <Alert>Checkout cancelled. You have not been charged.</Alert> : null}
       {sub?.status === "past_due" ? (
         <Alert tone="danger" title="We couldn’t take your last payment">
-          Update your payment method soon to keep your VPN access. Access may be paused if the payment isn’t resolved.
+          Check the card on file with your bank, then retry from here or open a support ticket. Access may be paused if
+          the payment isn’t resolved.
         </Alert>
       ) : null}
       {sub?.status === "cancelling" ? (
@@ -106,11 +110,19 @@ export default async function BillingPage({
         )}
       </Card>
       {!isProduction() ? (
-        <p className="text-sm text-muted">Development: checkout is simulated while the mock billing provider is active.</p>
+        <p className="text-sm text-muted">Local development uses simulated checkout so you can test without a card.</p>
       ) : null}
-      <Link href="/pricing" className="text-sm text-sea hover:underline">
-        View public pricing
-      </Link>
+      <div className="flex flex-wrap gap-4 text-sm">
+        <Link href="/pricing" className="text-sea hover:underline">
+          View public pricing
+        </Link>
+        <Link href="/dashboard/support" className="text-sea hover:underline">
+          Billing help
+        </Link>
+        <Link href="/refund" className="text-sea hover:underline">
+          Refund policy
+        </Link>
+      </div>
     </div>
   );
 }

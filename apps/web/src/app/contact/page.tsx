@@ -6,7 +6,10 @@ export const metadata = { title: "Contact" };
 
 export default function ContactPage() {
   return (
-    <MarketingPage title="Contact" description={`Reach ${brand.shortName} — messages are stored locally in mock mode.`}>
+    <MarketingPage
+      title="Contact"
+      description={`Reach ${brand.shortName}. We read every message — for account-specific help, signed-in customers can also open a dashboard ticket.`}
+    >
       <form action="/api/support" method="post" className="max-w-md space-y-4">
         <input type="hidden" name="source" value="contact" />
         <div>
