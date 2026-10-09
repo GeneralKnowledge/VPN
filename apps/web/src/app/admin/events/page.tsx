@@ -1,8 +1,11 @@
 import { desc } from "drizzle-orm";
 import { auditEvents, providerEvents, webhookEvents } from "@northstar/db";
 import { requireAdmin } from "@/lib/auth";
+import { formatDateTime } from "@/lib/format";
+import { activityLabel } from "@/lib/labels";
 import { getDb } from "@/lib/providers";
-import { Card } from "@/components/ui";
+import { DataTable } from "@/components/data-table";
+import { Badge, PageHeader } from "@/components/ui";
 
 export default async function AdminEventsPage() {
   await requireAdmin();
@@ -13,32 +16,91 @@ export default async function AdminEventsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-3xl">Events</h1>
-      <Card>
-        <h2 className="font-display text-lg">Audit</h2>
-        <ul className="mt-3 space-y-1 text-sm">
-          {audits.map((a) => (
-            <li key={a.id}>{a.action} · {a.actorType}</li>
-          ))}
-        </ul>
-      </Card>
-      <Card>
-        <h2 className="font-display text-lg">Webhooks</h2>
-        <ul className="mt-3 space-y-1 text-sm">
-          {webhooks.length === 0 ? <li className="text-muted">None yet</li> : null}
-          {webhooks.map((w) => (
-            <li key={w.id}>{w.provider} · {w.eventType}</li>
-          ))}
-        </ul>
-      </Card>
-      <Card>
-        <h2 className="font-display text-lg">Provider events</h2>
-        <ul className="mt-3 space-y-1 text-sm">
-          {providers.map((p) => (
-            <li key={p.id}>{p.action} · {p.status}</li>
-          ))}
-        </ul>
-      </Card>
+      <PageHeader title="Events" description="Audit trail, inbound webhooks, and provider API activity." />
+
+      <section className="space-y-3">
+        <h2 className="font-display text-xl">Audit</h2>
+        <DataTable
+          caption="Audit events"
+          emptyTitle="No audit events"
+          rows={audits}
+          rowKey={(a) => a.id}
+          columns={[
+            { key: "action", header: "Action", cell: (a) => activityLabel(a.action) },
+            { key: "actor", header: "Actor", cell: (a) => a.actorType },
+            {
+              key: "target",
+              header: "Target",
+              className: "font-mono text-xs text-muted",
+              cell: (a) => (a.targetId ? `${a.targetType} ${a.targetId.slice(0, 12)}…` : a.targetType ?? "—"),
+            },
+            {
+              key: "when",
+              header: "When",
+              className: "whitespace-nowrap text-muted",
+              cell: (a) => formatDateTime(a.createdAt),
+            },
+          ]}
+        />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-display text-xl">Webhooks</h2>
+        <DataTable
+          caption="Webhook events"
+          emptyTitle="No webhooks yet"
+          rows={webhooks}
+          rowKey={(w) => w.id}
+          columns={[
+            { key: "provider", header: "Provider", cell: (w) => w.provider },
+            { key: "type", header: "Event", cell: (w) => w.eventType },
+            {
+              key: "sig",
+              header: "Signature",
+              cell: (w) => (
+                <Badge tone={w.signatureValid ? "success" : "danger"}>
+                  {w.signatureValid ? "Valid" : "Invalid"}
+                </Badge>
+              ),
+            },
+            {
+              key: "when",
+              header: "When",
+              className: "whitespace-nowrap text-muted",
+              cell: (w) => formatDateTime(w.createdAt),
+            },
+          ]}
+        />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-display text-xl">Provider events</h2>
+        <DataTable
+          caption="Provider events"
+          emptyTitle="No provider events"
+          rows={providers}
+          rowKey={(p) => p.id}
+          columns={[
+            { key: "action", header: "Action", cell: (p) => p.action },
+            {
+              key: "status",
+              header: "Status",
+              cell: (p) => (
+                <Badge tone={p.status === "success" ? "success" : p.status === "error" ? "danger" : "warning"}>
+                  {p.status}
+                </Badge>
+              ),
+            },
+            { key: "provider", header: "Provider", cell: (p) => p.provider },
+            {
+              key: "when",
+              header: "When",
+              className: "whitespace-nowrap text-muted",
+              cell: (p) => formatDateTime(p.createdAt),
+            },
+          ]}
+        />
+      </section>
     </div>
   );
 }

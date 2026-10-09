@@ -70,7 +70,7 @@ export default async function VpnPage() {
                   {c.city}, {c.country} · {c.protocol}
                 </p>
               </div>
-              <DownloadConfigButton connectionId={c.id} />
+              <DownloadConfigButton connectionId={c.id} protocol={c.protocol} />
             </li>
           ))}
           {conns.length === 0 ? (
