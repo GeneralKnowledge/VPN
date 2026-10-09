@@ -1,6 +1,9 @@
 import { MOCK_LOCATIONS } from "@northstar/vpn-provider";
 import { MarketingPage } from "@/components/marketing-page";
 import { Badge } from "@/components/ui";
+import { isProduction } from "@/lib/providers";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Locations" };
 
@@ -8,11 +11,13 @@ export default function LocationsPage() {
   return (
     <MarketingPage
       title="Locations"
-      description="Development fixtures for demo and testing. Production inventory is loaded from the VPN provider when VPN_PROVIDER is not mock."
+      description="Servers in cities around the world. Sign in to see the locations currently available on your plan."
     >
-      <div className="mb-6 rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-muted">
-        These cities are mock fixtures and may not reflect live servers.
-      </div>
+      {!isProduction() ? (
+        <div className="mb-6 rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-muted">
+          Development: these cities are mock fixtures and may not reflect live servers.
+        </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {MOCK_LOCATIONS.map((loc) => (
           <div key={loc.id} className="rounded-xl border border-border bg-surface p-4">

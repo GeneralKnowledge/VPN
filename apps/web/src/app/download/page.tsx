@@ -57,7 +57,7 @@ export default function DownloadPage() {
   return (
     <MarketingPage
       title="Download & setup"
-      description={`${brand.name} does not ship a custom mobile/desktop app yet. Use standard clients with your account configuration. When branded apps are published, they can be enabled via configuration.`}
+      description={`${brand.name} works with the standard WireGuard and OpenVPN apps. Download your configuration from the dashboard and import it into the client for your device.`}
     >
       <div className="space-y-8">
         {platforms.map((p) => (

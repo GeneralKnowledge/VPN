@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, Input, Label } from "@/components/ui";
+import { Button, Input, Label, Textarea } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
 async function send(payload: Record<string, unknown>): Promise<string | null> {
@@ -64,12 +64,12 @@ export function SupportForm({ ticketId }: { ticketId?: string }) {
         <Label htmlFor="subject">New ticket</Label>
         <Input id="subject" name="subject" required maxLength={200} placeholder="Subject" />
       </div>
-      <textarea
+      <Textarea
         name="body"
         required
         rows={3}
         maxLength={5000}
-        className="w-full rounded-md border border-border px-3 py-2 text-sm"
+        aria-label="Message"
         placeholder="How can we help?"
       />
       <Button type="submit">Create ticket</Button>

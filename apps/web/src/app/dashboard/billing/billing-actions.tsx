@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useFeedback } from "@/components/feedback";
 import { Button } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
@@ -18,6 +19,7 @@ export function BillingActions({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const autoStarted = useRef(false);
+  const { confirm, toast } = useFeedback();
 
   async function startCheckout(id: string) {
     setLoading(true);
@@ -41,15 +43,18 @@ export function BillingActions({
     }
   }
 
-  async function post(path: string, confirmText?: string) {
-    if (confirmText && !confirm(confirmText)) return;
+  async function post(path: string, successMessage: string, confirmation?: { title: string; description: string; confirmLabel: string }) {
+    if (confirmation && !(await confirm({ ...confirmation, destructive: true }))) return;
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(path, { method: "POST" });
       const data = await safeJson(res);
       if (!res.ok) setError(data.error ?? "That didn’t work. Please try again.");
-      else router.refresh();
+      else {
+        toast(successMessage, "success");
+        router.refresh();
+      }
     } catch {
       setError("Network error. Please try again.");
     }
@@ -83,7 +88,13 @@ export function BillingActions({
           variant="secondary"
           type="button"
           disabled={loading}
-          onClick={() => post("/api/billing/cancel", "Cancel at end of billing period?")}
+          onClick={() =>
+            post("/api/billing/cancel", "Your subscription will end at the end of the billing period.", {
+              title: "Cancel your subscription?",
+              description: "You keep full access until the end of your current billing period. You can resume before then.",
+              confirmLabel: "Cancel subscription",
+            })
+          }
         >
           Cancel subscription
         </Button>
@@ -95,7 +106,7 @@ export function BillingActions({
   if (status === "cancelling") {
     return (
       <div className="mt-4">
-        <Button type="button" disabled={loading} onClick={() => post("/api/billing/resume")}>
+        <Button type="button" disabled={loading} onClick={() => post("/api/billing/resume", "Your subscription has been resumed.")}>
           Resume subscription
         </Button>
         {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}

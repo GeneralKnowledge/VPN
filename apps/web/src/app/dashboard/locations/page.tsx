@@ -1,17 +1,11 @@
+import Link from "next/link";
 import { vpnAccounts, vpnLocations } from "@northstar/db";
 import { eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
 import { getDb, getEnv, getVpnProvider } from "@/lib/providers";
 import { syncLocationsFromProvider } from "@/lib/services";
-import { Badge, Card } from "@/components/ui";
-import { CreateConnectionForm } from "./create-form";
-
-function flagEmoji(countryCode: string): string {
-  const code = countryCode.toUpperCase();
-  if (code.length !== 2) return "🌐";
-  const A = 0x1f1e6;
-  return String.fromCodePoint(A + code.charCodeAt(0) - 65, A + code.charCodeAt(1) - 65);
-}
+import { Button, EmptyState, PageHeader } from "@/components/ui";
+import { LocationBrowser } from "./location-browser";
 
 export default async function LocationsDashPage() {
   const user = await requireUser();
@@ -34,47 +28,42 @@ export default async function LocationsDashPage() {
 
   const visible = locations.filter((l) => l.status !== "offline");
 
+  const canConnect = account?.status === "active";
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl">Locations</h1>
-        <p className="mt-1 text-sm text-muted">Choose a city, then connect. Configs download for your device.</p>
-      </div>
-      {account?.status !== "active" ? (
-        <Card>
-          <p className="text-sm text-muted">
-            Your VPN isn’t ready yet. Finish checkout or wait for setup to complete before connecting.
-          </p>
-        </Card>
-      ) : (
-        <CreateConnectionForm
-          locations={visible.map((l) => ({
-            id: l.id,
-            label: `${flagEmoji(l.countryCode)} ${l.country} — ${l.city}`,
-            countryCode: l.countryCode,
-            city: l.city,
-            country: l.country,
-          }))}
+      <PageHeader title="Locations" description="Choose a city, then connect. Configs download for your device." />
+      {!canConnect ? (
+        <EmptyState
+          title="Your VPN isn’t ready yet"
+          description="Finish checkout or wait for setup to complete before connecting."
+          action={
+            <Link href="/dashboard/billing">
+              <Button variant="secondary">Go to billing</Button>
+            </Link>
+          }
         />
-      )}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {visible.map((l) => (
-          <Card key={l.id}>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-medium">
-                  <span className="mr-2" aria-hidden>
-                    {flagEmoji(l.countryCode)}
-                  </span>
-                  {l.city}
-                </p>
-                <p className="text-sm text-muted">{l.country}</p>
-              </div>
-              <Badge tone={l.status === "online" ? "success" : "warning"}>{l.status}</Badge>
-            </div>
-          </Card>
-        ))}
-      </div>
+      ) : null}
+      <LocationBrowser
+        canConnect={canConnect}
+        locations={visible.map((l) => ({
+          id: l.id,
+          city: l.city,
+          country: l.country,
+          countryCode: l.countryCode,
+          status: l.status,
+          protocols: parseProtocols(l.protocolSupportJson),
+        }))}
+      />
     </div>
   );
+}
+
+function parseProtocols(json: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
+  } catch {
+    return [];
+  }
 }

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useFeedback } from "@/components/feedback";
 import { Button } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
@@ -17,15 +18,23 @@ export function AdminCustomerActions({
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { confirm, toast } = useFeedback();
 
   async function run(action: string, extra?: Record<string, unknown>) {
     setBusy(true);
     setMessage(null);
-    const res = await fetch("/api/admin/vpn", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, action, ...extra }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/admin/vpn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, action, ...extra }),
+      });
+    } catch {
+      setMessage("Network error. Please try again.");
+      setBusy(false);
+      return;
+    }
     const data = (await safeJson(res)) as {
       ok?: boolean;
       error?: string;
@@ -45,6 +54,7 @@ export function AdminCustomerActions({
           ? `Reconcile done (repaired ${data.repaired?.length ?? 0}, synced ${data.synced?.length ?? 0})`
           : "OK",
       );
+      toast("Done", "success");
       router.refresh();
     }
     setBusy(false);
@@ -65,9 +75,14 @@ export function AdminCustomerActions({
           variant="danger"
           type="button"
           disabled={busy}
-          onClick={() => {
-            if (!confirm("Suspend this customer’s VPN access at the provider?")) return;
-            void run("suspend", { confirm: true });
+          onClick={async () => {
+            const ok = await confirm({
+              title: "Suspend VPN access?",
+              description: "This suspends the customer’s VPN account at the provider.",
+              confirmLabel: "Suspend",
+              destructive: true,
+            });
+            if (ok) await run("suspend", { confirm: true });
           }}
         >
           Suspend
@@ -75,9 +90,9 @@ export function AdminCustomerActions({
         <Button
           type="button"
           disabled={busy}
-          onClick={() => {
-            if (!confirm("Reactivate this customer’s VPN account?")) return;
-            void run("reactivate");
+          onClick={async () => {
+            const ok = await confirm({ title: "Reactivate VPN account?", confirmLabel: "Reactivate" });
+            if (ok) await run("reactivate");
           }}
         >
           Reactivate
@@ -86,10 +101,15 @@ export function AdminCustomerActions({
           variant="danger"
           type="button"
           disabled={busy}
-          onClick={() => {
-            if (!confirm("DELETE the provider VPN account? This cannot be undone.")) return;
-            if (!confirm("Type confirmation: permanently delete provider account?")) return;
-            void run("delete_account", { confirm: true });
+          onClick={async () => {
+            const ok = await confirm({
+              title: "Delete the provider VPN account?",
+              description: "This permanently deletes the account at the provider and cannot be undone.",
+              confirmLabel: "Delete account",
+              destructive: true,
+              requireText: "DELETE",
+            });
+            if (ok) await run("delete_account", { confirm: true });
           }}
         >
           Delete provider account
@@ -104,9 +124,13 @@ export function AdminCustomerActions({
               type="button"
               variant="secondary"
               disabled={busy}
-              onClick={() => {
-                if (!confirm(`Revoke connection “${c.name}”?`)) return;
-                void run("revoke_connection", { connectionId: c.id });
+              onClick={async () => {
+                const ok = await confirm({
+                  title: `Revoke “${c.name}”?`,
+                  confirmLabel: "Revoke",
+                  destructive: true,
+                });
+                if (ok) await run("revoke_connection", { connectionId: c.id });
               }}
             >
               Revoke {c.name}

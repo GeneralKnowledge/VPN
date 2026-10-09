@@ -7,6 +7,8 @@
   --sea-dark: #0f4a56;
   --accent: #c4a35a;
   --accent-soft: #e8d9a8;
+  --warning: #f3e6b8;
+  --warning-foreground: #5c4710;
   --danger: #b33a3a;
   --success: #2f7d4a;
   --muted: #5a7180;
@@ -27,6 +29,8 @@
     --background: #08161d;
     --foreground: #e8f1f4;
     --muted: #8aa0ad;
+    --warning: #3a3118;
+    --warning-foreground: #f0dc9a;
   }
 }
 
@@ -39,6 +43,8 @@
   --color-sea-dark: var(--sea-dark);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-danger: var(--danger);
   --color-success: var(--success);
   --color-muted: var(--muted);

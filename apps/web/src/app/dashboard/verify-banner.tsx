@@ -8,7 +8,7 @@ export function VerifyEmailBanner({ email }: { email: string }) {
   const [loading, setLoading] = useState(false);
 
   return (
-    <div className="border-b border-border bg-accent-soft px-4 py-2 text-sm" role="status">
+    <div className="border-b border-border bg-warning px-4 py-2 text-sm text-warning-foreground" role="status">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 sm:px-2">
         <span>Verify your email ({email}) to subscribe and secure your account.</span>
         <button
@@ -29,7 +29,7 @@ export function VerifyEmailBanner({ email }: { email: string }) {
         >
           Resend email
         </button>
-        {msg ? <span className="text-muted">{msg}</span> : null}
+        {msg ? <span>{msg}</span> : null}
       </div>
     </div>
   );

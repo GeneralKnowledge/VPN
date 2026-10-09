@@ -9,7 +9,7 @@ export default function PricingPage() {
   return (
     <MarketingPage
       title="Pricing"
-      description="Transparent plans. Prices live in configuration and can be changed without redesigning the product."
+      description="Simple, transparent plans. Cancel anytime from your dashboard."
     >
       <div className="grid gap-6 md:grid-cols-2">
         {plans.filter((p) => p.active).map((plan) => (

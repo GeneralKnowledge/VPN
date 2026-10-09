@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { emailVerificationRequired } from "@/lib/providers";
 import { Logo } from "@/components/logo";
-import { LogoutButton } from "./logout-button";
+import { NavLink } from "@/components/nav-link";
+import { UserMenu } from "./user-menu";
 import { VerifyEmailBanner } from "./verify-banner";
 
 const customerNav = [
@@ -29,20 +30,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Link href="/dashboard">
             <Logo />
           </Link>
-          <LogoutButton />
+          <UserMenu email={user.email} name={user.name} />
         </div>
       </header>
       {emailVerificationRequired() && !user.emailVerifiedAt ? <VerifyEmailBanner email={user.email} /> : null}
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row">
-        <nav className="flex gap-2 overflow-x-auto pb-1 lg:w-48 lg:flex-col lg:overflow-visible">
+        <nav aria-label="Dashboard" className="flex gap-2 overflow-x-auto pb-1 lg:w-48 lg:flex-col lg:overflow-visible">
           {customerNav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="whitespace-nowrap rounded-md px-3 py-2.5 text-sm text-muted hover:bg-surface-2 hover:text-foreground"
-            >
+            <NavLink key={item.href} href={item.href} exact={item.href === "/dashboard"}>
               {item.label}
-            </Link>
+            </NavLink>
           ))}
         </nav>
         <div className="min-w-0 flex-1">{children}</div>

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState, Suspense } from "react";
 import { Logo } from "@/components/logo";
-import { Button, Input, Label } from "@/components/ui";
+import { PasswordInput } from "@/components/password-input";
+import { Button, FormError, Input, Label } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
 function RegisterForm() {
@@ -18,17 +19,24 @@ function RegisterForm() {
     setLoading(true);
     setError(null);
     const form = new FormData(e.currentTarget);
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: form.get("email"),
-        password: form.get("password"),
-        name: form.get("name"),
-        planId: params.get("plan") ?? undefined,
-        referralCode: form.get("referralCode") || undefined,
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.get("email"),
+          password: form.get("password"),
+          name: form.get("name"),
+          planId: params.get("plan") ?? undefined,
+          referralCode: form.get("referralCode") || undefined,
+        }),
+      });
+    } catch {
+      setLoading(false);
+      setError("Network error. Please try again.");
+      return;
+    }
     const data = await safeJson(res);
     setLoading(false);
     if (!res.ok) {
@@ -47,18 +55,29 @@ function RegisterForm() {
       </div>
       <div>
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" required autoComplete="email" />
+        <Input id="email" name="email" type="email" required autoComplete="email" aria-describedby="register-error" />
       </div>
       <div>
         <Label htmlFor="password">Password</Label>
-        <Input id="password" name="password" type="password" required minLength={8} autoComplete="new-password" />
+        <PasswordInput
+          id="password"
+          name="password"
+          required
+          minLength={8}
+          maxLength={128}
+          autoComplete="new-password"
+          aria-describedby="password-hint register-error"
+        />
+        <p id="password-hint" className="mt-1.5 text-xs text-muted">
+          At least 8 characters. A longer passphrase is stronger.
+        </p>
       </div>
       <div>
         <Label htmlFor="referralCode">Referral code (optional)</Label>
         <Input id="referralCode" name="referralCode" placeholder="NORTH-ABCD123" />
       </div>
-      {error ? <p className="text-sm text-danger">{error}</p> : null}
-      <Button type="submit" className="w-full" disabled={loading}>
+      <FormError id="register-error">{error}</FormError>
+      <Button type="submit" className="w-full" disabled={loading} aria-busy={loading}>
         {loading ? "Creating account…" : "Create account"}
       </Button>
     </form>
@@ -71,7 +90,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 shadow-lg">
         <Logo />
         <h1 className="mt-6 font-display text-3xl">Create account</h1>
-        <p className="mt-2 text-sm text-muted">Start your Northstar VPN subscription journey.</p>
+        <p className="mt-2 text-sm text-muted">Create your account to get started.</p>
         <Suspense>
           <RegisterForm />
         </Suspense>

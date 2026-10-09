@@ -1,21 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui";
+import { useRouter } from "next/navigation";
+import { useId, useState } from "react";
+import { Button, Label, Select } from "@/components/ui";
 import { safeJson } from "@/lib/client";
-
-function flagEmoji(countryCode: string): string {
-  const code = countryCode.toUpperCase();
-  if (code.length !== 2) return "🌐";
-  const A = 0x1f1e6;
-  return String.fromCodePoint(A + code.charCodeAt(0) - 65, A + code.charCodeAt(1) - 65);
-}
+import { flagEmoji } from "@/lib/format";
 
 export function QuickConnect({
   locations,
+  connections,
 }: {
   locations: Array<{ id: string; city: string; country: string; countryCode?: string }>;
+  connections: Array<{ id: string; locationId: string; protocol: string }>;
 }) {
+  const router = useRouter();
+  const selectId = useId();
   const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -25,26 +24,29 @@ export function QuickConnect({
     setLoading(true);
     setStatus(null);
     const loc = locations.find((l) => l.id === locationId);
-    const create = await fetch("/api/vpn/connections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        locationId,
-        protocol: "wireguard",
-        name: `${loc?.city ?? "VPN"} device`,
-        platform: "other",
-      }),
-    });
-    const created = await safeJson(create);
-    if (!create.ok) {
-      setStatus(created.error ?? "We couldn’t create your VPN connection. Please try again.");
-      setLoading(false);
-      return;
+    let connectionId = connections.find((c) => c.locationId === locationId && c.protocol === "wireguard")?.id;
+    if (!connectionId) {
+      const create = await fetch("/api/vpn/connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locationId,
+          protocol: "wireguard",
+          name: `${loc?.city ?? "VPN"} (WireGuard)`,
+        }),
+      });
+      const created = await safeJson(create);
+      if (!create.ok || !created.id) {
+        setStatus(created.error ?? "We couldn’t create your VPN connection. Please try again.");
+        setLoading(false);
+        return;
+      }
+      connectionId = created.id;
     }
     const res = await fetch("/api/vpn/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ connectionId: created.id, protocol: "wireguard" }),
+      body: JSON.stringify({ connectionId, protocol: "wireguard" }),
     });
     if (!res.ok) {
       setStatus("We couldn’t download your configuration. Please try again.");
@@ -65,14 +67,15 @@ export function QuickConnect({
         : "Configuration downloaded. Import it into WireGuard to connect.",
     );
     setLoading(false);
+    router.refresh();
   }
 
   return (
     <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
       <div className="flex-1">
-        <label className="mb-1.5 block text-sm font-medium">Choose a location</label>
-        <select
-          className="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
+        <Label htmlFor={selectId}>Choose a location</Label>
+        <Select
+          id={selectId}
           value={locationId}
           onChange={(e) => setLocationId(e.target.value)}
         >
@@ -81,12 +84,16 @@ export function QuickConnect({
               {flagEmoji(l.countryCode ?? "")} {l.country} — {l.city}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       <Button type="button" onClick={connect} disabled={loading || !locationId}>
         {loading ? "Preparing…" : "Connect"}
       </Button>
-      {status ? <p className="w-full text-sm text-muted">{status}</p> : null}
+      {status ? (
+        <p className="w-full text-sm text-muted" role="status">
+          {status}
+        </p>
+      ) : null}
     </div>
   );
 }
