@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, Input, Label } from "@/components/ui";
+import { Button, Input, Label, Select } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
 export function CreateConnectionForm({
@@ -71,30 +71,20 @@ export function CreateConnectionForm({
       </div>
       <div>
         <Label htmlFor="locationId">Location</Label>
-        <select
-          id="locationId"
-          name="locationId"
-          className="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
-          required
-        >
+        <Select id="locationId" name="locationId" required>
           {locations.map((l) => (
             <option key={l.id} value={l.id}>
               {l.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       <div>
         <Label htmlFor="protocol">Protocol</Label>
-        <select
-          id="protocol"
-          name="protocol"
-          className="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
-          defaultValue="wireguard"
-        >
+        <Select id="protocol" name="protocol" defaultValue="wireguard">
           <option value="wireguard">WireGuard</option>
           <option value="openvpn">OpenVPN</option>
-        </select>
+        </Select>
       </div>
       <div className="flex items-end">
         <input type="hidden" name="platform" value="other" />

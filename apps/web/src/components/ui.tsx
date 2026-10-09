@@ -1,5 +1,11 @@
 import { cn } from "@/lib/utils";
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 
 export function Button({
   className,
@@ -43,6 +49,17 @@ export function Input({
   );
 }
 
+const fieldBase =
+  "w-full rounded-md border border-border bg-surface px-3 text-sm text-foreground placeholder:text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sea disabled:opacity-60";
+
+export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select className={cn(fieldBase, "h-11", className)} {...props} />;
+}
+
+export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={cn(fieldBase, "min-h-24 py-2", className)} {...props} />;
+}
+
 export function Label({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) {
   return (
     <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium text-foreground">
@@ -78,7 +95,7 @@ export function Badge({
         "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
         tone === "neutral" && "bg-surface-2 text-muted",
         tone === "success" && "bg-success/15 text-success",
-        tone === "warning" && "bg-accent-soft text-ink",
+        tone === "warning" && "bg-warning text-warning-foreground",
         tone === "danger" && "bg-danger/15 text-danger",
         tone === "sea" && "bg-sea/15 text-sea-dark",
       )}

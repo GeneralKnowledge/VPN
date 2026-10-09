@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, Input, Label } from "@/components/ui";
+import { Button, Input, Label, Select } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
 export function DeviceActions({ deviceId, name }: { deviceId?: string; name?: string }) {
@@ -73,14 +73,14 @@ export function DeviceActions({ deviceId, name }: { deviceId?: string; name?: st
       </div>
       <div>
         <Label htmlFor="platform">Platform</Label>
-        <select id="platform" name="platform" className="h-11 w-full rounded-md border border-border px-3 text-sm" defaultValue="ios">
+        <Select id="platform" name="platform" defaultValue="ios">
           <option value="ios">iOS</option>
           <option value="android">Android</option>
           <option value="windows">Windows</option>
           <option value="macos">macOS</option>
           <option value="linux">Linux</option>
           <option value="other">Other</option>
-        </select>
+        </Select>
       </div>
       <div className="flex items-end">
         <Button type="submit" className="w-full">

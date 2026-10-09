@@ -3,7 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { formatPrice, getPlan, plans } from "@northstar/config";
 import { invoices, subscriptions } from "@northstar/db";
 import { requireUser } from "@/lib/auth";
-import { getDb } from "@/lib/providers";
+import { getDb, isProduction } from "@/lib/providers";
 import { Badge, Card } from "@/components/ui";
 import { BillingActions } from "./billing-actions";
 
@@ -75,9 +75,9 @@ export default async function BillingPage({
           )}
         </ul>
       </Card>
-      <p className="text-sm text-muted">
-        Payments run through the billing provider abstraction. Mock mode simulates checkout without Stripe.
-      </p>
+      {!isProduction() ? (
+        <p className="text-sm text-muted">Development: checkout is simulated while the mock billing provider is active.</p>
+      ) : null}
       <Link href="/pricing" className="text-sm text-sea hover:underline">
         View public pricing
       </Link>

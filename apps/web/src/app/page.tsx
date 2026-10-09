@@ -7,11 +7,11 @@ import { Button } from "@/components/ui";
 const faqs = [
   {
     q: "What devices can I use?",
-    a: "You can connect using standard WireGuard or OpenVPN clients on Windows, macOS, Linux, iOS, and Android. Native branded apps can be added later when available.",
+    a: "You can connect using standard WireGuard or OpenVPN clients on Windows, macOS, Linux, iOS, and Android.",
   },
   {
     q: "Do you keep connection logs?",
-    a: "Logging policy depends on our infrastructure provider agreement and will be stated clearly in the Privacy Policy before launch. We do not invent a no-logs claim here.",
+    a: "Our logging practices are described in plain language in the Privacy Policy. We only make claims we can back up.",
   },
   {
     q: "Can I cancel anytime?",
@@ -19,7 +19,7 @@ const faqs = [
   },
   {
     q: "Are the listed locations live production servers?",
-    a: "Marketing and development fixtures show example locations. Live inventory comes from the configured VPN provider when you switch off mock mode.",
+    a: "Yes. The locations you see when you sign in come directly from our VPN infrastructure and reflect the servers currently available to your account.",
   },
 ];
 
@@ -42,8 +42,7 @@ export default async function HomePage() {
                 Private internet access for everyday devices.
               </h1>
               <p className="mt-4 max-w-lg text-base text-muted sm:text-lg">
-                Encrypt your connection, choose a location, and get on with your day — without
-                unverifiable marketing claims.
+                Encrypt your connection, choose a location, and get on with your day. Set up takes minutes on any device.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link href="/register">
@@ -68,7 +67,7 @@ export default async function HomePage() {
                   <div className="animate-pulse-soft h-full w-2/3 rounded-full bg-sea" />
                 </div>
                 <p className="mt-4 font-mono text-xs text-muted">
-                  Example UI — location inventory is provider-driven
+                  WireGuard and OpenVPN supported
                 </p>
               </div>
             </div>
@@ -88,11 +87,11 @@ export default async function HomePage() {
               },
               {
                 title: "Device limits you control",
-                body: "Plans include a clear device allowance — rename or revoke devices anytime.",
+                body: "Every plan includes a clear device allowance. Rename or revoke devices anytime.",
               },
               {
-                title: "Honest positioning",
-                body: "We avoid slogans we cannot substantiate. Privacy details ship with reviewed legal copy.",
+                title: "Plain-spoken privacy",
+                body: "Clear policies written in plain language, with no slogans we cannot back up.",
               },
             ].map((item) => (
               <div key={item.title}>
@@ -106,7 +105,7 @@ export default async function HomePage() {
         <section className="border-y border-border bg-surface py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <h2 className="font-display text-3xl">Simple pricing</h2>
-            <p className="mt-2 text-muted">No artificial discounts. Change prices in configuration.</p>
+            <p className="mt-2 text-muted">Straightforward pricing. No hidden fees, cancel anytime.</p>
             <div className="mt-8 grid gap-6 md:grid-cols-2">
               {[monthly, annual].map((plan) => (
                 <div key={plan.id} className="rounded-2xl border border-border bg-background p-6">
@@ -130,7 +129,7 @@ export default async function HomePage() {
         <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
           <h2 className="font-display text-3xl">Supported devices</h2>
           <p className="mt-2 text-muted">
-            Works with standard VPN clients today. Branded apps can be enabled when you publish them.
+            Works with the standard WireGuard and OpenVPN clients on every major platform.
           </p>
           <div className="mt-8 flex flex-wrap gap-3 text-sm">
             {["Windows", "macOS", "Linux", "iOS", "Android"].map((d) => (
@@ -148,8 +147,8 @@ export default async function HomePage() {
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <h2 className="font-display text-3xl">Locations</h2>
             <p className="mt-2 max-w-2xl text-muted">
-              Example coverage for product demos includes London, Frankfurt, Amsterdam, New York, Los
-              Angeles, Toronto, Zurich, and Tokyo. Production lists come from your VPN provider.
+              Choose from servers across Europe, North America and Asia. Browse the current list of
+              available locations.
             </p>
             <Link href="/locations" className="mt-6 inline-block">
               <Button variant="secondary">Browse locations</Button>

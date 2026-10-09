@@ -1,6 +1,6 @@
 import { brand } from "@northstar/config";
 import { MarketingPage } from "@/components/marketing-page";
-import { Button, Input, Label } from "@/components/ui";
+import { Button, Input, Label, Textarea } from "@/components/ui";
 
 export const metadata = { title: "Contact" };
 
@@ -19,13 +19,7 @@ export default function ContactPage() {
         </div>
         <div>
           <Label htmlFor="body">Message</Label>
-          <textarea
-            id="body"
-            name="body"
-            required
-            rows={5}
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
-          />
+          <Textarea id="body" name="body" required rows={5} />
         </div>
         <Button type="submit">Send message</Button>
       </form>

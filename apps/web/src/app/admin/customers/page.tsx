@@ -3,7 +3,7 @@ import { and, desc, isNull, like, or } from "drizzle-orm";
 import { users } from "@northstar/db";
 import { requireAdmin } from "@/lib/auth";
 import { getDb } from "@/lib/providers";
-import { Badge, Card } from "@/components/ui";
+import { Badge, Card, Input } from "@/components/ui";
 
 export default async function AdminCustomersPage({
   searchParams,
@@ -26,11 +26,13 @@ export default async function AdminCustomersPage({
     <div className="space-y-6">
       <h1 className="font-display text-3xl">Customers</h1>
       <form>
-        <input
+        <Input
           name="q"
+          type="search"
+          aria-label="Search customers"
           defaultValue={q}
           placeholder="Search email or name"
-          className="h-11 w-full max-w-md rounded-md border border-border px-3 text-sm"
+          className="max-w-md"
         />
       </form>
       <div className="space-y-2">

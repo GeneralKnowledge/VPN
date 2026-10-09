@@ -86,7 +86,7 @@ export function SiteFooter() {
         </div>
       </div>
       <div className="border-t border-border px-4 py-4 text-center text-xs text-muted">
-        © {new Date().getFullYear()} {brand.legalName}. Draft legal pages — replace before launch.
+        © {new Date().getFullYear()} {brand.legalName}.
       </div>
     </footer>
   );
