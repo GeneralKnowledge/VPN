@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { emailVerificationRequired } from "@/lib/providers";
 import { Logo } from "@/components/logo";
 import { NavLink } from "@/components/nav-link";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "./user-menu";
 import { VerifyEmailBanner } from "./verify-banner";
 
@@ -30,7 +31,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Link href="/dashboard">
             <Logo />
           </Link>
-          <UserMenu email={user.email} name={user.name} />
+          <div className="flex items-center gap-2">
+            <ThemeToggle compact />
+            <UserMenu email={user.email} name={user.name} />
+          </div>
         </div>
       </header>
       {emailVerificationRequired() && !user.emailVerifiedAt ? <VerifyEmailBanner email={user.email} /> : null}

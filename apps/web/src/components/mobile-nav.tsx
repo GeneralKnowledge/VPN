@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
+import { ThemeToggle } from "./theme-toggle";
 
 export function MobileNav({ items, authed }: { items: { href: string; label: string }[]; authed?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -61,6 +62,9 @@ export function MobileNav({ items, authed }: { items: { href: string; label: str
                 </Link>
               </li>
             ) : null}
+            <li className="mt-2 border-t border-border px-3 pt-3 sm:hidden">
+              <ThemeToggle />
+            </li>
           </ul>
         </nav>
       ) : null}

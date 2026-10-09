@@ -2,8 +2,10 @@ import Link from "next/link";
 import { and, desc, isNull, like, or } from "drizzle-orm";
 import { users } from "@northstar/db";
 import { requireAdmin } from "@/lib/auth";
+import { formatDate } from "@/lib/format";
 import { getDb } from "@/lib/providers";
-import { Badge, Card, Input } from "@/components/ui";
+import { DataTable } from "@/components/data-table";
+import { Badge, Input, PageHeader } from "@/components/ui";
 
 export default async function AdminCustomersPage({
   searchParams,
@@ -24,7 +26,7 @@ export default async function AdminCustomersPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-3xl">Customers</h1>
+      <PageHeader title="Customers" description="Search and open customer accounts." />
       <form>
         <Input
           name="q"
@@ -35,21 +37,45 @@ export default async function AdminCustomersPage({
           className="max-w-md"
         />
       </form>
-      <div className="space-y-2">
-        {rows.map((u) => (
-          <Card key={u.id} className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+      <DataTable
+        caption="Customers"
+        emptyTitle="No customers found"
+        emptyDescription={q ? "Try a different search." : "No customer accounts yet."}
+        rows={rows}
+        rowKey={(u) => u.id}
+        columns={[
+          {
+            key: "email",
+            header: "Email",
+            cell: (u) => (
               <Link href={`/admin/customers/${u.id}`} className="font-medium hover:underline">
                 {u.email}
               </Link>
-              <p className="text-sm text-muted">
-                {u.name} · {u.lifecycle}
-              </p>
-            </div>
-            <Badge tone={u.role === "admin" ? "sea" : "neutral"}>{u.role}</Badge>
-          </Card>
-        ))}
-      </div>
+            ),
+          },
+          {
+            key: "name",
+            header: "Name",
+            cell: (u) => u.name || "—",
+          },
+          {
+            key: "lifecycle",
+            header: "Lifecycle",
+            cell: (u) => u.lifecycle,
+          },
+          {
+            key: "role",
+            header: "Role",
+            cell: (u) => <Badge tone={u.role === "admin" ? "sea" : "neutral"}>{u.role}</Badge>,
+          },
+          {
+            key: "created",
+            header: "Created",
+            className: "text-muted whitespace-nowrap",
+            cell: (u) => formatDate(u.createdAt),
+          },
+        ]}
+      />
     </div>
   );
 }

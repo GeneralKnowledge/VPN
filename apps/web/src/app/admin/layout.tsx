@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { Logo } from "@/components/logo";
 import { LogoutButton } from "@/app/dashboard/logout-button";
 import { NavLink } from "@/components/nav-link";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const nav = [
   { href: "/admin", label: "Overview" },
@@ -31,7 +32,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Logo />
             <span className="rounded-md bg-sea/10 px-2 py-0.5 text-xs font-medium text-sea-dark">Admin</span>
           </div>
-          <LogoutButton />
+          <div className="flex items-center gap-2">
+            <ThemeToggle compact />
+            <LogoutButton />
+          </div>
         </div>
       </header>
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 lg:flex-row">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, IBM_Plex_Mono, Source_Sans_3 } from "next/font/google";
 import { brand } from "@northstar/config";
 import { FeedbackProvider } from "@/components/feedback";
+import { ThemeProvider, themeInitScript } from "@/components/theme-provider";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -23,20 +24,45 @@ const ibmPlex = IBM_Plex_Mono({
   display: "swap",
 });
 
+const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(appUrl),
   title: {
     default: brand.name,
     template: `%s · ${brand.name}`,
   },
   description: brand.tagline,
+  applicationName: brand.name,
   icons: { icon: "/favicon.svg" },
+  openGraph: {
+    type: "website",
+    siteName: brand.name,
+    title: brand.name,
+    description: brand.tagline,
+    locale: "en_GB",
+  },
+  twitter: {
+    card: "summary",
+    title: brand.name,
+    description: brand.tagline,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${sourceSans.variable} ${ibmPlex.variable}`}>
+    <html lang="en" className={`${fraunces.variable} ${sourceSans.variable} ${ibmPlex.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="antialiased">
-        <FeedbackProvider>{children}</FeedbackProvider>
+        <ThemeProvider>
+          <FeedbackProvider>{children}</FeedbackProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

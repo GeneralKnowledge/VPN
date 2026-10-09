@@ -38,7 +38,7 @@ const platforms = [
     status: "No branded app yet",
     steps: [
       "Install the official WireGuard or OpenVPN Connect app from the App Store",
-      "Import your Northstar configuration from the dashboard (Files / QR when available)",
+      "Import your Northstar configuration from the dashboard — download a file or scan the WireGuard QR code",
       "Choose the profile and connect",
     ],
   },
@@ -47,7 +47,7 @@ const platforms = [
     status: "No branded app yet",
     steps: [
       "Install WireGuard or OpenVPN Connect from the Play Store",
-      "Import your downloaded configuration",
+      "Import your downloaded configuration, or scan the WireGuard QR from the dashboard",
       "Connect",
     ],
   },

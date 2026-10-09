@@ -5,6 +5,7 @@
 - [ ] Tests passing (`pnpm test`)
 - [ ] Typecheck passing (`pnpm typecheck`)
 - [ ] Build passing (`pnpm build`)
+- [ ] CI green on `main` (GitHub Actions: lint, typecheck, unit, build, Playwright)
 - [ ] Security review completed (IDOR, config downloads, secret redaction, webhook forgery)
 - [ ] Billing webhooks fail closed (`STRIPE_WEBHOOK_SECRET` set if endpoint is exposed; unsigned mock webhooks rejected)
 - [ ] Provider integration verified (`VPN_PROVIDER=vpnresellers` against real or staging credentials)
