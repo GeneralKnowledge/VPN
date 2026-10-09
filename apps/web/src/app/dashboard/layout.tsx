@@ -4,7 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { emailVerificationRequired } from "@/lib/providers";
 import { Logo } from "@/components/logo";
 import { NavLink } from "@/components/nav-link";
-import { LogoutButton } from "./logout-button";
+import { UserMenu } from "./user-menu";
 import { VerifyEmailBanner } from "./verify-banner";
 
 const customerNav = [
@@ -30,7 +30,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Link href="/dashboard">
             <Logo />
           </Link>
-          <LogoutButton />
+          <UserMenu email={user.email} name={user.name} />
         </div>
       </header>
       {emailVerificationRequired() && !user.emailVerifiedAt ? <VerifyEmailBanner email={user.email} /> : null}

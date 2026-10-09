@@ -1,9 +1,10 @@
+import Link from "next/link";
 import { vpnAccounts, vpnLocations } from "@northstar/db";
 import { eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
 import { getDb, getEnv, getVpnProvider } from "@/lib/providers";
 import { syncLocationsFromProvider } from "@/lib/services";
-import { Badge, Card } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, PageHeader } from "@/components/ui";
 import { CreateConnectionForm } from "./create-form";
 import { flagEmoji } from "@/lib/format";
 
@@ -31,16 +32,17 @@ export default async function LocationsDashPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl">Locations</h1>
-        <p className="mt-1 text-sm text-muted">Choose a city, then connect. Configs download for your device.</p>
-      </div>
+      <PageHeader title="Locations" description="Choose a city, then connect. Configs download for your device." />
       {account?.status !== "active" ? (
-        <Card>
-          <p className="text-sm text-muted">
-            Your VPN isn’t ready yet. Finish checkout or wait for setup to complete before connecting.
-          </p>
-        </Card>
+        <EmptyState
+          title="Your VPN isn’t ready yet"
+          description="Finish checkout or wait for setup to complete before connecting."
+          action={
+            <Link href="/dashboard/billing">
+              <Button variant="secondary">Go to billing</Button>
+            </Link>
+          }
+        />
       ) : (
         <CreateConnectionForm
           locations={visible.map((l) => ({

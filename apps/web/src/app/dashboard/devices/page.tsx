@@ -2,7 +2,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import { devices, plans, subscriptions, vpnLocations, vpnConnections } from "@northstar/db";
 import { requireUser } from "@/lib/auth";
 import { getDb } from "@/lib/providers";
-import { Card } from "@/components/ui";
+import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { formatDateTime } from "@/lib/format";
 import { DeviceActions } from "./device-actions";
 
 export default async function DevicesPage() {
@@ -29,14 +30,15 @@ export default async function DevicesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl">Devices</h1>
-        <p className="mt-1 text-sm text-muted">
-          {rows.length} / {plan?.maxDevices ?? 5} devices on your plan
-        </p>
-      </div>
+      <PageHeader title="Devices" description={`${rows.length} / ${plan?.maxDevices ?? 5} devices on your plan`} />
       <DeviceActions />
       <div className="space-y-3">
+        {rows.length === 0 ? (
+          <EmptyState
+            title="No devices yet"
+            description="Add the phone, laptop or tablet you want to protect using the form above."
+          />
+        ) : null}
         {rows.map((d) => (
           <Card key={d.id} className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -44,7 +46,7 @@ export default async function DevicesPage() {
               <p className="text-sm text-muted">
                 {d.platform}
                 {d.city ? ` · ${d.city}, ${d.country}` : ""}
-                {d.lastUsedAt ? ` · Last active ${d.lastUsedAt.toLocaleString()}` : ""}
+                {d.lastUsedAt ? ` · Last active ${formatDateTime(d.lastUsedAt)}` : ""}
               </p>
             </div>
             <DeviceActions deviceId={d.id} name={d.name} />

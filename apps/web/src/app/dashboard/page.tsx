@@ -12,7 +12,9 @@ import {
 import { requireUser } from "@/lib/auth";
 import { customerVpnStatusLabel } from "@/lib/http";
 import { getDb } from "@/lib/providers";
-import { Badge, Button, Card } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, PageHeader } from "@/components/ui";
+import { formatDateTime } from "@/lib/format";
+import { activityLabel, subscriptionStatus } from "@/lib/labels";
 import { QuickConnect } from "./quick-connect";
 
 export default async function DashboardHome() {
@@ -46,6 +48,8 @@ export default async function DashboardHome() {
     .select({
       id: vpnConnections.id,
       name: vpnConnections.name,
+      locationId: vpnConnections.locationId,
+      protocol: vpnConnections.protocol,
       city: vpnLocations.city,
       country: vpnLocations.country,
     })
@@ -58,10 +62,10 @@ export default async function DashboardHome() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl">Welcome back{user.name ? `, ${user.name.split(" ")[0]}` : ""}</h1>
-        <p className="mt-1 text-sm text-muted">Manage your connection, devices, and billing.</p>
-      </div>
+      <PageHeader
+        title={`Welcome back${user.name ? `, ${user.name.split(" ")[0]}` : ""}`}
+        description="Manage your connection, devices, and billing."
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -74,7 +78,7 @@ export default async function DashboardHome() {
           <p className="mt-2 font-display text-2xl">{plan?.name ?? "No plan"}</p>
           <p className="text-sm text-muted">
             {plan ? formatPrice(plan) : "Choose a plan to provision VPN access"}
-            {sub ? ` · ${sub.status}` : ""}
+            {sub ? ` · ${subscriptionStatus(sub.status).label}` : ""}
           </p>
         </Card>
         <Card>
@@ -99,6 +103,7 @@ export default async function DashboardHome() {
               country: l.country,
               countryCode: l.countryCode,
             }))}
+            connections={activeConns.map((c) => ({ id: c.id, locationId: c.locationId, protocol: c.protocol }))}
           />
         ) : (
           <div className="mt-4">
@@ -117,7 +122,9 @@ export default async function DashboardHome() {
           <h2 className="font-display text-lg">Your connections</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {activeConns.length === 0 ? (
-              <li className="text-muted">No active connections yet.</li>
+              <li>
+                <EmptyState title="No connections yet" description="Use Quick Connect above to create your first one." />
+              </li>
             ) : (
               activeConns.map((c) => (
                 <li key={c.id} className="flex justify-between gap-2">
@@ -134,12 +141,14 @@ export default async function DashboardHome() {
           <h2 className="font-display text-lg">Recent activity</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {recent.length === 0 ? (
-              <li className="text-muted">No events yet.</li>
+              <li>
+                <EmptyState title="Nothing here yet" description="Your recent account activity will show up here." />
+              </li>
             ) : (
               recent.map((e) => (
                 <li key={e.id} className="flex justify-between gap-2">
-                  <span>{e.action}</span>
-                  <span className="text-muted">{e.createdAt?.toLocaleString?.() ?? ""}</span>
+                  <span>{activityLabel(e.action)}</span>
+                  <span className="shrink-0 text-muted">{formatDateTime(e.createdAt)}</span>
                 </li>
               ))
             )}

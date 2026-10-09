@@ -104,3 +104,74 @@ export function Badge({
     </span>
   );
 }
+
+export function Alert({
+  tone = "info",
+  title,
+  children,
+  className,
+}: {
+  tone?: "info" | "success" | "warning" | "danger";
+  title?: string;
+  children?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      role={tone === "danger" ? "alert" : "status"}
+      className={cn(
+        "rounded-lg border px-4 py-3 text-sm",
+        tone === "info" && "border-border bg-surface-2 text-foreground",
+        tone === "success" && "border-success/30 bg-success/10 text-foreground",
+        tone === "warning" && "border-transparent bg-warning text-warning-foreground",
+        tone === "danger" && "border-danger/30 bg-danger/10 text-foreground",
+        className,
+      )}
+    >
+      {title ? <p className="font-medium">{title}</p> : null}
+      {children ? <div className={cn(title && "mt-1")}>{children}</div> : null}
+    </div>
+  );
+}
+
+export function Skeleton({ className }: { className?: string }) {
+  return <div aria-hidden className={cn("animate-pulse rounded-md bg-surface-2", className)} />;
+}
+
+export function PageHeader({
+  title,
+  description,
+  actions,
+}: {
+  title: string;
+  description?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 className="font-display text-3xl">{title}</h1>
+        {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
+      </div>
+      {actions}
+    </div>
+  );
+}
+
+export function EmptyState({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-dashed border-border bg-surface-2 px-6 py-8 text-center">
+      <p className="font-medium">{title}</p>
+      {description ? <p className="mx-auto mt-1 max-w-md text-sm text-muted">{description}</p> : null}
+      {action ? <div className="mt-4">{action}</div> : null}
+    </div>
+  );
+}
