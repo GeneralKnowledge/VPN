@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   lifecycle TEXT NOT NULL DEFAULT 'customer',
   referral_code TEXT NOT NULL,
   referred_by_user_id TEXT,
+  preferred_location_id TEXT,
+  onboarding_dismissed_at BIGINT,
   deleted_at BIGINT,
   created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
   updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
@@ -24,6 +26,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   expires_at BIGINT NOT NULL,
+  user_agent TEXT,
+  ip_address TEXT,
   created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
   updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );

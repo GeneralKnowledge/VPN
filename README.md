@@ -1,6 +1,8 @@
 # Northstar VPN
 
-White-label consumer VPN business built to run fully in **mock mode** locally, then activate VPNresellers, Stripe, and email via environment variables.
+A **simple, honest, self-serve UK VPN** product: clear setup, billing honesty, and dashboard control on managed infrastructure — not a Nord-style feature clone.
+
+Runs fully in **mock mode** locally; activate VPNresellers, Stripe, and email via environment variables when you have accounts.
 
 Brand name, colours, and plans are centralized in `@northstar/config` — replace globally without hunting strings.
 
@@ -8,12 +10,13 @@ Brand name, colours, and plans are centralized in `@northstar/config` — replac
 
 A production-oriented Next.js application with:
 
-- Marketing site (pricing, features, locations, legal drafts)
-- Customer auth + dashboard (VPN, devices, billing, support, referrals)
+- Marketing site (pricing, features, locations, `/trust`, legal drafts)
+- Customer auth + self-serve dashboard (devices/VPN, locations, billing, account sessions, support, referrals)
+- Onboarding checklist (dismissible) and download guides for WireGuard / OpenVPN
 - Admin dashboard (customers, VPN, payments, audit, health)
 - Provider abstractions: VPN, billing, email, analytics
 - SQLite local database (Postgres-ready schema path documented)
-- Seeds, tests, and reconciliation for failed provisioning
+- Seeds, unit tests, ESLint, CI, and Playwright smoke/e2e
 
 ## Architecture
 
@@ -78,14 +81,16 @@ DATABASE_URL=file:./data/northstar.db
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | TypeScript |
 
-## End-to-end local journey
+## Self-serve customer journey (mock)
 
-1. Visit marketing site → Pricing → Register  
-2. Choose plan → Mock checkout → Pay  
-3. VPN account auto-provisions  
-4. Dashboard → pick location → download mock config  
-5. Manage devices / billing / support  
-6. Admin login → find customer → suspend / restore → audit trail  
+1. Visit marketing site → Pricing or `/trust` → Register  
+2. Choose a plan → Mock checkout → Pay  
+3. VPN access provisions automatically  
+4. Dashboard checklist → pick a location → name your device → download config / QR  
+5. Manage devices on **Devices**, cancel/resume on **Billing**, review **Account** sessions  
+6. Admin login → customers / subscriptions → suspend / restore → audit trail  
+
+See [docs/LAUNCH-CHECKLIST.md](./docs/LAUNCH-CHECKLIST.md) for production cutover (real Stripe, SMTP, VPN credentials) — those need external accounts and are out of scope for mock self-serve work.
 
 ## Activating VPNresellers
 
@@ -127,7 +132,8 @@ works with `BILLING_PROVIDER=mock`, and each checkout session can be completed o
 
 - The Stripe adapter and SMTP transport are still stubs (webhook verification fails closed until the Stripe SDK is wired).  
 - Rate limits are per process; use a shared store (e.g. Redis) when running several instances.  
-- No 2FA, no session list UI, no referral rewards.  
+- No TOTP 2FA yet; account session list + “sign out other devices” is available.  
+- Referral codes track signups; reward payouts are not enabled.  
 
 ## Deployment
 

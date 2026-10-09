@@ -123,6 +123,7 @@ export async function seed() {
       role: "customer",
       lifecycle: "active",
       referralCode: referralCode(),
+      preferredLocationId: "mock-uk-london",
     },
     {
       id: customer2Id,
@@ -180,23 +181,14 @@ export async function seed() {
     lastUsedAt: new Date(),
   });
 
-  await db.insert(schema.devices).values([
-    {
-      id: id("dev"),
-      userId: customerId,
-      connectionId: connId,
-      name: "iPhone",
-      platform: "ios",
-      lastUsedAt: new Date(),
-    },
-    {
-      id: id("dev"),
-      userId: customerId,
-      name: "Windows PC",
-      platform: "windows",
-      lastUsedAt: new Date(Date.now() - 86400000),
-    },
-  ]);
+  await db.insert(schema.devices).values({
+    id: id("dev"),
+    userId: customerId,
+    connectionId: connId,
+    name: "iPhone",
+    platform: "ios",
+    lastUsedAt: new Date(),
+  });
 
   await db.insert(schema.payments).values({
     id: id("pay"),

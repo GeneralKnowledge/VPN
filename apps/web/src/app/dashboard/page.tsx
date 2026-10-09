@@ -5,6 +5,7 @@ import {
   auditEvents,
   devices,
   subscriptions,
+  users,
   vpnAccounts,
   vpnConnections,
   vpnLocations,
@@ -21,6 +22,15 @@ import { QuickConnect } from "./quick-connect";
 export default async function DashboardHome() {
   const user = await requireUser();
   const db = getDb();
+
+  const [profile] = await db
+    .select({
+      preferredLocationId: users.preferredLocationId,
+      onboardingDismissedAt: users.onboardingDismissedAt,
+    })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
 
   const [sub] = await db
     .select()
@@ -65,9 +75,12 @@ export default async function DashboardHome() {
     sub && ["active", "trialing", "cancelling", "past_due"].includes(sub.status) ? sub : undefined;
   const needsEmail = emailVerificationRequired() && !user.emailVerifiedAt;
   const hasConnection = activeConns.length > 0;
-  const hasDownloaded = activeConns.some((c) => c.lastUsedAt != null) || recent.some((e) => e.action === "config.downloaded");
-  const hasDevice = deviceRows.length > 0;
+  const hasDownloaded =
+    activeConns.some((c) => c.lastUsedAt != null) || recent.some((e) => e.action === "config.downloaded");
+  // Only count named devices tied to a connection — avoids orphan/platform side effects.
+  const hasNamedDevice = deviceRows.some((d) => d.connectionId != null);
   const isReturning = hasConnection || hasDownloaded || (recent.length > 2 && Boolean(liveSub));
+  const showChecklist = !profile?.onboardingDismissedAt;
 
   const steps: OnboardingStep[] = [];
   if (needsEmail) {
@@ -77,7 +90,8 @@ export default async function DashboardHome() {
       description: "Confirm your address so we can reach you about billing and account security.",
       done: Boolean(user.emailVerifiedAt),
       href: "/dashboard/account",
-      cta: "View account",
+      cta: "Resend email",
+      ctaAction: "resend-verification",
     });
   }
   steps.push(
@@ -103,7 +117,7 @@ export default async function DashboardHome() {
     {
       id: "location",
       title: "Pick a location",
-      description: "Create a WireGuard connection for the city you want to use.",
+      description: "Choose a city and name the device that will use this connection.",
       done: hasConnection,
       href: "/dashboard/locations",
       cta: "Browse locations",
@@ -111,17 +125,17 @@ export default async function DashboardHome() {
     {
       id: "config",
       title: "Download your config",
-      description: "Get a config file or WireGuard QR from Your VPN, then import it into the official client.",
+      description: "Get a config file or WireGuard QR from Devices, then import it into the official client.",
       done: hasDownloaded,
       href: "/dashboard/vpn",
-      cta: "Open VPN",
+      cta: "Open devices",
     },
     {
       id: "device",
       title: "Name your device",
-      description: "Track phones and laptops against your plan limit.",
-      done: hasDevice,
-      href: "/dashboard/devices",
+      description: "Each connection is a named device counted against your plan limit.",
+      done: hasNamedDevice,
+      href: "/dashboard/vpn",
       cta: "Manage devices",
     },
   );
@@ -137,7 +151,7 @@ export default async function DashboardHome() {
         description="Everything self-serve: connection, devices, billing, and support."
       />
 
-      <OnboardingChecklist steps={steps} />
+      {showChecklist ? <OnboardingChecklist steps={steps} /> : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -156,9 +170,9 @@ export default async function DashboardHome() {
         <Card>
           <p className="text-sm text-muted">Active devices</p>
           <p className="mt-2 font-display text-2xl">
-            {deviceRows.length} / {maxDevices}
+            {deviceRows.filter((d) => d.connectionId != null).length} / {maxDevices}
           </p>
-          <Link href="/dashboard/devices" className="text-sm text-sea hover:underline">
+          <Link href="/dashboard/vpn" className="text-sm text-sea hover:underline">
             Manage devices
           </Link>
         </Card>
@@ -166,9 +180,10 @@ export default async function DashboardHome() {
 
       <Card>
         <h2 className="font-display text-xl">Quick Connect</h2>
-        <p className="mt-1 text-sm text-muted">Pick a location and download a configuration for your device.</p>
+        <p className="mt-1 text-sm text-muted">Pick a location, name your device, and download a configuration.</p>
         {vpnReady ? (
           <QuickConnect
+            preferredLocationId={profile?.preferredLocationId}
             locations={locations.map((l) => ({
               id: l.id,
               city: l.city,
@@ -196,12 +211,12 @@ export default async function DashboardHome() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
-          <h2 className="font-display text-lg">Your connections</h2>
+          <h2 className="font-display text-lg">Your devices</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {activeConns.length === 0 ? (
               <li>
                 <EmptyState
-                  title="No connections yet"
+                  title="No devices yet"
                   description="Use Quick Connect above, or browse locations to create your first one."
                   action={
                     <Link href="/dashboard/locations">

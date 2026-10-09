@@ -1,6 +1,9 @@
 import { LegalDraftNotice, MarketingPage } from "@/components/marketing-page";
 
-export const metadata = { title: "Cookie Policy" };
+export const metadata = {
+  title: "Cookie Policy",
+  robots: { index: false, follow: false },
+};
 
 export default function CookiesPage() {
   return (

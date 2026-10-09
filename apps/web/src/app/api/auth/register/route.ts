@@ -103,7 +103,10 @@ export async function POST(req: Request) {
       metadata: { email },
     });
 
-    const sessionToken = await createSession(db, userId);
+    const sessionToken = await createSession(db, userId, {
+      userAgent: req.headers.get("user-agent"),
+      ipAddress: clientIp(req),
+    });
     setSessionCookie(await cookies(), sessionToken);
 
     track({ name: "signup_completed", userId });

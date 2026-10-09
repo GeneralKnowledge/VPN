@@ -1,6 +1,9 @@
 import { LegalDraftNotice, MarketingPage } from "@/components/marketing-page";
 
-export const metadata = { title: "Terms of Service" };
+export const metadata = {
+  title: "Terms of Service",
+  robots: { index: false, follow: false },
+};
 
 export default function TermsPage() {
   return (

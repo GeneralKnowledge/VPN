@@ -41,6 +41,10 @@ export const users = sqliteTable(
       .default("customer"),
     referralCode: text("referral_code").notNull(),
     referredByUserId: text("referred_by_user_id"),
+    /** Last location the customer used for Quick Connect / config download. */
+    preferredLocationId: text("preferred_location_id"),
+    /** When set, the dashboard onboarding checklist stays hidden. */
+    onboardingDismissedAt: integer("onboarding_dismissed_at", { mode: "timestamp_ms" }),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
@@ -59,6 +63,8 @@ export const sessions = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    userAgent: text("user_agent"),
+    ipAddress: text("ip_address"),
     ...timestamps,
   },
   (t) => [index("sessions_user_idx").on(t.userId)],

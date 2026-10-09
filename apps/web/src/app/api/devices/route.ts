@@ -30,12 +30,14 @@ export async function POST(req: Request) {
     await assertDeviceCapacity(db, user.id);
 
     const id = newId("dev");
+    // Standalone device rows are uncommon — prefer creating via /api/vpn/connections
+    // (named connection + device). Do not set lastUsedAt on create; that is reserved
+    // for config download / real use so onboarding stays accurate.
     await db.insert(devices).values({
       id,
       userId: user.id,
       name: body.name,
       platform: body.platform,
-      lastUsedAt: new Date(),
     });
     await writeAudit(db, {
       actorId: user.id,
@@ -55,7 +57,14 @@ export async function PATCH(req: Request) {
     const db = getDb();
     const [row] = await db.select().from(devices).where(eq(devices.id, body.id)).limit(1);
     if (!row || row.userId !== user.id || row.revokedAt) throw new HttpError(404, "Not found");
-    await db.update(devices).set({ name: body.name, updatedAt: new Date() }).where(eq(devices.id, row.id));
+    const now = new Date();
+    await db.update(devices).set({ name: body.name, updatedAt: now }).where(eq(devices.id, row.id));
+    if (row.connectionId) {
+      await db
+        .update(vpnConnections)
+        .set({ name: body.name, updatedAt: now })
+        .where(and(eq(vpnConnections.id, row.connectionId), eq(vpnConnections.userId, user.id)));
+    }
     return Response.json({ ok: true });
   });
 }

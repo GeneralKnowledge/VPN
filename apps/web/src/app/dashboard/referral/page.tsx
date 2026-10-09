@@ -13,13 +13,13 @@ export default async function ReferralPage() {
     <div className="space-y-6">
       <PageHeader
         title="Referral"
-        description="Share your code when friends sign up. Rewards will appear here when they are enabled."
+        description="Share your code when friends sign up. Referral tracking is live; reward credits are optional later."
       />
       <Card>
         <p className="text-sm text-muted">Your referral code</p>
         <p className="mt-2 font-mono text-2xl">{user.referralCode}</p>
         <p className="mt-3 text-sm text-muted">
-          Friends can enter this code during registration. Credit and reward rules will be announced before launch.
+          Friends can enter this code during registration. You’ll see them listed below when they join.
         </p>
       </Card>
       <Card>

@@ -1,6 +1,18 @@
 # Launch checklist — Northstar VPN
 
-## Code
+## Self-serve (mock — no external accounts)
+
+Done in-repo for the self-serve angle (keep green on `main`):
+
+- [x] CI (lint, typecheck, unit, build, Playwright)
+- [x] Package ESLint + theme toggle + SEO basics
+- [x] Dashboard onboarding checklist (dismissible) + `/trust` + download guides
+- [x] Devices = named VPN connections (create / rename / revoke + QR)
+- [x] Account active sessions + sign out other devices
+- [x] Last-used / preferred location in Quick Connect
+- [x] Legal drafts `noindex` + omitted from sitemap (draft banners remain)
+
+## Code (production cutover)
 
 - [ ] Tests passing (`pnpm test`)
 - [ ] Typecheck passing (`pnpm typecheck`)

@@ -46,11 +46,38 @@ function sessionKey(token: string): string {
   return createHmac("sha256", getEnv().AUTH_SECRET).update(token).digest("hex");
 }
 
-export async function createSession(db: Db, userId: string): Promise<string> {
+export async function createSession(
+  db: Db,
+  userId: string,
+  meta?: { userAgent?: string | null; ipAddress?: string | null },
+): Promise<string> {
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  await db.insert(sessions).values({ id: sessionKey(token), userId, expiresAt });
+  await db.insert(sessions).values({
+    id: sessionKey(token),
+    userId,
+    expiresAt,
+    userAgent: meta?.userAgent?.slice(0, 300) ?? null,
+    ipAddress: meta?.ipAddress?.slice(0, 64) ?? null,
+  });
   return token;
+}
+
+export async function listUserSessions(db: Db, userId: string) {
+  return db
+    .select({
+      id: sessions.id,
+      expiresAt: sessions.expiresAt,
+      createdAt: sessions.createdAt,
+      userAgent: sessions.userAgent,
+      ipAddress: sessions.ipAddress,
+    })
+    .from(sessions)
+    .where(and(eq(sessions.userId, userId), gt(sessions.expiresAt, new Date())));
+}
+
+export function currentSessionKey(token: string): string {
+  return sessionKey(token);
 }
 
 export async function destroySession(db: Db, token: string) {

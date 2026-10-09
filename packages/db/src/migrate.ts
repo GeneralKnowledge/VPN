@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
   lifecycle TEXT NOT NULL DEFAULT 'customer',
   referral_code TEXT NOT NULL,
   referred_by_user_id TEXT,
+  preferred_location_id TEXT,
+  onboarding_dismissed_at INTEGER,
   deleted_at INTEGER,
   created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
   updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
@@ -25,6 +27,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   expires_at INTEGER NOT NULL,
+  user_agent TEXT,
+  ip_address TEXT,
   created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
   updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
 );
@@ -260,6 +264,10 @@ CREATE INDEX IF NOT EXISTS checkout_user_idx ON checkout_sessions(user_id);
 /** Additive migrations for existing SQLite databases */
 const ALTERS = [
   `ALTER TABLE vpn_accounts ADD COLUMN last_reconciled_at INTEGER`,
+  `ALTER TABLE users ADD COLUMN preferred_location_id TEXT`,
+  `ALTER TABLE users ADD COLUMN onboarding_dismissed_at INTEGER`,
+  `ALTER TABLE sessions ADD COLUMN user_agent TEXT`,
+  `ALTER TABLE sessions ADD COLUMN ip_address TEXT`,
 ];
 
 function monorepoRoot(): string {

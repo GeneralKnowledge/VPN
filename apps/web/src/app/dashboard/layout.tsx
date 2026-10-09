@@ -10,9 +10,8 @@ import { VerifyEmailBanner } from "./verify-banner";
 
 const customerNav = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/dashboard/vpn", label: "VPN" },
+  { href: "/dashboard/vpn", label: "Devices" },
   { href: "/dashboard/locations", label: "Locations" },
-  { href: "/dashboard/devices", label: "Devices" },
   { href: "/dashboard/billing", label: "Billing" },
   { href: "/dashboard/account", label: "Account" },
   { href: "/dashboard/support", label: "Support" },
