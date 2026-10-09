@@ -6,12 +6,24 @@ import { useFeedback } from "@/components/feedback";
 import { Button } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
-export function ConnectionActions({ connectionId, name }: { connectionId: string; name: string }) {
+export function ConnectionActions({
+  connectionId,
+  deviceId,
+  name,
+}: {
+  connectionId: string;
+  deviceId?: string | null;
+  name: string;
+}) {
   const router = useRouter();
   const { confirm, prompt, toast } = useFeedback();
   const [busy, setBusy] = useState(false);
 
   async function rename() {
+    if (!deviceId) {
+      toast("Couldn’t find that device to rename", "danger");
+      return;
+    }
     const next = await prompt({
       title: "Rename device",
       label: "Device name",
@@ -21,26 +33,13 @@ export function ConnectionActions({ connectionId, name }: { connectionId: string
     if (!next || next === name) return;
     setBusy(true);
     try {
-      // Prefer renaming the linked device row when present; fall back to connection name via devices API is awkward —
-      // use connection revoke path is separate. Rename through devices if we have id; otherwise PATCH devices by connection.
-      const list = await fetch("/api/devices");
-      const data = await safeJson(list);
-      const device = Array.isArray(data.devices)
-        ? (data.devices as Array<{ id: string; connectionId?: string | null; name: string }>).find(
-            (d) => d.connectionId === connectionId,
-          )
-        : undefined;
-      if (device) {
-        const res = await fetch("/api/devices", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: device.id, name: next }),
-        });
-        if (!res.ok) toast((await safeJson(res)).error ?? "Rename failed", "danger");
-        else toast("Device renamed", "success");
-      } else {
-        toast("Couldn’t find that device to rename", "danger");
-      }
+      const res = await fetch("/api/devices", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: deviceId, name: next }),
+      });
+      if (!res.ok) toast((await safeJson(res)).error ?? "Rename failed", "danger");
+      else toast("Device renamed", "success");
     } catch {
       toast("Network error. Please try again.", "danger");
     }

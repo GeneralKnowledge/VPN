@@ -93,7 +93,7 @@ export default async function VpnPage() {
               </div>
               <div className="flex flex-col items-end gap-2">
                 <DownloadConfigButton connectionId={c.id} protocol={c.protocol} />
-                <ConnectionActions connectionId={c.id} name={c.name} />
+                <ConnectionActions connectionId={c.id} deviceId={c.deviceId} name={c.name} />
               </div>
             </li>
           ))}
