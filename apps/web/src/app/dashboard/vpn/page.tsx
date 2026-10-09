@@ -6,6 +6,7 @@ import { getDb } from "@/lib/providers";
 import { Badge, Card } from "@/components/ui";
 import { ResetCredentialsButton } from "./credentials-button";
 import { DownloadConfigButton } from "./download-button";
+import { flagEmoji } from "@/lib/format";
 
 export default async function VpnPage() {
   const user = await requireUser();
@@ -81,9 +82,3 @@ export default async function VpnPage() {
   );
 }
 
-function flagEmoji(countryCode: string): string {
-  const code = countryCode.toUpperCase();
-  if (code.length !== 2) return "🌐";
-  const A = 0x1f1e6;
-  return String.fromCodePoint(A + code.charCodeAt(0) - 65, A + code.charCodeAt(1) - 65);
-}

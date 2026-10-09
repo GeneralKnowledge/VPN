@@ -3,13 +3,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui";
 import { safeJson } from "@/lib/client";
+import { flagEmoji } from "@/lib/format";
 
-function flagEmoji(countryCode: string): string {
-  const code = countryCode.toUpperCase();
-  if (code.length !== 2) return "🌐";
-  const A = 0x1f1e6;
-  return String.fromCodePoint(A + code.charCodeAt(0) - 65, A + code.charCodeAt(1) - 65);
-}
 
 export function QuickConnect({
   locations,
