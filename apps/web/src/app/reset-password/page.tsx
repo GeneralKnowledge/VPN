@@ -3,42 +3,63 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
 import { Logo } from "@/components/logo";
-import { Button, Input, Label } from "@/components/ui";
+import { PasswordInput } from "@/components/password-input";
+import { Button, FormError, Label } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
 function ResetForm() {
   const params = useSearchParams();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    const res = await fetch("/api/auth/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        token: params.get("token"),
-        password: form.get("password"),
-      }),
-    });
-    const data = await safeJson(res);
-    if (!res.ok) {
-      setError(data.error ?? "Reset failed");
-      return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: params.get("token"),
+          password: form.get("password"),
+        }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        setError(data.error ?? "Reset failed");
+        setLoading(false);
+        return;
+      }
+      router.push("/login");
+    } catch {
+      setError("Network error. Please try again.");
+      setLoading(false);
     }
-    router.push("/login");
   }
 
   return (
     <form onSubmit={onSubmit} className="mt-8 space-y-4">
       <div>
         <Label htmlFor="password">New password</Label>
-        <Input id="password" name="password" type="password" required minLength={8} />
+        <PasswordInput
+          id="password"
+          name="password"
+          required
+          minLength={8}
+          maxLength={128}
+          autoComplete="new-password"
+          aria-describedby="password-hint reset-error"
+        />
+        <p id="password-hint" className="mt-1.5 text-xs text-muted">
+          At least 8 characters.
+        </p>
       </div>
-      {error ? <p className="text-sm text-danger">{error}</p> : null}
-      <Button type="submit" className="w-full">
-        Update password
+      <FormError id="reset-error">{error}</FormError>
+      <Button type="submit" className="w-full" disabled={loading} aria-busy={loading}>
+        {loading ? "Updating…" : "Update password"}
       </Button>
     </form>
   );

@@ -8,19 +8,26 @@ import { safeJson } from "@/lib/client";
 
 export default function ForgotPasswordPage() {
   const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [devLink, setDevLink] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    const res = await fetch("/api/auth/forgot-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: form.get("email") }),
-    });
-    const data = await safeJson(res);
-    setMessage(data.message ?? "If that email exists, a reset link was sent.");
-    setDevLink(data.devResetUrl ?? null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.get("email") }),
+      });
+      const data = await safeJson(res);
+      setMessage(res.ok ? (data.message ?? "If that email exists, a reset link was sent.") : (data.error ?? "Something went wrong. Please try again."));
+      setDevLink(data.devResetUrl ?? null);
+    } catch {
+      setMessage("Network error. Please try again.");
+    }
+    setLoading(false);
   }
 
   return (
@@ -31,13 +38,13 @@ export default function ForgotPasswordPage() {
         <form onSubmit={onSubmit} className="mt-8 space-y-4">
           <div>
             <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" required />
+            <Input id="email" name="email" type="email" required autoComplete="email" />
           </div>
-          <Button type="submit" className="w-full">
-            Send reset link
+          <Button type="submit" className="w-full" disabled={loading} aria-busy={loading}>
+            {loading ? "Sending…" : "Send reset link"}
           </Button>
         </form>
-        {message ? <p className="mt-4 text-sm text-muted">{message}</p> : null}
+        <div aria-live="polite">{message ? <p className="mt-4 text-sm text-muted">{message}</p> : null}</div>
         {devLink ? (
           <p className="mt-2 break-all text-sm text-sea">
             Dev link: <Link href={devLink}>{devLink}</Link>

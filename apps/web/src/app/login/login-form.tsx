@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { Logo } from "@/components/logo";
-import { Button, Input, Label } from "@/components/ui";
+import { PasswordInput } from "@/components/password-input";
+import { Button, FormError, Input, Label } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
 export function LoginForm({ showDevHint }: { showDevHint: boolean }) {
@@ -17,14 +18,21 @@ export function LoginForm({ showDevHint }: { showDevHint: boolean }) {
     setLoading(true);
     setError(null);
     const form = new FormData(e.currentTarget);
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: form.get("email"),
-        password: form.get("password"),
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.get("email"),
+          password: form.get("password"),
+        }),
+      });
+    } catch {
+      setLoading(false);
+      setError("Network error. Please try again.");
+      return;
+    }
     const data = await safeJson(res);
     setLoading(false);
     if (!res.ok) {
@@ -50,14 +58,14 @@ export function LoginForm({ showDevHint }: { showDevHint: boolean }) {
         <form onSubmit={onSubmit} className="mt-8 space-y-4">
           <div>
             <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" required autoComplete="email" />
+            <Input id="email" name="email" type="email" required autoComplete="email" aria-describedby="login-error" />
           </div>
           <div>
             <Label htmlFor="password">Password</Label>
-            <Input id="password" name="password" type="password" required autoComplete="current-password" />
+            <PasswordInput id="password" name="password" required autoComplete="current-password" aria-describedby="login-error" />
           </div>
-          {error ? <p className="text-sm text-danger">{error}</p> : null}
-          <Button type="submit" className="w-full" disabled={loading}>
+          <FormError id="login-error">{error}</FormError>
+          <Button type="submit" className="w-full" disabled={loading} aria-busy={loading}>
             {loading ? "Signing in…" : "Sign in"}
           </Button>
         </form>

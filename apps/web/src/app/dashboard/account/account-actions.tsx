@@ -2,12 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, Card, Input, Label } from "@/components/ui";
+import { useFeedback } from "@/components/feedback";
+import { PasswordInput } from "@/components/password-input";
+import { Button, Card, FormError, Label } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
 export function AccountActions() {
   const router = useRouter();
-  const [msg, setMsg] = useState<string | null>(null);
+  const { toast } = useFeedback();
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwBusy, setPwBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showDelete, setShowDelete] = useState(false);
 
@@ -19,30 +23,46 @@ export function AccountActions() {
           className="mt-4 space-y-3"
           onSubmit={async (e) => {
             e.preventDefault();
-            const fd = new FormData(e.currentTarget);
-            const res = await fetch("/api/account/password", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                currentPassword: fd.get("currentPassword"),
-                newPassword: fd.get("newPassword"),
-              }),
-            });
-            const data = await safeJson(res);
-            setMsg(res.ok ? "Password updated" : data.error ?? "Failed");
+            const formEl = e.currentTarget;
+            const fd = new FormData(formEl);
+            setPwBusy(true);
+            setPwError(null);
+            try {
+              const res = await fetch("/api/account/password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  currentPassword: fd.get("currentPassword"),
+                  newPassword: fd.get("newPassword"),
+                }),
+              });
+              const data = await safeJson(res);
+              if (res.ok) {
+                formEl.reset();
+                toast("Password updated", "success");
+              } else {
+                setPwError(data.error ?? "We couldn’t update your password. Please try again.");
+              }
+            } catch {
+              setPwError("Network error. Please try again.");
+            }
+            setPwBusy(false);
           }}
         >
           <div>
             <Label htmlFor="currentPassword">Current password</Label>
-            <Input id="currentPassword" name="currentPassword" type="password" required />
+            <PasswordInput id="currentPassword" name="currentPassword" required autoComplete="current-password" />
           </div>
           <div>
             <Label htmlFor="newPassword">New password</Label>
-            <Input id="newPassword" name="newPassword" type="password" required minLength={8} />
+            <PasswordInput id="newPassword" name="newPassword" required minLength={8} maxLength={128} autoComplete="new-password" aria-describedby="new-password-hint" />
+            <p id="new-password-hint" className="mt-1.5 text-xs text-muted">At least 8 characters.</p>
           </div>
-          <Button type="submit">Update password</Button>
+          <FormError>{pwError}</FormError>
+          <Button type="submit" disabled={pwBusy} aria-busy={pwBusy}>
+            {pwBusy ? "Updating…" : "Update password"}
+          </Button>
         </form>
-        {msg ? <p className="mt-2 text-sm text-muted">{msg}</p> : null}
       </Card>
       <Card>
         <h2 className="font-display text-lg text-danger">Delete account</h2>
@@ -76,7 +96,7 @@ export function AccountActions() {
           >
             <div>
               <Label htmlFor="deletePassword">Confirm your password</Label>
-              <Input id="deletePassword" name="password" type="password" required />
+              <PasswordInput id="deletePassword" name="password" required autoComplete="current-password" />
             </div>
             <div className="flex gap-2">
               <Button variant="danger" type="submit">
@@ -86,7 +106,7 @@ export function AccountActions() {
                 Keep my account
               </Button>
             </div>
-            {deleteError ? <p className="text-sm text-danger">{deleteError}</p> : null}
+            <FormError>{deleteError}</FormError>
           </form>
         ) : (
           <Button className="mt-4" variant="danger" type="button" onClick={() => setShowDelete(true)}>

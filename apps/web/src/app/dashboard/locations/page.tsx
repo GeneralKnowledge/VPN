@@ -4,10 +4,8 @@ import { eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
 import { getDb, getEnv, getVpnProvider } from "@/lib/providers";
 import { syncLocationsFromProvider } from "@/lib/services";
-import { Badge, Button, Card, EmptyState, PageHeader } from "@/components/ui";
-import { CreateConnectionForm } from "./create-form";
-import { flagEmoji } from "@/lib/format";
-
+import { Button, EmptyState, PageHeader } from "@/components/ui";
+import { LocationBrowser } from "./location-browser";
 
 export default async function LocationsDashPage() {
   const user = await requireUser();
@@ -30,10 +28,12 @@ export default async function LocationsDashPage() {
 
   const visible = locations.filter((l) => l.status !== "offline");
 
+  const canConnect = account?.status === "active";
+
   return (
     <div className="space-y-6">
       <PageHeader title="Locations" description="Choose a city, then connect. Configs download for your device." />
-      {account?.status !== "active" ? (
+      {!canConnect ? (
         <EmptyState
           title="Your VPN isn’t ready yet"
           description="Finish checkout or wait for setup to complete before connecting."
@@ -43,35 +43,27 @@ export default async function LocationsDashPage() {
             </Link>
           }
         />
-      ) : (
-        <CreateConnectionForm
-          locations={visible.map((l) => ({
-            id: l.id,
-            label: `${flagEmoji(l.countryCode)} ${l.country} — ${l.city}`,
-            countryCode: l.countryCode,
-            city: l.city,
-            country: l.country,
-          }))}
-        />
-      )}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {visible.map((l) => (
-          <Card key={l.id}>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-medium">
-                  <span className="mr-2" aria-hidden>
-                    {flagEmoji(l.countryCode)}
-                  </span>
-                  {l.city}
-                </p>
-                <p className="text-sm text-muted">{l.country}</p>
-              </div>
-              <Badge tone={l.status === "online" ? "success" : "warning"}>{l.status}</Badge>
-            </div>
-          </Card>
-        ))}
-      </div>
+      ) : null}
+      <LocationBrowser
+        canConnect={canConnect}
+        locations={visible.map((l) => ({
+          id: l.id,
+          city: l.city,
+          country: l.country,
+          countryCode: l.countryCode,
+          status: l.status,
+          protocols: parseProtocols(l.protocolSupportJson),
+        }))}
+      />
     </div>
   );
+}
+
+function parseProtocols(json: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
+  } catch {
+    return [];
+  }
 }

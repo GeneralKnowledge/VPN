@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFeedback } from "@/components/feedback";
 import { Button } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
@@ -9,6 +10,7 @@ export function ResetCredentialsButton() {
   const [creds, setCreds] = useState<{ username: string; password: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { confirm } = useFeedback();
 
   return (
     <div className="mt-3">
@@ -18,7 +20,12 @@ export function ResetCredentialsButton() {
         type="button"
         disabled={loading}
         onClick={async () => {
-          if (!confirm("Generate a new VPN password? Any app using the old one will need updating.")) return;
+          const ok = await confirm({
+            title: "Generate a new VPN password?",
+            description: "Any app using the old password will need to be updated.",
+            confirmLabel: "Generate new password",
+          });
+          if (!ok) return;
           setLoading(true);
           setError(null);
           try {

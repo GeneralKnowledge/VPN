@@ -175,3 +175,11 @@ export function EmptyState({
     </div>
   );
 }
+
+export function FormError({ id, children }: { id?: string; children?: ReactNode }) {
+  return (
+    <div id={id} role="alert" aria-live="assertive">
+      {children ? <p className="text-sm text-danger">{children}</p> : null}
+    </div>
+  );
+}
