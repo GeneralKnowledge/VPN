@@ -63,7 +63,9 @@ test("admin subscriptions table lists seed customer", async ({ page }) => {
   await page.getByLabel("Email").fill("admin@northstar.local");
   await page.getByLabel("Password").fill("AdminDev123!");
   await page.getByRole("button", { name: /Sign in/i }).click();
+  await expect(page).toHaveURL(/admin/);
   await page.goto("/admin/subscriptions");
+  await expect(page.getByRole("heading", { name: "Subscriptions" })).toBeVisible();
   await expect(page.getByRole("table", { name: "Subscriptions" })).toBeVisible();
   await expect(page.getByText("customer@northstar.local")).toBeVisible();
 });
