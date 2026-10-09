@@ -77,17 +77,17 @@ export default async function HomePage() {
         <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
           <h2 className="font-display text-3xl">Why {brand.shortName}</h2>
           <p className="mt-2 max-w-2xl text-muted">
-            A straightforward VPN service: subscribe, provision access, pick a location, connect.
+            A straightforward VPN you run yourself: subscribe, pick a location, download a config, connect.
           </p>
           <div className="mt-10 grid gap-8 md:grid-cols-3">
             {[
               {
-                title: "Simple setup",
-                body: "Download a configuration for your device and follow clear setup instructions.",
+                title: "Self-serve setup",
+                body: "Download a configuration or scan a WireGuard QR, then follow clear guides for your device.",
               },
               {
-                title: "Device limits you control",
-                body: "Every plan includes a clear device allowance. Rename or revoke devices anytime.",
+                title: "Billing you control",
+                body: "Subscribe, cancel at period end, resume, and view invoices from your dashboard — no ticket required.",
               },
               {
                 title: "Plain-spoken privacy",
@@ -161,8 +161,8 @@ export default async function HomePage() {
           <ol className="mt-8 grid gap-6 md:grid-cols-3">
             {[
               "Create an account and choose a plan",
-              "Complete checkout — VPN access is provisioned automatically",
-              "Pick a location, add a device, download your configuration",
+              "Complete checkout — VPN access is prepared automatically",
+              "Pick a location, download your config or QR, and connect",
             ].map((step, i) => (
               <li key={step} className="flex gap-4">
                 <span className="font-display text-3xl text-accent">{i + 1}</span>

@@ -74,6 +74,7 @@ export function SiteFooter() {
           <p className="text-sm font-semibold">Company</p>
           <ul className="mt-3 space-y-2 text-sm text-muted">
             <li><Link href="/about">About</Link></li>
+            <li><Link href="/trust">Trust</Link></li>
             <li><Link href="/contact">Contact</Link></li>
             <li><Link href="/support">Support</Link></li>
           </ul>
