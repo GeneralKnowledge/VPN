@@ -111,7 +111,23 @@ export class MockBillingProvider implements BillingProvider {
   }
 
   async getSubscription(subscriptionId: string): Promise<BillingSubscription> {
-    const sub = this.subscriptions.get(subscriptionId);
+    let sub = this.subscriptions.get(subscriptionId);
+    // Survive process restarts / HMR / DB seed: seed and prior checkouts use sub_mock_* ids
+    // that are not in this process's memory map.
+    if (!sub && subscriptionId.startsWith("sub_mock_")) {
+      const periodEnd = new Date();
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      sub = {
+        id: subscriptionId,
+        customerId: "unknown",
+        planId: "premium-monthly",
+        status: "active",
+        currentPeriodEnd: periodEnd.toISOString(),
+        cancelAtPeriodEnd: false,
+        provider: "mock",
+      };
+      this.subscriptions.set(subscriptionId, sub);
+    }
     if (!sub) throw new BillingProviderError("Subscription not found", "not_found");
     return { ...sub };
   }

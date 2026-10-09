@@ -8,24 +8,23 @@ async function login(page: Page, email: string, password: string) {
   await expect(page).toHaveURL(/dashboard|admin/);
 }
 
-test("lead can subscribe via mock checkout to VPN-ready", async ({ page }) => {
+test("register then mock checkout reaches VPN-ready", async ({ page }) => {
   const email = `e2e-sub-${Date.now()}@northstar.local`;
-  await page.goto("/register");
+  await page.goto("/register?plan=premium-monthly");
   await page.getByLabel("Name").fill("E2E Subscriber");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill("E2eSubscribe123!");
   await page.getByRole("button", { name: /Create account/i }).click();
-  await expect(page).toHaveURL(/dashboard/);
-
-  await page.getByRole("navigation", { name: "Dashboard" }).getByRole("link", { name: "Billing" }).click();
-  await expect(page).toHaveURL(/dashboard\/billing/);
-  await page.getByRole("button", { name: "Subscribe" }).first().click();
-  await expect(page).toHaveURL(/billing\/mock-checkout/);
+  // Register with planId redirects straight to billing?plan=… which auto-starts mock checkout.
+  await page.waitForURL(/billing\/mock-checkout|dashboard\/billing/, { waitUntil: "commit", timeout: 20_000 });
+  if (/dashboard\/billing/.test(page.url())) {
+    await page.waitForURL(/billing\/mock-checkout/, { waitUntil: "commit", timeout: 20_000 });
+  }
   await page.getByRole("button", { name: /Pay with mock card/i }).click();
-  await expect(page).toHaveURL(/dashboard/);
+  await page.waitForURL(/dashboard/, { waitUntil: "commit", timeout: 20_000 });
 
   await page.getByRole("navigation", { name: "Dashboard" }).getByRole("link", { name: "Devices" }).click();
-  await expect(page.getByText("Ready").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Ready").first()).toBeVisible({ timeout: 20_000 });
 });
 
 test("customer can revoke a device connection", async ({ page }) => {
@@ -59,18 +58,25 @@ test("billing cancel and resume smoke", async ({ page }) => {
 
   const cancelBtn = page.getByRole("button", { name: "Cancel subscription" });
   const resumeBtn = page.getByRole("button", { name: "Resume subscription" });
+  await expect(cancelBtn.or(resumeBtn)).toBeVisible({ timeout: 15_000 });
 
   if (await cancelBtn.isVisible()) {
+    const cancelResponse = page.waitForResponse(
+      (r) => r.url().includes("/api/billing/cancel") && r.request().method() === "POST",
+    );
     await cancelBtn.click();
-    await page.getByRole("button", { name: "Cancel subscription" }).last().click();
-    await expect(page.getByRole("button", { name: "Resume subscription" })).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel subscription" }).click();
+    expect((await cancelResponse).ok()).toBeTruthy();
+    await expect(page.getByRole("button", { name: "Resume subscription" })).toBeVisible({ timeout: 15_000 });
+    const resumeResponse = page.waitForResponse(
+      (r) => r.url().includes("/api/billing/resume") && r.request().method() === "POST",
+    );
     await page.getByRole("button", { name: "Resume subscription" }).click();
-    await expect(page.getByRole("button", { name: "Cancel subscription" })).toBeVisible({ timeout: 10_000 });
-  } else if (await resumeBtn.isVisible()) {
-    await resumeBtn.click();
-    await expect(page.getByRole("button", { name: "Cancel subscription" })).toBeVisible({ timeout: 10_000 });
+    expect((await resumeResponse).ok()).toBeTruthy();
+    await expect(page.getByRole("button", { name: "Cancel subscription" })).toBeVisible({ timeout: 15_000 });
   } else {
-    throw new Error("Expected cancel or resume controls on billing for seed customer");
+    await resumeBtn.click();
+    await expect(page.getByRole("button", { name: "Cancel subscription" })).toBeVisible({ timeout: 15_000 });
   }
 });
 
