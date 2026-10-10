@@ -1,90 +1,45 @@
-# Deploy to a test server (Cloudflare subdomains)
+# Deploy test server — avedeus.ovh + Cloudflare Tunnel
 
-Step-by-step for a **private staging** deploy: one Node app, two hostnames (`vpn` + `sim`), Cloudflare for DNS/HTTPS, providers still on **mock**.
-
-Replace `yourdomain.com` and `YOUR_SERVER_IP` with yours.
-
----
-
-## What you will end up with
+Private staging on your VPS: one Node app, two hostnames, **`cloudflared`** (no nginx). Providers stay on **mock**.
 
 | URL | Product |
 | --- | --- |
-| `https://vpn.yourdomain.com` | Northstar VPN |
-| `https://sim.yourdomain.com` | Northstar SIM |
+| `https://vpn.avedeus.ovh` | Northstar VPN |
+| `https://sim.avedeus.ovh` | Northstar SIM |
 
-Same process, same database. Logins are **separate per hostname** (cookies are host-scoped).
-
----
-
-## Step 1 — Pick hostnames
-
-Decide on:
-
-- VPN: `vpn.yourdomain.com`
-- eSIM: `sim.yourdomain.com`
-
-You need a domain already on Cloudflare. The test server needs a public IP (or a tunnel — this guide assumes a public IP).
+Same process and DB. Logins are **separate per hostname**.
 
 ---
 
-## Step 2 — Cloudflare DNS
+## Step 1 — Server runtime
 
-In Cloudflare → your zone → **DNS** → **Records**:
-
-1. Add **A** (or **AAAA**) record:
-   - **Name:** `vpn`
-   - **IPv4/IPv6:** `YOUR_SERVER_IP`
-   - **Proxy status:** Proxied (orange cloud)
-2. Add a second **A** (or **AAAA**) record:
-   - **Name:** `sim`
-   - **IPv4/IPv6:** `YOUR_SERVER_IP` (same IP)
-   - **Proxy status:** Proxied (orange cloud)
-
-Optional but useful for a private test:
-
-- **SSL/TLS** → mode **Full (strict)** once the origin has a valid cert, or **Full** if the origin uses a self-signed cert behind Cloudflare.
-- While testing, you can put the hostnames behind **Cloudflare Access** or IP allowlists so the world cannot sign up freely.
-
-Wait until both names resolve (often a few minutes).
+SSH into the server, then:
 
 ```bash
-dig +short vpn.yourdomain.com
-dig +short sim.yourdomain.com
-# Should show Cloudflare anycast IPs when proxied (not necessarily YOUR_SERVER_IP)
+sudo apt update
+sudo apt install -y git curl
+
+# Node 22
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+sudo corepack enable
+sudo corepack prepare pnpm@9.15.0 --activate
+node -v && pnpm -v
 ```
 
----
-
-## Step 3 — Open the origin to Cloudflare
-
-On the server firewall, allow:
-
-- **22** (SSH) from your IP
-- **80** and **443** from the internet (Cloudflare connects to your origin on these)
-
-If you run Node only on port `3000` without a reverse proxy, either:
-
-- put nginx/Caddy on 80/443 (recommended), or
-- temporarily open `3000` and point Cloudflare to that port via an origin rule (less common).
-
----
-
-## Step 4 — Install runtime on the server
-
-SSH in, then:
+Install `cloudflared`:
 
 ```bash
-# Node 20+
-node -v   # should be v20 or newer
-
-# pnpm
-corepack enable
-corepack prepare pnpm@9.15.0 --activate
-pnpm -v
+curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o /tmp/cloudflared.deb
+sudo dpkg -i /tmp/cloudflared.deb
+cloudflared --version
 ```
 
-Install git if needed. Clone the repo (use your fork/remote URL):
+(Use the arm64 `.deb` if your VPS is ARM.)
+
+---
+
+## Step 2 — Clone and install the app
 
 ```bash
 sudo mkdir -p /opt/northstar
@@ -97,33 +52,33 @@ pnpm install
 
 ---
 
-## Step 5 — Create `.env`
+## Step 3 — `.env` for avedeus.ovh
 
 ```bash
 cd /opt/northstar
 cp .env.example .env
-openssl rand -base64 48   # AUTH_SECRET
-openssl rand -base64 32   # CRON_SECRET
+echo "AUTH_SECRET=$(openssl rand -base64 48)"
+echo "CRON_SECRET=$(openssl rand -base64 32)"
+nano .env
 ```
 
-Edit `.env` so it looks like this (SQLite is fine for a private test):
+Paste the printed secrets into `.env`, and set:
 
 ```env
 APP_ENV=production
 APP_NAME=Northstar VPN
-APP_URL=https://vpn.yourdomain.com
-ESIM_APP_URL=https://sim.yourdomain.com
-AUTH_URL=https://vpn.yourdomain.com
+APP_URL=https://vpn.avedeus.ovh
+ESIM_APP_URL=https://sim.avedeus.ovh
+AUTH_URL=https://vpn.avedeus.ovh
 
-PRODUCT_HOST_VPN=vpn.yourdomain.com
-PRODUCT_HOST_ESIM=sim.yourdomain.com
-# Keep false: Cloudflare and a normal reverse proxy preserve Host.
+PRODUCT_HOST_VPN=vpn.avedeus.ovh
+PRODUCT_HOST_ESIM=sim.avedeus.ovh
 TRUST_FORWARDED_HOST=false
 
 DATABASE_URL=file:./data/northstar.db
 
-AUTH_SECRET=paste-the-48-byte-secret-here
-CRON_SECRET=paste-the-32-byte-secret-here
+AUTH_SECRET=paste-from-openssl
+CRON_SECRET=paste-from-openssl
 
 ALLOW_MOCK_BILLING_IN_PRODUCTION=true
 VPN_PROVIDER=mock
@@ -133,19 +88,17 @@ EMAIL_PROVIDER=mock
 ANALYTICS_PROVIDER=mock
 ERROR_REPORTER=console
 
-# Optional: keep seed users for login testing on staging only.
-# Change these passwords if the host is reachable beyond you.
 SEED_ADMIN_EMAIL=admin@northstar.local
 SEED_ADMIN_PASSWORD=AdminDev123!
 SEED_CUSTOMER_EMAIL=customer@northstar.local
 SEED_CUSTOMER_PASSWORD=CustomerDev123!
 ```
 
-**Do not** set `TRUST_FORWARDED_HOST=true` on a public Node bind. Only enable it if a reverse proxy **overwrites** `Host` and sets a trusted `X-Forwarded-Host`.
+Leave `TRUST_FORWARDED_HOST=false`. Tunnel preserves the public `Host`.
 
 ---
 
-## Step 6 — Database, build, first start
+## Step 4 — Database, build, systemd for the app
 
 ```bash
 cd /opt/northstar
@@ -153,120 +106,149 @@ mkdir -p data
 pnpm db:migrate
 pnpm db:seed
 pnpm build
-pnpm --filter @northstar/web start
-```
 
-Leave that running for a quick check, or stop it (`Ctrl+C`) after the smoke tests below and use systemd (Step 8).
-
-Default listen: `http://127.0.0.1:3000`. Confirm locally on the server:
-
-```bash
-curl -sS -H 'Host: vpn.yourdomain.com' http://127.0.0.1:3000/api/health
-curl -sS -H 'Host: sim.yourdomain.com' http://127.0.0.1:3000/ | head
-```
-
----
-
-## Step 7 — Reverse proxy (nginx example)
-
-Install nginx, then a site config that forwards **both** hostnames and keeps `Host`:
-
-```nginx
-server {
-    listen 80;
-    listen [::]:80;
-    server_name vpn.yourdomain.com sim.yourdomain.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
-
-```bash
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-With Cloudflare proxied (orange cloud), visitors use Cloudflare HTTPS. Origin can stay HTTP on port 80 if SSL mode is **Flexible** (not ideal) or **Full** with an origin cert.
-
-Better: install a Cloudflare Origin Certificate (SSL/TLS → Origin Server) on nginx and listen on 443, then set SSL mode to **Full (strict)**.
-
-Caddy alternative (auto HTTPS on the origin if you skip orange-cloud, or terminate TLS yourself):
-
-```caddy
-vpn.yourdomain.com, sim.yourdomain.com {
-    reverse_proxy 127.0.0.1:3000
-}
-```
-
----
-
-## Step 8 — Keep the app running (systemd)
-
-`/etc/systemd/system/northstar.service`:
-
-```ini
+PNPM_BIN="$(which pnpm)"
+sudo tee /etc/systemd/system/northstar.service >/dev/null <<EOF
 [Unit]
 Description=Northstar VPN/eSIM (Next.js)
 After=network.target
 
 [Service]
 Type=simple
-User=YOUR_LINUX_USER
+User=$USER
 WorkingDirectory=/opt/northstar
 EnvironmentFile=/opt/northstar/.env
-ExecStart=/usr/bin/pnpm --filter @northstar/web start
+ExecStart=$PNPM_BIN --filter @northstar/web start
 Restart=on-failure
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-```
+EOF
 
-Adjust `User` and the `pnpm` path (`which pnpm`). Then:
-
-```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now northstar
-sudo systemctl status northstar
+sudo systemctl status northstar --no-pager
 ```
 
----
-
-## Step 9 — Smoke test in the browser
-
-1. Open `https://vpn.yourdomain.com` → header should say **Northstar VPN**.
-2. Open `https://sim.yourdomain.com` → header should say **Northstar SIM**.
-3. On VPN host, log in as admin (`admin@northstar.local` / seed password) → `/admin` works.
-4. On eSIM host, log in as customer → buy a mock package → QR on `/dashboard/esim`.
-5. Confirm eSIM host `/admin` redirects to the VPN admin URL.
-6. `https://vpn.yourdomain.com/api/health` returns 200 with providers operational.
-
-If both hosts show VPN branding, `PRODUCT_HOST_ESIM` does not match the hostname you typed (typo, missing subdomain, or wrong `Host` at the app).
-
----
-
-## Step 10 — Optional cron (reconcile)
-
-Even on mock staging, schedule reconcile:
+Local check (still only on the VPS loopback):
 
 ```bash
-# every 15 minutes
-*/15 * * * * curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://vpn.yourdomain.com/api/reconcile >/dev/null
+curl -sS -H 'Host: vpn.avedeus.ovh' http://127.0.0.1:3000/api/health
+curl -sS -H 'Host: sim.avedeus.ovh' http://127.0.0.1:3000/api/health
 ```
 
-Use the same `CRON_SECRET` as in `.env`.
+You do **not** need to open ports 80/443 for the app when using a tunnel.
 
 ---
 
-## Updating after a git pull
+## Step 5 — Cloudflare Tunnel (`cloudflared`)
+
+### 5a. Login and create the tunnel
+
+```bash
+cloudflared tunnel login
+# Browser: pick the avedeus.ovh zone and authorize
+
+cloudflared tunnel create northstar
+cloudflared tunnel list
+```
+
+Note the tunnel **UUID** from `tunnel list` / `tunnel create`.
+
+### 5b. DNS routes (creates the subdomains in Cloudflare)
+
+```bash
+cloudflared tunnel route dns northstar vpn.avedeus.ovh
+cloudflared tunnel route dns northstar sim.avedeus.ovh
+```
+
+That adds CNAME records for `vpn` and `sim` under `avedeus.ovh` pointing at the tunnel. No manual A records needed.
+
+### 5c. Tunnel config
+
+```bash
+TUNNEL_ID="$(cloudflared tunnel list | awk '/northstar/{print $1; exit}')"
+echo "TUNNEL_ID=$TUNNEL_ID"
+mkdir -p ~/.cloudflared
+
+tee ~/.cloudflared/config.yml >/dev/null <<EOF
+tunnel: ${TUNNEL_ID}
+credentials-file: /home/${USER}/.cloudflared/${TUNNEL_ID}.json
+
+ingress:
+  - hostname: vpn.avedeus.ovh
+    service: http://127.0.0.1:3000
+  - hostname: sim.avedeus.ovh
+    service: http://127.0.0.1:3000
+  - service: http_status:404
+EOF
+
+cloudflared tunnel ingress validate
+```
+
+### 5d. Run the tunnel as a service
+
+```bash
+sudo cloudflared service install
+sudo systemctl enable --now cloudflared
+sudo systemctl status cloudflared --no-pager
+```
+
+If `service install` looks for config in `/etc/cloudflared/`, copy it:
+
+```bash
+sudo mkdir -p /etc/cloudflared
+sudo cp ~/.cloudflared/config.yml /etc/cloudflared/config.yml
+sudo cp ~/.cloudflared/"$TUNNEL_ID".json /etc/cloudflared/
+# Fix credentials-file path inside /etc/cloudflared/config.yml if needed:
+sudo nano /etc/cloudflared/config.yml
+sudo systemctl restart cloudflared
+```
+
+Quick foreground test instead of the service:
+
+```bash
+cloudflared tunnel run northstar
+```
+
+---
+
+## Step 6 — Smoke test
+
+In a browser:
+
+1. [https://vpn.avedeus.ovh](https://vpn.avedeus.ovh) → **Northstar VPN**
+2. [https://sim.avedeus.ovh](https://sim.avedeus.ovh) → **Northstar SIM**
+3. Customer login (either host): `customer@northstar.local` / `CustomerDev123!`
+4. On SIM host: buy mock package → QR on `/dashboard/esim`
+5. Admin on VPN host: `admin@northstar.local` / `AdminDev123!` → `/admin`
+6. [https://vpn.avedeus.ovh/api/health](https://vpn.avedeus.ovh/api/health) → 200
+
+From the server:
+
+```bash
+curl -sS https://vpn.avedeus.ovh/api/health
+curl -sS -I https://sim.avedeus.ovh/ | head
+```
+
+---
+
+## Optional — reconcile cron
+
+```bash
+crontab -e
+```
+
+Add (use the real `CRON_SECRET` from `.env`):
+
+```cron
+*/15 * * * * curl -fsS -X POST -H "Authorization: Bearer YOUR_CRON_SECRET" https://vpn.avedeus.ovh/api/reconcile >/dev/null
+```
+
+---
+
+## Updating the app later
 
 ```bash
 cd /opt/northstar
@@ -277,22 +259,22 @@ pnpm build
 sudo systemctl restart northstar
 ```
 
+Tunnel service can keep running; restart it only if you change hostnames/config:
+
+```bash
+sudo systemctl restart cloudflared
+```
+
 ---
 
 ## Common problems
 
 | Symptom | Likely cause |
 | --- | --- |
-| App refuses to boot | Weak `AUTH_SECRET`, non-https `APP_URL`, or mock billing without `ALLOW_MOCK_BILLING_IN_PRODUCTION=true` |
-| Both hosts look like VPN | Hostname not listed in `PRODUCT_HOST_ESIM`, or proxy sending wrong `Host` |
-| Login cookie lost | `APP_URL` / `ESIM_APP_URL` scheme/host mismatch with the URL in the browser |
-| 522 / 521 from Cloudflare | Origin down, firewall blocking Cloudflare, or wrong IP in DNS |
-| “Unsecured” / redirect loops | SSL mode vs origin TLS mismatch (try Full with origin cert) |
+| App won’t boot | Weak `AUTH_SECRET`, non-https `APP_URL`, or mock billing without `ALLOW_MOCK_BILLING_IN_PRODUCTION=true` |
+| Both hosts look like VPN | Typo in `PRODUCT_HOST_ESIM` / URL |
+| Tunnel up but 502 | `northstar` service down — `sudo systemctl status northstar` |
+| DNS not resolving | `tunnel route dns` not run, or wrong Cloudflare account/zone at `tunnel login` |
+| Login cookie lost | `APP_URL` / `ESIM_APP_URL` don’t match the browser URL |
 
----
-
-## When you leave mock mode
-
-Follow [PRE-CUTOVER.md](./PRE-CUTOVER.md) §5: flip `VPN_PROVIDER`, `ESIM_PROVIDER`, `BILLING_PROVIDER`, and email one at a time. For a longer-lived staging DB, switch `DATABASE_URL` to Postgres and apply `packages/db/src/postgres.migrate.sql`.
-
-Related: [MULTI-PRODUCT.md](./MULTI-PRODUCT.md), [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md).
+Related: [PRE-CUTOVER.md](./PRE-CUTOVER.md), [MULTI-PRODUCT.md](./MULTI-PRODUCT.md).
