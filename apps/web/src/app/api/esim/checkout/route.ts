@@ -2,7 +2,7 @@ import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
 import { createEsimCheckoutOrder } from "@/lib/esim-services";
 import { HttpError, handle, parseBody } from "@/lib/http";
-import { appUrl, emailVerificationRequired, getDb, getEnv, getEsimProvider, track } from "@/lib/providers";
+import { emailVerificationRequired, getDb, getEnv, getEsimProvider, track } from "@/lib/providers";
 import { getProduct } from "@/lib/product";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { correlationId } from "@/lib/utils";
@@ -31,11 +31,16 @@ export async function POST(req: Request) {
       correlationId: corr,
     });
 
-    // Mock: in-app checkout page. Stripe path: stub URL until payment-mode Checkout is wired.
-    const url =
-      env.BILLING_PROVIDER === "mock"
-        ? `${appUrl("esim")}/billing/mock-esim-checkout?session_id=${encodeURIComponent(created.checkoutId)}`
-        : `${appUrl("esim")}/dashboard/esim?checkout=stripe-pending&order=${created.orderId}`;
+    // Mock: in-app checkout. Stripe one-time Checkout is not wired yet — fail clearly.
+    if (env.BILLING_PROVIDER !== "mock") {
+      throw new HttpError(
+        501,
+        "eSIM Stripe Checkout is not wired yet. Keep BILLING_PROVIDER=mock (see docs/PRE-CUTOVER.md) or wait for payment-mode Checkout.",
+      );
+    }
+    // Relative URL keeps the browser on the same host (important for host-scoped cookies /
+    // Playwright on 127.0.0.1 vs APP_URL=localhost).
+    const url = `/billing/mock-esim-checkout?session_id=${encodeURIComponent(created.checkoutId)}`;
 
     await writeAudit(getDb(), {
       actorId: user.id,

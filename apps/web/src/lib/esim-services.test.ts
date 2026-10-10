@@ -61,7 +61,7 @@ describe("esim checkout → issue", () => {
 
     const listed = await listUserEsimOrders(db, userId);
     expect(listed).toHaveLength(1);
-    expect(listed[0]!.profile?.qrCodeUrl).toContain("mock");
+    expect(listed[0]!.profile?.qrCodeUrl).toMatch(/^data:image\/png;base64,/);
     expect(listed[0]!.profile?.iccid).toBeTruthy();
   });
 });

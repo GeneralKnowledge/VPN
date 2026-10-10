@@ -15,7 +15,7 @@ describe("MockEsimProvider", () => {
       packageCode: pkg.code,
     });
     expect(order.providerOrderId).toBeTruthy();
-    expect(order.qrCodeUrl).toContain("mock");
+    expect(order.qrCodeUrl).toMatch(/^data:image\/png;base64,/);
     expect(order.iccid).toBeTruthy();
   });
 

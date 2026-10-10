@@ -13,6 +13,10 @@ Unmatched hosts (including plain `localhost:3000`) default to **VPN**.
 
 Set `ESIM_APP_URL` for eSIM checkout return links and emails when it differs from `APP_URL`.
 
+## Before server / paid APIs
+
+Use [PRE-CUTOVER.md](./PRE-CUTOVER.md): local dual-host smoke, domain plan, account signup order, and env inventory. Automated: `pnpm test:e2e` → `e2e/esim-smoke.spec.ts`.
+
 ## Local development
 
 Point both hosts at the same port (e.g. `sim.localhost` / `vpn.localhost` → `127.0.0.1`). Modern browsers resolve `*.localhost` to loopback.

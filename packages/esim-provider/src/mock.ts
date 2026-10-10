@@ -94,12 +94,15 @@ export class MockEsimProvider implements EsimProvider {
       throw new EsimProviderError("Unknown package", "not_found", false, undefined, 404, "createOrder");
     }
     const id = `mock-esim-${this.seq++}`;
+    // 1×1 PNG data URL — enough for dashboard <img> / e2e without a network fetch.
+    const qrCodeUrl =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
     const result: EsimIssueResult = {
       providerOrderId: id,
       packageCode: pkg.code,
       packageName: pkg.name,
       iccid: `8901${String(this.seq).padStart(15, "0")}`,
-      qrCodeUrl: `https://mock.northstar.local/esim/qr/${id}.png`,
+      qrCodeUrl,
       activationUrl: `LPA:1$mock.rsp.local$${id}`,
       status: "available",
     };
