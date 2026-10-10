@@ -71,5 +71,5 @@ Done in-repo for the self-serve angle (keep green on `main`):
 
 - [ ] Stripe production integration
 - [ ] Production SMTP / transactional email
-- [ ] Mobile apps
+- [ ] Native App Store / Play Store apps (PWA installable shell ships in-web)
 - [ ] Advanced analytics

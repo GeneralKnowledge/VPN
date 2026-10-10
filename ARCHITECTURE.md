@@ -70,4 +70,4 @@ Provisioning is **idempotent**: a local `vpn_accounts` row is written first with
 4. Mock locations are fixtures; live inventory comes from the provider when `VPN_PROVIDER=vpnresellers`.
 5. Config downloads in mock mode are clearly marked.
 6. VPNresellers API v4.1 is the real adapter target (see `docs/vpnresellers.md`).
-7. Custom native apps do not exist yet — download pages provide WireGuard/OpenVPN setup paths.
+7. Custom native store apps do not exist yet — the web app ships an installable PWA shell (standalone display + mobile bottom tabs); tunnels still use WireGuard/OpenVPN client apps via download/QR flows.

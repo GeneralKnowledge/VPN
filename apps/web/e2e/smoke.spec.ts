@@ -114,7 +114,7 @@ test("dashboard nav marks the current page and locations can be filtered", async
   await nav.getByRole("link", { name: "Locations" }).click();
   await expect(page).toHaveURL(/dashboard\/locations/);
   await expect(nav.getByRole("link", { name: "Locations" })).toHaveAttribute("aria-current", "page");
-  await expect(nav.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute("aria-current", "page");
+  await expect(nav.getByRole("link", { name: /Dashboard|Home/i })).not.toHaveAttribute("aria-current", "page");
 
   const before = await page.getByRole("button", { pressed: false }).count();
   await page.getByLabel("Search locations").fill("zzzz-no-match");
@@ -122,6 +122,30 @@ test("dashboard nav marks the current page and locations can be filtered", async
   await page.getByRole("button", { name: "Clear filters" }).click();
   await expect(page.getByRole("button", { pressed: false }).first()).toBeVisible();
   expect(before).toBeGreaterThan(0);
+});
+
+test("mobile dashboard uses bottom tabs and web manifest is served", async ({ page, request }) => {
+  const manifest = await request.get("/manifest.webmanifest");
+  expect(manifest.ok()).toBeTruthy();
+  const body = await manifest.json();
+  expect(body.name).toMatch(/Northstar/i);
+  expect(body.display).toBe("standalone");
+  expect(body.start_url).toContain("dashboard");
+
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("customer@northstar.local");
+  await page.getByLabel("Password").fill("CustomerDev123!");
+  await page.getByRole("button", { name: /Sign in/i }).click();
+  await expect(page).toHaveURL(/dashboard/);
+
+  const tabs = page.getByRole("navigation", { name: "Dashboard" });
+  await expect(tabs.getByRole("link", { name: "Home" })).toBeVisible();
+  await tabs.getByRole("link", { name: "Locations" }).click();
+  await expect(page).toHaveURL(/dashboard\/locations/);
+  await expect(tabs.getByRole("link", { name: "Locations" })).toHaveAttribute("aria-current", "page");
+  await tabs.getByRole("button", { name: "More" }).click();
+  await expect(page.getByRole("dialog", { name: "More" }).getByRole("link", { name: "Billing" })).toBeVisible();
 });
 
 test("login page shows a show/hide password toggle", async ({ page }) => {
@@ -145,7 +169,7 @@ test("customer can show WireGuard QR for a connection", async ({ page }) => {
   await expect(page).toHaveURL(/dashboard\/vpn/);
 
   if ((await page.getByRole("button", { name: "Show QR" }).count()) === 0) {
-    await page.getByRole("navigation", { name: "Dashboard" }).getByRole("link", { name: "Dashboard", exact: true }).click();
+    await page.getByRole("navigation", { name: "Dashboard" }).getByRole("link", { name: /^(Dashboard|Home)$/ }).click();
     await page.getByRole("button", { name: /Connect & download|Connect/i }).first().click();
     await devicesLink.click();
   }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { brand } from "@northstar/config";
 import { Logo } from "./logo";
 import { MobileNav } from "./mobile-nav";
+import { PwaInstallBanner } from "./pwa-install-banner";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui";
 
@@ -15,40 +16,43 @@ const nav = [
 
 export function SiteHeader({ authed }: { authed?: boolean }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" aria-label={brand.name}>
-          <Logo />
-        </Link>
-        <nav aria-label="Main" className="hidden items-center gap-6 text-sm text-muted md:flex">
-          {nav.map((item) => (
-            <Link key={item.href} href={item.href} className="hover:text-foreground">
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex items-center gap-2">
-          <ThemeToggle compact className="hidden sm:inline-flex" />
-          {authed ? (
-            <Link href="/dashboard">
-              <Button size="sm">Dashboard</Button>
-            </Link>
-          ) : (
-            <>
-              <Link href="/login" className="hidden sm:inline">
-                <Button variant="ghost" size="sm">
-                  Log in
-                </Button>
+    <div className="sticky top-0 z-40">
+      <PwaInstallBanner surface="marketing" />
+      <header className="border-b border-border/70 bg-background/80 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+          <Link href="/" aria-label={brand.name}>
+            <Logo />
+          </Link>
+          <nav aria-label="Main" className="hidden items-center gap-6 text-sm text-muted md:flex">
+            {nav.map((item) => (
+              <Link key={item.href} href={item.href} className="hover:text-foreground">
+                {item.label}
               </Link>
-              <Link href="/register">
-                <Button size="sm">Get started</Button>
+            ))}
+          </nav>
+          <div className="flex items-center gap-2">
+            <ThemeToggle compact className="hidden sm:inline-flex" />
+            {authed ? (
+              <Link href="/dashboard">
+                <Button size="sm">Dashboard</Button>
               </Link>
-            </>
-          )}
-          <MobileNav items={nav} authed={authed} />
+            ) : (
+              <>
+                <Link href="/login" className="hidden sm:inline">
+                  <Button variant="ghost" size="sm">
+                    Log in
+                  </Button>
+                </Link>
+                <Link href="/register">
+                  <Button size="sm">Get started</Button>
+                </Link>
+              </>
+            )}
+            <MobileNav items={nav} authed={authed} />
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </div>
   );
 }
 
