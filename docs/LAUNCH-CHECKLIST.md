@@ -1,4 +1,6 @@
-# Launch checklist — Northstar VPN
+# Launch checklist — Northstar VPN (+ eSIM)
+
+**Before your server or paid APIs**, work through [PRE-CUTOVER.md](./PRE-CUTOVER.md) (local dual-host smoke, domain plan, signup order, env inventory).
 
 ## Self-serve (mock — no external accounts)
 
@@ -11,6 +13,8 @@ Done in-repo for the self-serve angle (keep green on `main`):
 - [x] Account active sessions + sign out other devices
 - [x] Last-used / preferred location in Quick Connect
 - [x] Legal drafts `noindex` + omitted from sitemap (draft banners remain)
+- [x] Dual-product host routing (VPN + eSIM) with mock eSIM purchase → QR
+- [x] Playwright eSIM smoke (`e2e/esim-smoke.spec.ts`)
 
 ## Code (production cutover)
 
@@ -67,9 +71,19 @@ Done in-repo for the self-serve angle (keep green on `main`):
 - [ ] Account deletion removes the provider VPN account and stops billing
 - [ ] Password change/reset signs out other sessions
 
+## eSIM (after mock smoke — see PRE-CUTOVER)
+
+- [ ] ResellPortal account + API key/secret + wallet balance
+- [ ] `ESIM_PROVIDER=resellportal` verified with one cheap test package
+- [ ] `ESIM_APP_URL` / `PRODUCT_HOST_ESIM` set for production hostnames
+- [ ] Stripe one-time Checkout for eSIM wired (currently mock-only)
+- [ ] eSIM legal drafts replaced
+- [ ] Customer install help (QR / iOS / Android) reviewed
+
 ## Explicitly deferred (OK for this stage)
 
-- [ ] Stripe production integration
+- [ ] Stripe production integration (VPN subscriptions + eSIM one-time)
 - [ ] Production SMTP / transactional email
 - [ ] Native App Store / Play Store apps (PWA installable shell ships in-web)
 - [ ] Advanced analytics
+- [ ] Cross-subdomain SSO / bundled VPN+eSIM SKUs

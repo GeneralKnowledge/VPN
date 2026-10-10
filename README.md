@@ -100,7 +100,7 @@ Same deploy, hostname selects product. Sessions stay host-scoped (no cross-subdo
 - VPN: `http://localhost:3000` or hosts in `PRODUCT_HOST_VPN`
 - eSIM: hosts in `PRODUCT_HOST_ESIM` (default includes `sim.localhost`)
 
-See [docs/MULTI-PRODUCT.md](./docs/MULTI-PRODUCT.md) and [docs/esim-resellportal.md](./docs/esim-resellportal.md).
+**Before deploying or buying APIs**, follow [docs/PRE-CUTOVER.md](./docs/PRE-CUTOVER.md). Also: [docs/MULTI-PRODUCT.md](./docs/MULTI-PRODUCT.md), [docs/esim-resellportal.md](./docs/esim-resellportal.md).
 
 ## Activating VPNresellers
 
