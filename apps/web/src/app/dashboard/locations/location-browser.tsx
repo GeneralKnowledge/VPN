@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { LocationMap } from "@/components/location-map";
 import { Badge, Button, EmptyState, Input, Label, Select } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 import { flagEmoji } from "@/lib/format";
+import { detectPlatform, type DevicePlatform } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 
 export interface BrowserLocation {
@@ -14,6 +16,8 @@ export interface BrowserLocation {
   countryCode: string;
   status: string;
   protocols: string[];
+  latitude: number;
+  longitude: number;
 }
 
 const protocolLabels: Record<string, string> = {
@@ -34,6 +38,8 @@ export function LocationBrowser({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
+  const [view, setView] = useState<"map" | "list">("map");
+  const [platform, setPlatform] = useState<DevicePlatform>("other");
   const [selectedId, setSelectedId] = useState(
     preferredLocationId && locations.some((l) => l.id === preferredLocationId)
       ? preferredLocationId
@@ -42,6 +48,10 @@ export function LocationBrowser({
   const [protocol, setProtocol] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setPlatform(detectPlatform());
+  }, []);
 
   const countries = useMemo(
     () => Array.from(new Set(locations.map((l) => l.country))).sort((a, b) => a.localeCompare(b)),
@@ -81,7 +91,7 @@ export function LocationBrowser({
           locationId: selected.id,
           name: String(fd.get("name") || "").trim() || `${selected.city} device`,
           protocol: effectiveProtocol,
-          platform: String(fd.get("platform") || "other"),
+          platform: String(fd.get("platform") || platform),
         }),
       });
       const data = await safeJson(res);
@@ -140,7 +150,12 @@ export function LocationBrowser({
           </div>
           <div>
             <Label htmlFor="platform">Platform</Label>
-            <Select id="platform" name="platform" defaultValue="macos">
+            <Select
+              id="platform"
+              name="platform"
+              value={platform}
+              onChange={(e) => setPlatform(e.target.value as DevicePlatform)}
+            >
               <option value="windows">Windows</option>
               <option value="macos">macOS</option>
               <option value="linux">Linux</option>
@@ -175,27 +190,45 @@ export function LocationBrowser({
         </form>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="flex-1">
-          <Label htmlFor="location-search">Search locations</Label>
-          <Input
-            id="location-search"
-            type="search"
-            placeholder="City or country"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-1 flex-col gap-3 sm:flex-row">
+          <div className="flex-1">
+            <Label htmlFor="location-search">Search locations</Label>
+            <Input
+              id="location-search"
+              type="search"
+              placeholder="City or country"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <div className="sm:w-56">
+            <Label htmlFor="location-country">Country</Label>
+            <Select id="location-country" value={country} onChange={(e) => setCountry(e.target.value)}>
+              <option value="">All countries</option>
+              {countries.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
-        <div className="sm:w-56">
-          <Label htmlFor="location-country">Country</Label>
-          <Select id="location-country" value={country} onChange={(e) => setCountry(e.target.value)}>
-            <option value="">All countries</option>
-            {countries.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </Select>
+        <div className="flex rounded-md border border-border p-0.5">
+          <button
+            type="button"
+            className={cn("rounded px-3 py-1.5 text-xs font-medium", view === "map" ? "bg-sea text-white" : "text-muted")}
+            onClick={() => setView("map")}
+          >
+            Map
+          </button>
+          <button
+            type="button"
+            className={cn("rounded px-3 py-1.5 text-xs font-medium", view === "list" ? "bg-sea text-white" : "text-muted")}
+            onClick={() => setView("list")}
+          >
+            List
+          </button>
         </div>
       </div>
 
@@ -203,7 +236,36 @@ export function LocationBrowser({
         {filtered.length} {filtered.length === 1 ? "location" : "locations"}
       </p>
 
-      {grouped.length === 0 ? (
+      {view === "map" ? (
+        filtered.length === 0 ? (
+          <EmptyState
+            title="No locations match"
+            description="Try a different search or clear the country filter."
+            action={
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setCountry("");
+                }}
+              >
+                Clear filters
+              </Button>
+            }
+          />
+        ) : (
+          <LocationMap
+            locations={filtered}
+            selectedId={selectedId}
+            onSelect={(id) => {
+              setSelectedId(id);
+              setProtocol("");
+              setError(null);
+            }}
+          />
+        )
+      ) : grouped.length === 0 ? (
         <EmptyState
           title="No locations match"
           description="Try a different search or clear the country filter."

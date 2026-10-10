@@ -12,6 +12,7 @@ import { VerifyEmailBanner } from "./verify-banner";
 
 const customerNav = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/dashboard/setup", label: "Set up device" },
   { href: "/dashboard/vpn", label: "Devices" },
   { href: "/dashboard/locations", label: "Locations" },
   { href: "/dashboard/billing", label: "Billing" },

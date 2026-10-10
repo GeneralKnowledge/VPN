@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Button, Input, Label, Select } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 import { flagEmoji } from "@/lib/format";
+import { detectPlatform, type DevicePlatform } from "@/lib/platform";
 
 const platforms = [
   { value: "windows", label: "Windows" },
@@ -35,10 +37,14 @@ export function QuickConnect({
     return [preferred, ...locations.filter((l) => l.id !== preferredLocationId)];
   }, [locations, preferredLocationId]);
   const [locationId, setLocationId] = useState(ordered[0]?.id ?? "");
-  const [platform, setPlatform] = useState<(typeof platforms)[number]["value"]>("macos");
+  const [platform, setPlatform] = useState<DevicePlatform>("other");
   const [deviceName, setDeviceName] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setPlatform(detectPlatform());
+  }, []);
 
   async function connect() {
     if (!locationId) return;
@@ -130,10 +136,15 @@ export function QuickConnect({
           ))}
         </Select>
       </div>
-      <div className="sm:col-span-2">
+      <div className="sm:col-span-2 flex flex-wrap gap-3">
         <Button type="button" onClick={connect} disabled={loading || !locationId}>
           {loading ? "Preparing…" : "Connect & download"}
         </Button>
+        <Link href="/dashboard/setup">
+          <Button type="button" variant="secondary">
+            Set up this device
+          </Button>
+        </Link>
       </div>
       {status ? (
         <p className="sm:col-span-2 text-sm text-muted" role="status">

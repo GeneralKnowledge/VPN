@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   index,
   integer,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
@@ -171,6 +172,9 @@ export const vpnLocations = sqliteTable(
     protocolSupportJson: text("protocol_support_json").notNull(),
     latency: integer("latency"),
     load: integer("load"),
+    /** Approximate map position (city centre or country centroid). */
+    latitude: real("latitude"),
+    longitude: real("longitude"),
     isFixture: integer("is_fixture", { mode: "boolean" }).notNull().default(true),
     ...timestamps,
   },

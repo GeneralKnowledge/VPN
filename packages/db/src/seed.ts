@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
-import { plans as planCatalog } from "@northstar/config";
+import { plans as planCatalog, resolveLocationCoords } from "@northstar/config";
 import { MOCK_LOCATIONS } from "@northstar/vpn-provider";
 import { createDb } from "./client";
 import { migrate } from "./migrate";
@@ -78,6 +78,7 @@ export async function seed() {
   }
 
   for (const loc of MOCK_LOCATIONS) {
+    const coords = resolveLocationCoords(loc.countryCode, loc.city);
     await db.insert(schema.vpnLocations).values({
       id: loc.id,
       providerId: loc.providerId,
@@ -90,6 +91,8 @@ export async function seed() {
       protocolSupportJson: JSON.stringify(loc.protocolSupport),
       latency: loc.latency ?? null,
       load: loc.load ?? null,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
       isFixture: true,
     });
   }
