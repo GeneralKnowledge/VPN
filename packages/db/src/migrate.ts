@@ -104,6 +104,8 @@ CREATE TABLE IF NOT EXISTS vpn_locations (
   protocol_support_json TEXT NOT NULL,
   latency INTEGER,
   load INTEGER,
+  latitude REAL,
+  longitude REAL,
   is_fixture INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
   updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
@@ -268,6 +270,8 @@ const ALTERS = [
   `ALTER TABLE users ADD COLUMN onboarding_dismissed_at INTEGER`,
   `ALTER TABLE sessions ADD COLUMN user_agent TEXT`,
   `ALTER TABLE sessions ADD COLUMN ip_address TEXT`,
+  `ALTER TABLE vpn_locations ADD COLUMN latitude REAL`,
+  `ALTER TABLE vpn_locations ADD COLUMN longitude REAL`,
 ];
 
 function monorepoRoot(): string {

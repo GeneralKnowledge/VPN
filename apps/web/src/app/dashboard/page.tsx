@@ -116,19 +116,19 @@ export default async function DashboardHome() {
     },
     {
       id: "location",
-      title: "Pick a location",
-      description: "Choose a city and name the device that will use this connection.",
-      done: hasConnection,
-      href: "/dashboard/locations",
-      cta: "Browse locations",
+      title: "Set up this device",
+      description: "Install WireGuard, pick a location on the map, and import your config — guided for this phone or computer.",
+      done: hasConnection && hasDownloaded,
+      href: "/dashboard/setup",
+      cta: "Start setup",
     },
     {
       id: "config",
-      title: "Download your config",
-      description: "Get a config file or WireGuard QR from Devices, then import it into the official client.",
+      title: "Import into WireGuard",
+      description: "Scan the QR on mobile or open the .conf file on desktop, then turn the tunnel on.",
       done: hasDownloaded,
-      href: "/dashboard/vpn",
-      cta: "Open devices",
+      href: "/dashboard/setup",
+      cta: "Continue setup",
     },
     {
       id: "device",
@@ -178,9 +178,23 @@ export default async function DashboardHome() {
         </Card>
       </div>
 
+      {vpnReady ? (
+        <Card className="border-sea/30 bg-gradient-to-br from-surface to-mist/40 dark:to-sea/10">
+          <h2 className="font-display text-xl">Set up this device</h2>
+          <p className="mt-1 text-sm text-muted">
+            Guided install for this phone or computer: WireGuard → map location → QR or config file.
+          </p>
+          <div className="mt-4">
+            <Link href="/dashboard/setup">
+              <Button>Start setup</Button>
+            </Link>
+          </div>
+        </Card>
+      ) : null}
+
       <Card>
         <h2 className="font-display text-xl">Quick Connect</h2>
-        <p className="mt-1 text-sm text-muted">Pick a location, name your device, and download a configuration.</p>
+        <p className="mt-1 text-sm text-muted">Already have WireGuard? Pick a location and download a configuration.</p>
         {vpnReady ? (
           <QuickConnect
             preferredLocationId={profile?.preferredLocationId}
@@ -200,6 +214,9 @@ export default async function DashboardHome() {
           </div>
         )}
         <div className="mt-4 flex flex-wrap gap-4 text-sm">
+          <Link href="/dashboard/setup" className="text-sea hover:underline">
+            Set up this device
+          </Link>
           <Link href="/dashboard/locations" className="text-sea hover:underline">
             View all locations
           </Link>

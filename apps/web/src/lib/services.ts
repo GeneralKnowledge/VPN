@@ -11,6 +11,7 @@ import {
   type CustomerLifecycle,
   type SubscriptionStatus,
 } from "@northstar/billing";
+import { resolveLocationCoords } from "@northstar/config";
 import {
   devices,
   invoices,
@@ -823,6 +824,7 @@ export async function syncLocationsFromProvider(db: Db, vpn: VPNProvider, prefer
 
   for (const loc of remote) {
     const found = byProviderId.get(loc.providerId);
+    const coords = resolveLocationCoords(loc.countryCode, loc.city);
     if (found) {
       await db
         .update(vpnLocations)
@@ -836,6 +838,8 @@ export async function syncLocationsFromProvider(db: Db, vpn: VPNProvider, prefer
           protocolSupportJson: JSON.stringify(loc.protocolSupport),
           latency: loc.latency ?? null,
           load: loc.load ?? null,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
           isFixture: preferLive ? false : found.isFixture,
           updatedAt: new Date(),
         })
@@ -853,6 +857,8 @@ export async function syncLocationsFromProvider(db: Db, vpn: VPNProvider, prefer
         protocolSupportJson: JSON.stringify(loc.protocolSupport),
         latency: loc.latency ?? null,
         load: loc.load ?? null,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
         isFixture: !preferLive,
       });
     }

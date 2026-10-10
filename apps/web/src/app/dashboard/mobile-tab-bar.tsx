@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
-import { LayoutDashboard, MapPin, MoreHorizontal, Smartphone } from "lucide-react";
+import { LayoutDashboard, MapPin, MoreHorizontal, Smartphone, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const primaryTabs = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard, exact: true },
+  { href: "/dashboard/setup", label: "Setup", icon: Sparkles, exact: false },
   { href: "/dashboard/locations", label: "Locations", icon: MapPin, exact: false },
   { href: "/dashboard/vpn", label: "Devices", icon: Smartphone, exact: false },
 ] as const;
@@ -88,7 +89,7 @@ export function MobileTabBar() {
         aria-label="Dashboard"
         className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface pb-[env(safe-area-inset-bottom,0px)] lg:hidden"
       >
-        <ul className="mx-auto grid h-16 max-w-lg grid-cols-4">
+        <ul className="mx-auto grid h-16 max-w-lg grid-cols-6">
           {primaryTabs.map((tab) => {
             const active = pathActive(pathname, tab.href, tab.exact);
             const Icon = tab.icon;

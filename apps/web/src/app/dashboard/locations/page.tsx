@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { resolveLocationCoords } from "@northstar/config";
 import { users, vpnAccounts, vpnLocations } from "@northstar/db";
 import { eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth";
@@ -46,7 +47,14 @@ export default async function LocationsDashPage() {
     <div className="space-y-6">
       <PageHeader
         title="Locations"
-        description="Choose a city, name your device, then download a config. Your last-used location is listed first when available."
+        description="Pick a city on the map or from the list, name your device, then download a config. Prefer a guided path? Use Set up this device."
+        actions={
+          <Link href="/dashboard/setup">
+            <Button size="sm" variant="secondary">
+              Set up this device
+            </Button>
+          </Link>
+        }
       />
       {!canConnect ? (
         <EmptyState
@@ -62,14 +70,22 @@ export default async function LocationsDashPage() {
       <LocationBrowser
         canConnect={canConnect}
         preferredLocationId={preferredId}
-        locations={visible.map((l) => ({
-          id: l.id,
-          city: l.city,
-          country: l.country,
-          countryCode: l.countryCode,
-          status: l.status,
-          protocols: parseProtocols(l.protocolSupportJson),
-        }))}
+        locations={visible.map((l) => {
+          const coords =
+            l.latitude != null && l.longitude != null
+              ? { latitude: l.latitude, longitude: l.longitude }
+              : resolveLocationCoords(l.countryCode, l.city);
+          return {
+            id: l.id,
+            city: l.city,
+            country: l.country,
+            countryCode: l.countryCode,
+            status: l.status,
+            protocols: parseProtocols(l.protocolSupportJson),
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+          };
+        })}
       />
     </div>
   );

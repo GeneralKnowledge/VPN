@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+export {
+  normaliseCityKey,
+  projectEquirectangular,
+  resolveLocationCoords,
+  type Coords,
+} from "./geo";
+
 /** Central brand — change here to rebrand globally. */
 export const brand = {
   name: "Northstar VPN",

@@ -105,12 +105,17 @@ CREATE TABLE IF NOT EXISTS vpn_locations (
   protocol_support_json TEXT NOT NULL,
   latency INTEGER,
   load INTEGER,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
   is_fixture BOOLEAN NOT NULL DEFAULT TRUE,
   created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
   updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
 CREATE INDEX IF NOT EXISTS vpn_locations_country_idx ON vpn_locations(country_code);
 CREATE UNIQUE INDEX IF NOT EXISTS vpn_locations_provider_uidx ON vpn_locations(provider_id);
+
+ALTER TABLE vpn_locations ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE vpn_locations ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 
 CREATE TABLE IF NOT EXISTS vpn_connections (
   id TEXT PRIMARY KEY,

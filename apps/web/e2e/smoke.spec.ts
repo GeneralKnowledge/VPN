@@ -141,11 +141,27 @@ test("mobile dashboard uses bottom tabs and web manifest is served", async ({ pa
 
   const tabs = page.getByRole("navigation", { name: "Dashboard" });
   await expect(tabs.getByRole("link", { name: "Home" })).toBeVisible();
+  await expect(tabs.getByRole("link", { name: "Setup" })).toBeVisible();
   await tabs.getByRole("link", { name: "Locations" }).click();
   await expect(page).toHaveURL(/dashboard\/locations/);
   await expect(tabs.getByRole("link", { name: "Locations" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("img", { name: /Server locations map/i })).toBeVisible();
   await tabs.getByRole("button", { name: "More" }).click();
   await expect(page.getByRole("dialog", { name: "More" }).getByRole("link", { name: "Billing" })).toBeVisible();
+});
+
+test("set up this device wizard reaches WireGuard install step", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("customer@northstar.local");
+  await page.getByLabel("Password").fill("CustomerDev123!");
+  await page.getByRole("button", { name: /Sign in/i }).click();
+  await expect(page).toHaveURL(/dashboard/);
+  await page.goto("/dashboard/setup");
+  await expect(page.getByRole("heading", { name: /Install WireGuard/i })).toBeVisible();
+  await page.getByRole("button", { name: /I’ve installed it|I've installed it/i }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: /Choose a location/i })).toBeVisible();
+  await expect(page.getByRole("img", { name: /Server locations map/i })).toBeVisible();
 });
 
 test("login page shows a show/hide password toggle", async ({ page }) => {
