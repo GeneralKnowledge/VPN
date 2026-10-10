@@ -91,6 +91,9 @@ export async function completeEsimOrder(
   if (order.status === "issued") {
     return { order, alreadyCompleted: true as const };
   }
+  if (order.status === "issuing") {
+    return { order, alreadyCompleted: false as const };
+  }
 
   const [user] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
   if (!user) throw new HttpError(404, "User not found");
@@ -105,9 +108,13 @@ export async function completeEsimOrder(
       })
       .where(and(eq(esimOrders.id, order.id), eq(esimOrders.status, "pending")))
       .returning({ id: esimOrders.id });
+
     if (claimed.length === 0) {
       const [again] = await db.select().from(esimOrders).where(eq(esimOrders.id, order.id)).limit(1);
-      if (again?.status === "issued") return { order: again, alreadyCompleted: true as const };
+      if (!again) throw new HttpError(404, "Order not found");
+      if (again.status === "issued") return { order: again, alreadyCompleted: true as const };
+      // Another request owns payment/issue — do not call the provider again.
+      return { order: again, alreadyCompleted: false as const };
     }
 
     await db.insert(payments).values({
@@ -119,6 +126,8 @@ export async function completeEsimOrder(
       currency: order.currency,
       status: "succeeded",
     });
+  } else if (order.status !== "paid" && order.status !== "failed") {
+    throw new HttpError(400, "Order is not ready to complete");
   }
 
   return issueEsimForOrder(db, esim, email, order.id, input.correlationId);
@@ -136,20 +145,48 @@ export async function issueEsimForOrder(
   if (order.status === "issued") {
     return { order, alreadyCompleted: true as const };
   }
+  if (order.status === "issuing") {
+    return { order, alreadyCompleted: false as const };
+  }
   if (order.status !== "paid" && order.status !== "failed") {
     throw new HttpError(400, "Order is not ready to issue");
+  }
+
+  // Atomic claim — only one concurrent caller may hit the wholesale provider.
+  const claimed = await db
+    .update(esimOrders)
+    .set({
+      status: "issuing",
+      issueAttempts: order.issueAttempts + 1,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(esimOrders.id, order.id), inArray(esimOrders.status, ["paid", "failed"])))
+    .returning({ id: esimOrders.id });
+
+  if (claimed.length === 0) {
+    const [again] = await db.select().from(esimOrders).where(eq(esimOrders.id, order.id)).limit(1);
+    if (!again) throw new HttpError(404, "Order not found");
+    if (again.status === "issued") return { order: again, alreadyCompleted: true as const };
+    return { order: again, alreadyCompleted: false as const };
   }
 
   const [user] = await db.select().from(users).where(eq(users.id, order.userId)).limit(1);
   if (!user) throw new HttpError(404, "User not found");
 
-  await db
-    .update(esimOrders)
-    .set({
-      issueAttempts: order.issueAttempts + 1,
-      updatedAt: new Date(),
-    })
-    .where(eq(esimOrders.id, order.id));
+  // Idempotent: if a profile already exists (partial prior success), reuse it.
+  const existingProfile = await db
+    .select()
+    .from(esimProfiles)
+    .where(eq(esimProfiles.orderId, order.id))
+    .limit(1);
+  if (existingProfile.length > 0) {
+    await db
+      .update(esimOrders)
+      .set({ status: "issued", lastError: null, updatedAt: new Date() })
+      .where(eq(esimOrders.id, order.id));
+    const [updated] = await db.select().from(esimOrders).where(eq(esimOrders.id, order.id)).limit(1);
+    return { order: updated!, alreadyCompleted: true as const };
+  }
 
   try {
     const issued = await esim.createOrder({
@@ -170,23 +207,16 @@ export async function issueEsimForOrder(
       })
       .where(eq(esimOrders.id, order.id));
 
-    const existingProfile = await db
-      .select()
-      .from(esimProfiles)
-      .where(eq(esimProfiles.orderId, order.id))
-      .limit(1);
-    if (existingProfile.length === 0) {
-      await db.insert(esimProfiles).values({
-        id: newId("esp"),
-        orderId: order.id,
-        userId: order.userId,
-        iccid: issued.iccid ?? null,
-        qrCodeUrl: issued.qrCodeUrl ?? null,
-        activationUrl: issued.activationUrl ?? null,
-        status: issued.status,
-        issuedAt: new Date(),
-      });
-    }
+    await db.insert(esimProfiles).values({
+      id: newId("esp"),
+      orderId: order.id,
+      userId: order.userId,
+      iccid: issued.iccid ?? null,
+      qrCodeUrl: issued.qrCodeUrl ?? null,
+      activationUrl: issued.activationUrl ?? null,
+      status: issued.status,
+      issuedAt: new Date(),
+    });
 
     await db.insert(providerEvents).values({
       id: newId("pev"),
@@ -288,6 +318,37 @@ export async function reconcileEsimOrders(
     )
     .limit(50);
 
+  // Stale "issuing" rows (process died mid-call) — retry cautiously.
+  const stuckIssuing = await db
+    .select()
+    .from(esimOrders)
+    .where(
+      options?.userId
+        ? and(eq(esimOrders.status, "issuing"), eq(esimOrders.userId, options.userId))
+        : eq(esimOrders.status, "issuing"),
+    )
+    .limit(20);
+
+  for (const stuck of stuckIssuing) {
+    // Only reclaim if no profile yet; otherwise mark issued.
+    const [profile] = await db
+      .select()
+      .from(esimProfiles)
+      .where(eq(esimProfiles.orderId, stuck.id))
+      .limit(1);
+    if (profile) {
+      await db
+        .update(esimOrders)
+        .set({ status: "issued", updatedAt: new Date() })
+        .where(eq(esimOrders.id, stuck.id));
+    } else {
+      await db
+        .update(esimOrders)
+        .set({ status: "failed", lastError: "Stale issuing state", updatedAt: new Date() })
+        .where(eq(esimOrders.id, stuck.id));
+    }
+  }
+
   const retryable = [...paid, ...failed.filter((o) => o.issueAttempts < 5)];
   let issued = 0;
   let errors = 0;
@@ -300,7 +361,5 @@ export async function reconcileEsimOrders(
     }
   }
 
-  // Also pick up any paid without profile (defensive).
-  void inArray;
   return { retried: retryable.length, issued, errors };
 }

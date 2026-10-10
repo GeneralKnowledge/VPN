@@ -4,6 +4,7 @@ import {
   hostWithoutPort,
   isProduct,
   resolveProductFromHost,
+  resolveRequestHost,
 } from "./product";
 
 describe("product helpers", () => {
@@ -33,5 +34,17 @@ describe("product helpers", () => {
     expect(resolveProductFromHost("sim.localhost:3000", config)).toBe("esim");
     expect(resolveProductFromHost("vpn.example.com", config)).toBe("vpn");
     expect(resolveProductFromHost("localhost:3000", config)).toBe("vpn");
+  });
+
+  it("ignores x-forwarded-host unless trust is enabled", () => {
+    const headers = {
+      get(name: string) {
+        if (name === "x-forwarded-host") return "sim.localhost";
+        if (name === "host") return "vpn.example.com";
+        return null;
+      },
+    };
+    expect(resolveRequestHost(headers)).toBe("vpn.example.com");
+    expect(resolveRequestHost(headers, { trustForwardedHost: true })).toBe("sim.localhost");
   });
 });

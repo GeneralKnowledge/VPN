@@ -3,7 +3,7 @@ import { requireUser, writeAudit } from "@/lib/auth";
 import { createEsimCheckoutOrder } from "@/lib/esim-services";
 import { HttpError, handle, parseBody } from "@/lib/http";
 import { emailVerificationRequired, getDb, getEnv, getEsimProvider, track } from "@/lib/providers";
-import { getProduct } from "@/lib/product";
+import { requireProduct } from "@/lib/product";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { correlationId } from "@/lib/utils";
 
@@ -11,9 +11,7 @@ const schema = z.object({ packageCode: z.string().min(1).max(100) });
 
 export async function POST(req: Request) {
   return handle(async () => {
-    if ((await getProduct()) !== "esim") {
-      throw new HttpError(404, "Not available on this host");
-    }
+    await requireProduct("esim");
     const user = await requireUser();
     const body = await parseBody(req, schema);
     if (emailVerificationRequired() && !user.emailVerifiedAt) {

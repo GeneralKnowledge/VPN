@@ -127,6 +127,22 @@ export function resolveProductFromHost(
   return config.defaultProduct;
 }
 
+/**
+ * Pick the hostname used for product routing.
+ * Client-supplied `x-forwarded-host` is ignored unless `trustForwardedHost` is true
+ * (set TRUST_FORWARDED_HOST=true only behind a proxy that overwrites that header).
+ */
+export function resolveRequestHost(
+  headers: { get(name: string): string | null },
+  options?: { trustForwardedHost?: boolean },
+): string | null {
+  if (options?.trustForwardedHost) {
+    const forwarded = headers.get("x-forwarded-host");
+    if (forwarded?.trim()) return forwarded;
+  }
+  return headers.get("host");
+}
+
 /** Paths that only make sense on the VPN product host. */
 export const VPN_ONLY_PREFIXES = [
   "/dashboard/vpn",

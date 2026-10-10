@@ -25,6 +25,8 @@ export default defineConfig({
       ESIM_APP_URL: process.env.ESIM_APP_URL || "http://127.0.0.1:3000",
       PRODUCT_HOST_VPN: process.env.PRODUCT_HOST_VPN || "vpn.localhost,127.0.0.1,localhost",
       PRODUCT_HOST_ESIM: process.env.PRODUCT_HOST_ESIM || "sim.localhost,sim.example.com",
+      // e2e sets x-forwarded-host because *.localhost often has no DNS in CI.
+      TRUST_FORWARDED_HOST: process.env.TRUST_FORWARDED_HOST || "true",
       ESIM_PROVIDER: process.env.ESIM_PROVIDER || "mock",
       VPN_PROVIDER: process.env.VPN_PROVIDER || "mock",
       BILLING_PROVIDER: process.env.BILLING_PROVIDER || "mock",

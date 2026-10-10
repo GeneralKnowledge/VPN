@@ -39,3 +39,7 @@ pnpm dev
 ## Auth
 
 Separate logins per host by design. The same email can exist once in `users` and sign in on either host; cookies are not shared across subdomains.
+
+## Host trust
+
+Product routing uses the `Host` header by default. Client `X-Forwarded-Host` is ignored unless `TRUST_FORWARDED_HOST=true` (only enable behind a proxy that overwrites that header). Middleware forwards `x-northstar-product` on the request for server code; do not trust a client-supplied value for that header.

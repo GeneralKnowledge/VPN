@@ -1,9 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * Product host is selected by middleware from x-forwarded-host / Host.
- * CI and some VMs do not resolve *.localhost, so e2e stays on 127.0.0.1 and
- * sets x-forwarded-host instead of relying on DNS.
+ * Product host is selected from Host (default). Playwright enables
+ * TRUST_FORWARDED_HOST for this suite so we can set x-forwarded-host without
+ * needing *.localhost DNS in CI.
  */
 const ORIGIN = "http://127.0.0.1:3000";
 
@@ -54,8 +54,9 @@ test("esim mock purchase issues a QR on the dashboard", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: /Your eSIMs/i })).toBeVisible();
   await expect(page.getByText("issued").first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("img", { name: /eSIM QR code/i })).toBeVisible();
-  await expect(page.getByText(/ICCID/i)).toBeVisible();
+  // Prior runs may leave multiple issued orders in the shared e2e DB.
+  await expect(page.getByRole("img", { name: /eSIM QR code/i }).first()).toBeVisible();
+  await expect(page.getByText(/ICCID/i).first()).toBeVisible();
 });
 
 test("admin esim orders lists purchases from the VPN host", async ({ page }) => {

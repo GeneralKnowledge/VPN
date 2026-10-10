@@ -3,6 +3,7 @@ import {
   VPN_ONLY_PREFIXES,
   productHostConfig,
   resolveProductFromHost,
+  resolveRequestHost,
   type Product,
 } from "@northstar/config";
 import { NextResponse, type NextRequest } from "next/server";
@@ -23,21 +24,36 @@ const ESIM_MARKETING = new Set([
   "/cookies",
 ]);
 
-function requestHost(req: NextRequest): string | null {
-  return req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-}
-
-function withProduct(res: NextResponse, product: Product): NextResponse {
-  res.headers.set(PRODUCT_HEADER, product);
-  return res;
-}
-
 function startsWithAny(pathname: string, prefixes: readonly string[]): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+/** Forward product on the *request* so `headers()` / getProduct() see it; never trust client value. */
+function nextWithProduct(req: NextRequest, product: Product): NextResponse {
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set(PRODUCT_HEADER, product);
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  res.headers.set(PRODUCT_HEADER, product);
+  return res;
+}
+
+function rewriteWithProduct(req: NextRequest, product: Product, url: URL): NextResponse {
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set(PRODUCT_HEADER, product);
+  const res = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+  res.headers.set(PRODUCT_HEADER, product);
+  return res;
+}
+
+function redirectWithProduct(req: NextRequest, product: Product, url: URL): NextResponse {
+  const res = NextResponse.redirect(url);
+  res.headers.set(PRODUCT_HEADER, product);
+  return res;
+}
+
 export function middleware(req: NextRequest) {
-  const host = requestHost(req);
+  const trustForwardedHost = process.env.TRUST_FORWARDED_HOST === "true";
+  const host = resolveRequestHost(req.headers, { trustForwardedHost });
   const config = productHostConfig({
     PRODUCT_HOST_VPN: process.env.PRODUCT_HOST_VPN ?? "",
     PRODUCT_HOST_ESIM: process.env.PRODUCT_HOST_ESIM ?? "sim.localhost,sim.example.com",
@@ -45,56 +61,61 @@ export function middleware(req: NextRequest) {
   const product = resolveProductFromHost(host, config);
   const { pathname } = req.nextUrl;
 
-  // Skip static / Next internals (matcher also limits this).
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.includes(".")
   ) {
-    return withProduct(NextResponse.next(), product);
+    return nextWithProduct(req, product);
   }
 
   if (product === "esim") {
-    // Admin stays on the VPN host only.
     if (pathname === "/admin" || pathname.startsWith("/admin/")) {
       const vpnBase = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
       return NextResponse.redirect(new URL(`/admin${pathname.slice("/admin".length)}`, vpnBase));
     }
 
+    // Admin/reconcile APIs must not be callable from the eSIM host.
+    if (
+      pathname === "/api/admin" ||
+      pathname.startsWith("/api/admin/") ||
+      pathname === "/api/reconcile"
+    ) {
+      return NextResponse.json({ error: "Not available on this host" }, { status: 404 });
+    }
+
     if (startsWithAny(pathname, VPN_ONLY_PREFIXES)) {
       const url = req.nextUrl.clone();
       url.pathname = "/dashboard";
-      return withProduct(NextResponse.redirect(url), product);
+      return redirectWithProduct(req, product, url);
     }
 
-    // Avoid double-prefix if already under /sim
     if (pathname === "/sim" || pathname.startsWith("/sim/")) {
-      return withProduct(NextResponse.next(), product);
+      return nextWithProduct(req, product);
     }
 
     if (ESIM_MARKETING.has(pathname)) {
       const url = req.nextUrl.clone();
       url.pathname = pathname === "/" ? "/sim" : `/sim${pathname}`;
-      return withProduct(NextResponse.rewrite(url), product);
+      return rewriteWithProduct(req, product, url);
     }
 
-    return withProduct(NextResponse.next(), product);
+    return nextWithProduct(req, product);
   }
 
-  // VPN host: hide internal /sim marketing tree from direct browsing.
   if (pathname === "/sim" || pathname.startsWith("/sim/")) {
     const url = req.nextUrl.clone();
     url.pathname = "/";
-    return withProduct(NextResponse.redirect(url), product);
+    return redirectWithProduct(req, product, url);
   }
 
   if (pathname === "/dashboard/esim" || pathname.startsWith("/dashboard/esim/")) {
     const url = req.nextUrl.clone();
     url.pathname = "/dashboard";
-    return withProduct(NextResponse.redirect(url), product);
+    return redirectWithProduct(req, product, url);
   }
 
-  return withProduct(NextResponse.next(), product);
+  return nextWithProduct(req, product);
 }
 
 export const config = {

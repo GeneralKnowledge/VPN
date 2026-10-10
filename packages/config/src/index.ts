@@ -18,6 +18,7 @@ export {
   isProduct,
   products,
   resolveProductFromHost,
+  resolveRequestHost,
   vpnBrand,
   type BrandConfig,
   type Product,
@@ -119,6 +120,15 @@ export const envSchema = z.object({
   PRODUCT_HOST_VPN: z.string().optional().default(""),
   /** Comma-separated hosts that serve the eSIM product (e.g. sim.localhost,sim.example.com). */
   PRODUCT_HOST_ESIM: z.string().optional().default("sim.localhost,sim.example.com"),
+  /**
+   * When true, product routing may use client `x-forwarded-host`.
+   * Only enable behind a reverse proxy that overwrites that header (never on a raw public Node).
+   */
+  TRUST_FORWARDED_HOST: z
+    .enum(["true", "false"])
+    .optional()
+    .default("false")
+    .transform((v) => v === "true"),
   VPN_PROVIDER: z.enum(["mock", "vpnresellers"]).default("mock"),
   VPNRESELLERS_API_URL: z.string().url().default("https://api.vpnresellers.com/v4_1"),
   VPNRESELLERS_API_TOKEN: z.string().optional().default(""),

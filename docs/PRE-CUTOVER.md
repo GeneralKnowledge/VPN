@@ -20,7 +20,7 @@ pnpm dev
 | Happy path | Dashboard → devices / locations | Pricing → Buy → mock pay → QR on `/dashboard/esim` |
 | Admin | `/admin` (VPN host only) | `/admin` redirects to `APP_URL` |
 
-Automated coverage: `pnpm test:e2e` includes `e2e/esim-smoke.spec.ts` (SIM product via `x-forwarded-host: sim.localhost` → mock pay → QR; VPN homepage still VPN-branded). CI does not depend on `*.localhost` DNS.
+Automated coverage: `pnpm test:e2e` includes `e2e/esim-smoke.spec.ts` (SIM product via `x-forwarded-host: sim.localhost` → mock pay → QR; VPN homepage still VPN-branded). CI sets `TRUST_FORWARDED_HOST=true` for that; production should leave it `false` unless a reverse proxy overwrites `X-Forwarded-Host`.
 
 Manual extras worth clicking once (browsers that resolve `*.localhost` to loopback):
 
