@@ -23,6 +23,7 @@ const nextConfig: NextConfig = {
     "@northstar/config",
     "@northstar/db",
     "@northstar/vpn-provider",
+    "@northstar/esim-provider",
     "@northstar/billing",
     "@northstar/email",
   ],

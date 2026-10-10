@@ -35,6 +35,9 @@ importers:
       '@northstar/email':
         specifier: workspace:*
         version: link:../../packages/email
+      '@northstar/esim-provider':
+        specifier: workspace:*
+        version: link:../../packages/esim-provider
       '@northstar/vpn-provider':
         specifier: workspace:*
         version: link:../../packages/vpn-provider
@@ -231,6 +234,28 @@ importers:
       '@northstar/config':
         specifier: workspace:*
         version: link:../config
+      zod:
+        specifier: ^3.24.2
+        version: 3.25.76
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.39.5
+        version: 9.39.5
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.71.1
+        version: 8.71.1(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+      vitest:
+        specifier: ^3.0.9
+        version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)
+
+  packages/esim-provider:
+    dependencies:
       zod:
         specifier: ^3.24.2
         version: 3.25.76

@@ -8,6 +8,7 @@ export type EmailTemplate =
   | "payment_failed"
   | "subscription_cancelled"
   | "vpn_provisioned"
+  | "esim_ready"
   | "security_notification"
   | "support_response";
 
@@ -70,6 +71,10 @@ export function renderTemplate(
     vpn_provisioned: {
       subject: `VPN access ready — ${app}`,
       text: `Hi ${name},\n\nYour VPN account is provisioned. Choose a location and download a configuration from your dashboard.\n\n— ${app}`,
+    },
+    esim_ready: {
+      subject: `Your eSIM is ready — ${app}`,
+      text: `Hi ${name},\n\nYour ${vars.packageName ?? "eSIM"} is ready. Open your dashboard to view the QR code and install steps: ${link}\n\n— ${app}`,
     },
     security_notification: {
       subject: `Security notice — ${app}`,

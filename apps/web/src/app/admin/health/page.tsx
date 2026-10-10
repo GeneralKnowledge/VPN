@@ -7,12 +7,13 @@ export default async function AdminHealthPage() {
   await requireAdmin();
   const env = getEnv();
   const database = await checkDatabase();
-  const { vpn, billing, email } = await getProviderStatuses({ fresh: true });
+  const { vpn, esim, billing, email } = await getProviderStatuses({ fresh: true });
 
   const rows = [
     { name: "Application", ok: true, detail: env.APP_ENV },
     { name: "Database", ok: database.ok, detail: database.detail ?? "reachable" },
     { name: "VPN Provider", ok: vpn.ok, detail: `${vpn.provider}${vpn.detail ? ` — ${vpn.detail}` : ""}` },
+    { name: "eSIM Provider", ok: esim.ok, detail: `${esim.provider}${esim.detail ? ` — ${esim.detail}` : ""}` },
     { name: "Billing", ok: billing.ok, detail: `${billing.provider}${billing.detail ? ` — ${billing.detail}` : ""}` },
     { name: "Email", ok: email.ok, detail: `${email.provider}${email.detail ? ` — ${email.detail}` : ""}` },
   ];

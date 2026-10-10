@@ -415,9 +415,71 @@ export const checkoutSessions = sqliteTable(
   ],
 );
 
+/** One-time eSIM purchases (not subscriptions). */
+export const esimOrders = sqliteTable(
+  "esim_orders",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    packageCode: text("package_code").notNull(),
+    packageName: text("package_name").notNull(),
+    countryCode: text("country_code").notNull(),
+    dataVolume: text("data_volume"),
+    validity: text("validity"),
+    amount: integer("amount").notNull(),
+    currency: text("currency").notNull().default("GBP"),
+    status: text("status", {
+      enum: ["pending", "paid", "issued", "failed", "refunded"],
+    }).notNull(),
+    billingProvider: text("billing_provider", { enum: ["mock", "stripe"] }).notNull(),
+    providerCheckoutId: text("provider_checkout_id"),
+    providerPaymentId: text("provider_payment_id"),
+    esimProvider: text("esim_provider").notNull(),
+    providerOrderId: text("provider_order_id"),
+    lastError: text("last_error"),
+    issueAttempts: integer("issue_attempts").notNull().default(0),
+    idempotencyKey: text("idempotency_key"),
+    ...timestamps,
+  },
+  (t) => [
+    index("esim_orders_user_idx").on(t.userId),
+    index("esim_orders_status_idx").on(t.status),
+    uniqueIndex("esim_orders_checkout_uidx").on(t.providerCheckoutId),
+    uniqueIndex("esim_orders_idempotency_uidx").on(t.idempotencyKey),
+  ],
+);
+
+export const esimProfiles = sqliteTable(
+  "esim_profiles",
+  {
+    id: text("id").primaryKey(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => esimOrders.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    iccid: text("iccid"),
+    qrCodeUrl: text("qr_code_url"),
+    activationUrl: text("activation_url"),
+    status: text("status", {
+      enum: ["available", "installed", "expired", "unknown"],
+    }).notNull(),
+    issuedAt: integer("issued_at", { mode: "timestamp_ms" }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("esim_profiles_order_uidx").on(t.orderId),
+    index("esim_profiles_user_idx").on(t.userId),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   subscriptions: many(subscriptions),
   vpnAccount: one(vpnAccounts),
   devices: many(devices),
   tickets: many(supportTickets),
+  esimOrders: many(esimOrders),
 }));

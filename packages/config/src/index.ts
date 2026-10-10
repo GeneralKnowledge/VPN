@@ -7,32 +7,27 @@ export {
   type Coords,
 } from "./geo";
 
-/** Central brand — change here to rebrand globally. */
-export const brand = {
-  name: "Northstar VPN",
-  shortName: "Northstar",
-  legalName: "Northstar VPN Ltd",
-  tagline: "Private internet access, simply.",
-  supportEmail: "support@northstar.local",
-  domain: "northstar.local",
-  referralPrefix: "NORTH",
-  colors: {
-    ink: "#0B1F2A",
-    mist: "#E8F1F4",
-    sea: "#1A6B7A",
-    seaDark: "#0F4A56",
-    accent: "#C4A35A",
-    accentSoft: "#E8D9A8",
-    danger: "#B33A3A",
-    success: "#2F7D4A",
-    muted: "#5A7180",
-  },
-  fonts: {
-    display: "Fraunces",
-    body: "Source Sans 3",
-    mono: "IBM Plex Mono",
-  },
-} as const;
+export {
+  PRODUCT_HEADER,
+  VPN_ONLY_PREFIXES,
+  ESIM_ONLY_PREFIXES,
+  brands,
+  esimBrand,
+  getBrand,
+  hostWithoutPort,
+  isProduct,
+  products,
+  resolveProductFromHost,
+  vpnBrand,
+  type BrandConfig,
+  type Product,
+  type ProductHostConfig,
+} from "./product";
+
+import { vpnBrand } from "./product";
+
+/** @deprecated Prefer getBrand(product). Kept as the VPN brand for existing imports. */
+export const brand = vpnBrand;
 
 export type Brand = typeof brand;
 
@@ -102,18 +97,41 @@ export function formatPrice(plan: Plan): string {
 
 const providerEnum = z.enum(["mock", "vpnresellers", "stripe", "smtp", "posthog", "console", "sentry"]);
 
+/** Comma-separated hostnames (no scheme); ports are ignored at match time. */
+function hostList(raw: string | undefined, fallback: string[]): string[] {
+  if (!raw?.trim()) return fallback;
+  return raw
+    .split(",")
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 export const envSchema = z.object({
   APP_URL: z.string().url().default("http://localhost:3000"),
+  /** Public URL for the eSIM host (emails / checkout returns). Defaults to APP_URL. */
+  ESIM_APP_URL: z.string().url().optional(),
   APP_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_NAME: z.string().default(brand.name),
   DATABASE_URL: z.string().min(1),
   AUTH_SECRET: z.string().min(16),
   AUTH_URL: z.string().url().optional(),
+  /** Comma-separated hosts that serve the VPN product. Empty → defaultProduct only. */
+  PRODUCT_HOST_VPN: z.string().optional().default(""),
+  /** Comma-separated hosts that serve the eSIM product (e.g. sim.localhost,sim.example.com). */
+  PRODUCT_HOST_ESIM: z.string().optional().default("sim.localhost,sim.example.com"),
   VPN_PROVIDER: z.enum(["mock", "vpnresellers"]).default("mock"),
   VPNRESELLERS_API_URL: z.string().url().default("https://api.vpnresellers.com/v4_1"),
   VPNRESELLERS_API_TOKEN: z.string().optional().default(""),
   VPNRESELLERS_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   VPNRESELLERS_PROJECT_ID: z.coerce.number().int().positive().optional(),
+  ESIM_PROVIDER: z.enum(["mock", "resellportal"]).default("mock"),
+  RESELLPORTAL_API_URL: z
+    .string()
+    .url()
+    .default("https://panel.resellportal.com/wp-json/resellportal/v1"),
+  RESELLPORTAL_API_KEY: z.string().optional().default(""),
+  RESELLPORTAL_API_SECRET: z.string().optional().default(""),
+  RESELLPORTAL_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   CRON_SECRET: z.string().optional().default(""),
   /** Where the public contact form delivers mail. Defaults to the brand support address. */
   SUPPORT_INBOX_EMAIL: z.string().email().optional(),
@@ -161,6 +179,21 @@ export function parseEnv(raw: Record<string, string | undefined> = process.env):
   return envSchema.parse({ ...raw, APP_ENV: appEnv });
 }
 
+export function productHostConfig(env: Pick<AppEnv, "PRODUCT_HOST_VPN" | "PRODUCT_HOST_ESIM">) {
+  return {
+    vpnHosts: hostList(env.PRODUCT_HOST_VPN, []),
+    esimHosts: hostList(env.PRODUCT_HOST_ESIM, ["sim.localhost", "sim.example.com"]),
+    defaultProduct: "vpn" as const,
+  };
+}
+
+export function appUrlForProduct(env: AppEnv, product: "vpn" | "esim"): string {
+  if (product === "esim" && env.ESIM_APP_URL) {
+    return env.ESIM_APP_URL.replace(/\/$/, "");
+  }
+  return env.APP_URL.replace(/\/$/, "");
+}
+
 export function isMockMode(env: Pick<AppEnv, "VPN_PROVIDER" | "BILLING_PROVIDER" | "EMAIL_PROVIDER">): boolean {
   return (
     env.VPN_PROVIDER === "mock" &&
@@ -189,6 +222,9 @@ export function productionEnvProblems(env: AppEnv): string[] {
   }
   if (env.VPN_PROVIDER === "vpnresellers" && !env.VPNRESELLERS_API_TOKEN) {
     problems.push("VPN_PROVIDER=vpnresellers requires VPNRESELLERS_API_TOKEN");
+  }
+  if (env.ESIM_PROVIDER === "resellportal" && (!env.RESELLPORTAL_API_KEY || !env.RESELLPORTAL_API_SECRET)) {
+    problems.push("ESIM_PROVIDER=resellportal requires RESELLPORTAL_API_KEY and RESELLPORTAL_API_SECRET");
   }
   if (env.BILLING_PROVIDER === "mock" && !env.ALLOW_MOCK_BILLING_IN_PRODUCTION) {
     problems.push(

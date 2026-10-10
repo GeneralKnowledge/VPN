@@ -1,8 +1,16 @@
 import { createBillingProvider, type BillingProvider } from "@northstar/billing";
-import { isProductionEnv, parseEnv, productionEnvProblems, type AppEnv } from "@northstar/config";
+import {
+  appUrlForProduct,
+  isProductionEnv,
+  parseEnv,
+  productionEnvProblems,
+  type AppEnv,
+  type Product,
+} from "@northstar/config";
 import { createDb, type Db } from "@northstar/db";
 import { createPostgresDb } from "@northstar/db/postgres";
 import { createEmailProvider, type EmailProvider } from "@northstar/email";
+import { createEsimProvider, type EsimProvider } from "@northstar/esim-provider";
 import { createVPNProvider, type VPNProvider } from "@northstar/vpn-provider";
 import path from "node:path";
 
@@ -10,6 +18,7 @@ const globalStore = globalThis as unknown as {
   northstarEnv?: AppEnv;
   northstarDb?: { db: Db; close?: () => void };
   northstarVpn?: VPNProvider;
+  northstarEsim?: EsimProvider;
   northstarBilling?: BillingProvider;
   northstarEmail?: EmailProvider;
 };
@@ -50,9 +59,9 @@ export function emailVerificationRequired(): boolean {
   return getEnv().EMAIL_PROVIDER !== "mock";
 }
 
-/** Public base URL for links in emails and checkout redirects. */
-export function appUrl(): string {
-  return getEnv().APP_URL.replace(/\/$/, "");
+/** Public base URL for links in emails and checkout redirects (VPN / default). */
+export function appUrl(product: Product = "vpn"): string {
+  return appUrlForProduct(getEnv(), product);
 }
 
 export function getDb() {
@@ -80,6 +89,19 @@ export function getVpnProvider() {
     });
   }
   return globalStore.northstarVpn;
+}
+
+export function getEsimProvider() {
+  if (!globalStore.northstarEsim) {
+    const env = getEnv();
+    globalStore.northstarEsim = createEsimProvider(env.ESIM_PROVIDER, {
+      apiUrl: env.RESELLPORTAL_API_URL,
+      apiKey: env.RESELLPORTAL_API_KEY,
+      apiSecret: env.RESELLPORTAL_API_SECRET,
+      timeoutMs: env.RESELLPORTAL_TIMEOUT_MS,
+    });
+  }
+  return globalStore.northstarEsim;
 }
 
 export function getBillingProvider() {

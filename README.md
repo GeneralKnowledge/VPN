@@ -23,10 +23,11 @@ A production-oriented Next.js application with:
 See [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/vpnresellers.md](./docs/vpnresellers.md).
 
 ```
-apps/web                 Next.js (marketing + dashboard + admin + API)
-packages/config          Brand, plans, env
+apps/web                 Next.js (VPN + eSIM hosts, dashboard, admin, API)
+packages/config          Brands, plans, product hosts, env
 packages/db              Drizzle schema, migrate, seed
 packages/vpn-provider    MockVPNProvider + VPNResellersProvider
+packages/esim-provider   MockEsimProvider + ResellPortalEsimProvider
 packages/billing         MockBillingProvider + Stripe stub
 packages/email           MockEmailProvider + SMTP stub
 ```
@@ -92,11 +93,26 @@ DATABASE_URL=file:./data/northstar.db
 
 See [docs/LAUNCH-CHECKLIST.md](./docs/LAUNCH-CHECKLIST.md) for production cutover (real Stripe, SMTP, VPN credentials) — those need external accounts and are out of scope for mock self-serve work.
 
+## Dual product (VPN + eSIM)
+
+Same deploy, hostname selects product. Sessions stay host-scoped (no cross-subdomain SSO).
+
+- VPN: `http://localhost:3000` or hosts in `PRODUCT_HOST_VPN`
+- eSIM: hosts in `PRODUCT_HOST_ESIM` (default includes `sim.localhost`)
+
+See [docs/MULTI-PRODUCT.md](./docs/MULTI-PRODUCT.md) and [docs/esim-resellportal.md](./docs/esim-resellportal.md).
+
 ## Activating VPNresellers
 
 1. Read [docs/vpnresellers.md](./docs/vpnresellers.md)  
 2. Set `VPN_PROVIDER=vpnresellers` and `VPNRESELLERS_API_TOKEN`  
 3. No application rewrite — adapter already implements documented v4.1 endpoints  
+
+## Activating ResellPortal eSIM
+
+1. Read [docs/esim-resellportal.md](./docs/esim-resellportal.md)  
+2. Set `ESIM_PROVIDER=resellportal` plus `RESELLPORTAL_API_KEY` / `RESELLPORTAL_API_SECRET`  
+3. Keep `ESIM_PROVIDER=mock` until the wallet/credentials are ready  
 
 ## Activating Stripe
 

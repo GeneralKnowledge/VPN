@@ -10,6 +10,7 @@ const nav = [
   { href: "/admin/customers", label: "Customers" },
   { href: "/admin/subscriptions", label: "Subscriptions" },
   { href: "/admin/vpn", label: "VPN Accounts" },
+  { href: "/admin/esim", label: "eSIM Orders" },
   { href: "/admin/connections", label: "Connections" },
   { href: "/admin/locations", label: "Locations" },
   { href: "/admin/payments", label: "Payments" },

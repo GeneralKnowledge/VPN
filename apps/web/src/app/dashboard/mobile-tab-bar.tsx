@@ -3,32 +3,52 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
-import { LayoutDashboard, MapPin, MoreHorizontal, Smartphone, Sparkles } from "lucide-react";
+import {
+  LayoutDashboard,
+  MapPin,
+  MoreHorizontal,
+  ShoppingBag,
+  Smartphone,
+  Sparkles,
+  Wifi,
+} from "lucide-react";
+import type { Product } from "@northstar/config";
 import { cn } from "@/lib/utils";
 
-const primaryTabs = [
+const vpnPrimaryTabs = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/setup", label: "Setup", icon: Sparkles, exact: false },
   { href: "/dashboard/locations", label: "Locations", icon: MapPin, exact: false },
   { href: "/dashboard/vpn", label: "Devices", icon: Smartphone, exact: false },
 ] as const;
 
-const moreLinks = [
+const vpnMoreLinks = [
   { href: "/dashboard/billing", label: "Billing" },
   { href: "/dashboard/account", label: "Account" },
   { href: "/dashboard/support", label: "Support" },
   { href: "/dashboard/referral", label: "Referral" },
 ] as const;
 
+const esimPrimaryTabs = [
+  { href: "/dashboard", label: "Home", icon: LayoutDashboard, exact: true },
+  { href: "/dashboard/esim", label: "eSIMs", icon: Wifi, exact: false },
+  { href: "/pricing", label: "Buy", icon: ShoppingBag, exact: false },
+  { href: "/dashboard/account", label: "Account", icon: Smartphone, exact: false },
+] as const;
+
+const esimMoreLinks = [{ href: "/dashboard/support", label: "Support" }] as const;
+
 function pathActive(pathname: string, href: string, exact: boolean) {
   return exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Bottom tab bar for mobile / installed PWA — primary VPN actions at thumb reach. */
-export function MobileTabBar() {
+/** Bottom tab bar for mobile / installed PWA — product-specific primary actions. */
+export function MobileTabBar({ product = "vpn" }: { product?: Product }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const sheetId = useId();
+  const primaryTabs = product === "esim" ? esimPrimaryTabs : vpnPrimaryTabs;
+  const moreLinks = product === "esim" ? esimMoreLinks : vpnMoreLinks;
   const moreActive = moreLinks.some((l) => pathActive(pathname, l.href, false));
 
   useEffect(() => {
