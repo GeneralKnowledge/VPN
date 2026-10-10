@@ -37,11 +37,13 @@ Pick hostnames before signing up for anything else:
 | --- | --- | --- |
 | VPN site | `vpn.yourdomain.com` | `APP_URL`, `PRODUCT_HOST_VPN` |
 | eSIM site | `sim.yourdomain.com` | `ESIM_APP_URL`, `PRODUCT_HOST_ESIM` |
-| Deploy | Vercel (or similar) + managed Postgres | `DATABASE_URL` |
+| Deploy | Your test server + Cloudflare (or Vercel) + DB | `DATABASE_URL` |
 
 - [ ] Both DNS names planned (same app deployment, two hostnames)
 - [ ] `PRODUCT_HOST_VPN` / `PRODUCT_HOST_ESIM` lists match those names
 - [ ] Production will use https URLs only (`APP_URL` / `ESIM_APP_URL`)
+
+**Hands-on staging deploy** (Cloudflare subdomains → one server): [DEPLOY-TEST-SERVER.md](./DEPLOY-TEST-SERVER.md).
 
 ## 2. Account signup order (when you are ready)
 
