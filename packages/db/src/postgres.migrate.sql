@@ -265,3 +265,45 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
 CREATE UNIQUE INDEX IF NOT EXISTS checkout_provider_session_uidx ON checkout_sessions(provider_session_id);
 CREATE UNIQUE INDEX IF NOT EXISTS checkout_idempotency_uidx ON checkout_sessions(idempotency_key);
 CREATE INDEX IF NOT EXISTS checkout_user_idx ON checkout_sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS esim_orders (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  package_code TEXT NOT NULL,
+  package_name TEXT NOT NULL,
+  country_code TEXT NOT NULL,
+  data_volume TEXT,
+  validity TEXT,
+  amount INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'GBP',
+  status TEXT NOT NULL,
+  billing_provider TEXT NOT NULL,
+  provider_checkout_id TEXT,
+  provider_payment_id TEXT,
+  esim_provider TEXT NOT NULL,
+  provider_order_id TEXT,
+  last_error TEXT,
+  issue_attempts INTEGER NOT NULL DEFAULT 0,
+  idempotency_key TEXT,
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
+);
+CREATE INDEX IF NOT EXISTS esim_orders_user_idx ON esim_orders(user_id);
+CREATE INDEX IF NOT EXISTS esim_orders_status_idx ON esim_orders(status);
+CREATE UNIQUE INDEX IF NOT EXISTS esim_orders_checkout_uidx ON esim_orders(provider_checkout_id);
+CREATE UNIQUE INDEX IF NOT EXISTS esim_orders_idempotency_uidx ON esim_orders(idempotency_key);
+
+CREATE TABLE IF NOT EXISTS esim_profiles (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES esim_orders(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  iccid TEXT,
+  qr_code_url TEXT,
+  activation_url TEXT,
+  status TEXT NOT NULL,
+  issued_at BIGINT,
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS esim_profiles_order_uidx ON esim_profiles(order_id);
+CREATE INDEX IF NOT EXISTS esim_profiles_user_idx ON esim_profiles(user_id);

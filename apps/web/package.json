@@ -17,6 +17,7 @@
     "@northstar/config": "workspace:*",
     "@northstar/db": "workspace:*",
     "@northstar/email": "workspace:*",
+    "@northstar/esim-provider": "workspace:*",
     "@northstar/vpn-provider": "workspace:*",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^11.8.1",

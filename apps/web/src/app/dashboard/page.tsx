@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { formatPrice, getPlan } from "@northstar/config";
 import {
@@ -13,6 +14,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { customerVpnStatusLabel } from "@/lib/http";
 import { emailVerificationRequired, getDb } from "@/lib/providers";
+import { getProduct } from "@/lib/product";
 import { Badge, Button, Card, EmptyState, PageHeader } from "@/components/ui";
 import { OnboardingChecklist, type OnboardingStep } from "@/components/onboarding-checklist";
 import { formatDateTime } from "@/lib/format";
@@ -20,6 +22,10 @@ import { activityLabel, subscriptionStatus } from "@/lib/labels";
 import { QuickConnect } from "./quick-connect";
 
 export default async function DashboardHome() {
+  if ((await getProduct()) === "esim") {
+    redirect("/dashboard/esim");
+  }
+
   const user = await requireUser();
   const db = getDb();
 

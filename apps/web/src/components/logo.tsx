@@ -1,7 +1,15 @@
-import { brand } from "@northstar/config";
+import { brand as defaultBrand, type BrandConfig } from "@northstar/config";
 import { cn } from "@/lib/utils";
 
-export function Logo({ className, markOnly = false }: { className?: string; markOnly?: boolean }) {
+export function Logo({
+  className,
+  markOnly = false,
+  brand = defaultBrand,
+}: {
+  className?: string;
+  markOnly?: boolean;
+  brand?: BrandConfig;
+}) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <svg

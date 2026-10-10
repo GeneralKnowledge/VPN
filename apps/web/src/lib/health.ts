@@ -1,5 +1,5 @@
 import { plans } from "@northstar/db";
-import { getBillingProvider, getDb, getEmailProvider, getVpnProvider } from "./providers";
+import { getBillingProvider, getDb, getEmailProvider, getEsimProvider, getVpnProvider } from "./providers";
 
 export type ProviderStatus = { ok: boolean; provider: string; detail?: string };
 
@@ -21,7 +21,10 @@ async function safeStatus(name: string, fn: () => Promise<ProviderStatus>): Prom
 }
 
 const CACHE_TTL_MS = 30_000;
-let cache: { at: number; value: { vpn: ProviderStatus; billing: ProviderStatus; email: ProviderStatus } } | null = null;
+let cache: {
+  at: number;
+  value: { vpn: ProviderStatus; esim: ProviderStatus; billing: ProviderStatus; email: ProviderStatus };
+} | null = null;
 
 /**
  * Provider status checks can hit external APIs. Cache briefly so unauthenticated health
@@ -30,12 +33,13 @@ let cache: { at: number; value: { vpn: ProviderStatus; billing: ProviderStatus; 
 export async function getProviderStatuses(options?: { fresh?: boolean }) {
   const now = Date.now();
   if (!options?.fresh && cache && now - cache.at < CACHE_TTL_MS) return cache.value;
-  const [vpn, billing, email] = await Promise.all([
+  const [vpn, esim, billing, email] = await Promise.all([
     safeStatus("vpn", () => getVpnProvider().getProviderStatus()),
+    safeStatus("esim", () => getEsimProvider().getProviderStatus()),
     safeStatus("billing", () => getBillingProvider().getProviderStatus()),
     safeStatus("email", () => getEmailProvider().getProviderStatus()),
   ]);
-  cache = { at: now, value: { vpn, billing, email } };
+  cache = { at: now, value: { vpn, esim, billing, email } };
   return cache.value;
 }
 
