@@ -69,6 +69,30 @@ body {
   color: var(--foreground);
   font-family: var(--font-body), "Source Sans 3", sans-serif;
   min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Installed PWA / standalone: app-like chrome, respect notches */
+@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+  html {
+    overscroll-behavior: none;
+  }
+
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input,
+  textarea,
+  select,
+  button,
+  a,
+  [role="button"] {
+    user-select: auto;
+    -webkit-user-select: auto;
+  }
 }
 
 h1,
