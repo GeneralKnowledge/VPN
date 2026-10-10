@@ -144,35 +144,72 @@ You do **not** need to open ports 80/443 for the app when using a tunnel.
 
 ## Step 5 — Cloudflare Tunnel (`cloudflared`)
 
-### 5a. Login and create the tunnel
+You already serve **`hetzner.avedeus.ovh`** on this box. Do **not** replace that ingress.
+Either **extend the existing tunnel config** (recommended) or create a **second tunnel** only for Northstar.
+
+Northstar uses new hostnames only:
+
+- `vpn.avedeus.ovh`
+- `sim.avedeus.ovh`
+
+Leave `hetzner.avedeus.ovh` pointing at whatever it already uses.
+
+### Option A — Add vpn/sim to your existing tunnel (recommended)
 
 ```bash
-cloudflared tunnel login
-# Browser: pick the avedeus.ovh zone and authorize
-
-cloudflared tunnel create northstar
+# See what you already have
 cloudflared tunnel list
+sudo systemctl status cloudflared --no-pager || true
+ls -la ~/.cloudflared/ /etc/cloudflared/ 2>/dev/null
+
+# Edit the live config (usually one of these):
+sudo nano /etc/cloudflared/config.yml
+# or: nano ~/.cloudflared/config.yml
 ```
 
-Note the tunnel **UUID** from `tunnel list` / `tunnel create`.
+In `ingress`, **keep** the `hetzner.avedeus.ovh` rule. Add the two Northstar hostnames
+**above** the catch-all `http_status:404` (order matters):
 
-### 5b. DNS routes (creates the subdomains in Cloudflare)
+```yaml
+ingress:
+  - hostname: hetzner.avedeus.ovh
+    service: http://127.0.0.1:XXXX   # leave your existing target unchanged
+  - hostname: vpn.avedeus.ovh
+    service: http://127.0.0.1:3000
+  - hostname: sim.avedeus.ovh
+    service: http://127.0.0.1:3000
+  - service: http_status:404
+```
+
+Point DNS for the new names at **that same tunnel** (use your existing tunnel name, not necessarily `northstar`):
 
 ```bash
+# Replace EXISTING_TUNNEL_NAME with the name from `cloudflared tunnel list`
+cloudflared tunnel route dns EXISTING_TUNNEL_NAME vpn.avedeus.ovh
+cloudflared tunnel route dns EXISTING_TUNNEL_NAME sim.avedeus.ovh
+
+cloudflared tunnel ingress validate
+sudo systemctl restart cloudflared
+sudo systemctl status cloudflared --no-pager
+```
+
+That only adds CNAMEs for `vpn` and `sim`. It does not change `hetzner.avedeus.ovh`.
+
+### Option B — Separate tunnel just for Northstar
+
+Use this if you prefer not to edit the existing tunnel. Both tunnels can run on the same VPS.
+
+```bash
+cloudflared tunnel login   # only if this machine is not already authorized
+cloudflared tunnel create northstar
 cloudflared tunnel route dns northstar vpn.avedeus.ovh
 cloudflared tunnel route dns northstar sim.avedeus.ovh
-```
 
-That adds CNAME records for `vpn` and `sim` under `avedeus.ovh` pointing at the tunnel. No manual A records needed.
-
-### 5c. Tunnel config
-
-```bash
 TUNNEL_ID="$(cloudflared tunnel list | awk '/northstar/{print $1; exit}')"
-echo "TUNNEL_ID=$TUNNEL_ID"
 mkdir -p ~/.cloudflared
 
-tee ~/.cloudflared/config.yml >/dev/null <<EOF
+# Dedicated config — do NOT overwrite the hetzner tunnel's config.yml
+tee ~/.cloudflared/northstar.yml >/dev/null <<EOF
 tunnel: ${TUNNEL_ID}
 credentials-file: /home/${USER}/.cloudflared/${TUNNEL_ID}.json
 
@@ -184,33 +221,35 @@ ingress:
   - service: http_status:404
 EOF
 
-cloudflared tunnel ingress validate
+cloudflared tunnel --config ~/.cloudflared/northstar.yml ingress validate
 ```
 
-### 5d. Run the tunnel as a service
+Systemd unit for the second tunnel only:
 
 ```bash
-sudo cloudflared service install
-sudo systemctl enable --now cloudflared
-sudo systemctl status cloudflared --no-pager
+sudo tee /etc/systemd/system/cloudflared-northstar.service >/dev/null <<EOF
+[Unit]
+Description=Cloudflare Tunnel (northstar vpn/sim)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$USER
+ExecStart=/usr/bin/cloudflared --config /home/$USER/.cloudflared/northstar.yml tunnel run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now cloudflared-northstar
+sudo systemctl status cloudflared-northstar --no-pager
 ```
 
-If `service install` looks for config in `/etc/cloudflared/`, copy it:
-
-```bash
-sudo mkdir -p /etc/cloudflared
-sudo cp ~/.cloudflared/config.yml /etc/cloudflared/config.yml
-sudo cp ~/.cloudflared/"$TUNNEL_ID".json /etc/cloudflared/
-# Fix credentials-file path inside /etc/cloudflared/config.yml if needed:
-sudo nano /etc/cloudflared/config.yml
-sudo systemctl restart cloudflared
-```
-
-Quick foreground test instead of the service:
-
-```bash
-cloudflared tunnel run northstar
-```
+Your existing `cloudflared` service for `hetzner.avedeus.ovh` stays as-is.
 
 ---
 
@@ -273,8 +312,9 @@ sudo systemctl restart cloudflared
 | --- | --- |
 | App won’t boot | Weak `AUTH_SECRET`, non-https `APP_URL`, or mock billing without `ALLOW_MOCK_BILLING_IN_PRODUCTION=true` |
 | Both hosts look like VPN | Typo in `PRODUCT_HOST_ESIM` / URL |
-| Tunnel up but 502 | `northstar` service down — `sudo systemctl status northstar` |
-| DNS not resolving | `tunnel route dns` not run, or wrong Cloudflare account/zone at `tunnel login` |
+| Tunnel up but 502 | `northstar` app service down — `sudo systemctl status northstar` |
+| `hetzner.avedeus.ovh` broke | Existing ingress rule was overwritten — restore its hostname/service line |
+| DNS not resolving | `tunnel route dns` not run for `vpn`/`sim`, or wrong zone at `tunnel login` |
 | Login cookie lost | `APP_URL` / `ESIM_APP_URL` don’t match the browser URL |
 
 Related: [PRE-CUTOVER.md](./PRE-CUTOVER.md), [MULTI-PRODUCT.md](./MULTI-PRODUCT.md).
