@@ -3,6 +3,7 @@ import { devices, users, vpnAccounts, vpnConnections } from "@northstar/db";
 import { z } from "zod";
 import { requireAdmin, writeAudit } from "@/lib/auth";
 import { HttpError, handle, parseBody } from "@/lib/http";
+import { requireProduct } from "@/lib/product";
 import { getDb, getEmailProvider, getVpnProvider } from "@/lib/providers";
 import {
   formatProviderError,
@@ -29,6 +30,7 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   return handle(async () => {
+    await requireProduct("vpn");
     const admin = await requireAdmin();
     const { userId, action, connectionId, confirm } = await parseBody(req, schema);
     const db = getDb();

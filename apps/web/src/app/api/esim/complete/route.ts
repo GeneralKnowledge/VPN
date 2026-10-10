@@ -3,7 +3,8 @@ import { requireUser } from "@/lib/auth";
 import { completeEsimOrder } from "@/lib/esim-services";
 import { HttpError, handle, parseBody } from "@/lib/http";
 import { emailVerificationRequired, getDb, getEmailProvider, getEnv, getEsimProvider, track } from "@/lib/providers";
-import { getProduct } from "@/lib/product";
+import { requireProduct } from "@/lib/product";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { correlationId } from "@/lib/utils";
 
 const schema = z.object({ sessionId: z.string().min(1).max(200) });
@@ -11,9 +12,7 @@ const schema = z.object({ sessionId: z.string().min(1).max(200) });
 /** Completes a one-time eSIM purchase for the mock payment flow only. */
 export async function POST(req: Request) {
   return handle(async () => {
-    if ((await getProduct()) !== "esim") {
-      throw new HttpError(404, "Not available on this host");
-    }
+    await requireProduct("esim");
     const user = await requireUser();
     const body = await parseBody(req, schema);
     if (getEnv().BILLING_PROVIDER !== "mock") {
@@ -22,6 +21,7 @@ export async function POST(req: Request) {
     if (emailVerificationRequired() && !user.emailVerifiedAt) {
       throw new HttpError(403, "Please verify your email address before purchasing.");
     }
+    enforceRateLimit("esim-complete", [`user:${user.id}`], 20, 15 * 60_000);
 
     const corr = correlationId();
     const result = await completeEsimOrder(getDb(), getEsimProvider(), getEmailProvider(), {

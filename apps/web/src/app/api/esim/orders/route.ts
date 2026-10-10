@@ -1,14 +1,12 @@
 import { requireUser } from "@/lib/auth";
 import { listUserEsimOrders } from "@/lib/esim-services";
-import { HttpError, handle } from "@/lib/http";
+import { handle } from "@/lib/http";
 import { getDb } from "@/lib/providers";
-import { getProduct } from "@/lib/product";
+import { requireProduct } from "@/lib/product";
 
 export async function GET() {
   return handle(async () => {
-    if ((await getProduct()) !== "esim") {
-      throw new HttpError(404, "Not available on this host");
-    }
+    await requireProduct("esim");
     const user = await requireUser();
     const rows = await listUserEsimOrders(getDb(), user.id);
     return Response.json({

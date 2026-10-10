@@ -1,9 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * Product host is selected by middleware from x-forwarded-host / Host.
- * CI and some VMs do not resolve *.localhost, so e2e stays on 127.0.0.1 and
- * sets x-forwarded-host instead of relying on DNS.
+ * Product host is selected from Host (default). Playwright enables
+ * TRUST_FORWARDED_HOST for this suite so we can set x-forwarded-host without
+ * needing *.localhost DNS in CI.
  */
 const ORIGIN = "http://127.0.0.1:3000";
 

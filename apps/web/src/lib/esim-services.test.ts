@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDb, migrate, users, type Db } from "@northstar/db";
-import { createEsimProvider } from "@northstar/esim-provider";
+import { createEsimProvider, type EsimProvider } from "@northstar/esim-provider";
 import { createEmailProvider } from "@northstar/email";
 import { completeEsimOrder, createEsimCheckoutOrder, listUserEsimOrders } from "./esim-services";
 import { newId } from "./utils";
@@ -63,5 +63,48 @@ describe("esim checkout → issue", () => {
     expect(listed).toHaveLength(1);
     expect(listed[0]!.profile?.qrCodeUrl).toMatch(/^data:image\/png;base64,/);
     expect(listed[0]!.profile?.iccid).toBeTruthy();
+  });
+
+  it("only issues once under concurrent complete calls", async () => {
+    const userId = await setup();
+    let createCalls = 0;
+    const base = createEsimProvider("mock");
+    const esim: EsimProvider = {
+      getProviderStatus: () => base.getProviderStatus(),
+      listPackages: (filter) => base.listPackages(filter),
+      getPackage: (code) => base.getPackage(code),
+      getOrder: (id) => base.getOrder(id),
+      createOrder: async (input) => {
+        createCalls += 1;
+        return base.createOrder(input);
+      },
+    };
+    const email = createEmailProvider("mock");
+    const packages = await esim.listPackages({ country: "GB" });
+    const created = await createEsimCheckoutOrder(db, esim, {
+      userId,
+      packageCode: packages[0]!.code,
+      billingProvider: "mock",
+      esimProviderKind: "mock",
+      correlationId: "c2",
+    });
+
+    await Promise.all([
+      completeEsimOrder(db, esim, email, {
+        checkoutId: created.checkoutId,
+        userId,
+        correlationId: "c2a",
+      }),
+      completeEsimOrder(db, esim, email, {
+        checkoutId: created.checkoutId,
+        userId,
+        correlationId: "c2b",
+      }),
+    ]);
+
+    expect(createCalls).toBe(1);
+    const listed = await listUserEsimOrders(db, userId);
+    expect(listed.filter((r) => r.profile).length).toBe(1);
+    expect(listed[0]!.order.status).toBe("issued");
   });
 });

@@ -431,7 +431,7 @@ export const esimOrders = sqliteTable(
     amount: integer("amount").notNull(),
     currency: text("currency").notNull().default("GBP"),
     status: text("status", {
-      enum: ["pending", "paid", "issued", "failed", "refunded"],
+      enum: ["pending", "paid", "issuing", "issued", "failed", "refunded"],
     }).notNull(),
     billingProvider: text("billing_provider", { enum: ["mock", "stripe"] }).notNull(),
     providerCheckoutId: text("provider_checkout_id"),

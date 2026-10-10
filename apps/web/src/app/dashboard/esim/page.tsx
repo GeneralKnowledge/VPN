@@ -51,7 +51,7 @@ export default async function DashboardEsimPage() {
                       ? "success"
                       : order.status === "failed"
                         ? "danger"
-                        : order.status === "paid"
+                        : order.status === "paid" || order.status === "issuing"
                           ? "warning"
                           : "neutral"
                   }

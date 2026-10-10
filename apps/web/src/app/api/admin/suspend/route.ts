@@ -3,12 +3,14 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { HttpError, handle, parseBody } from "@/lib/http";
+import { requireProduct } from "@/lib/product";
 import { getDb, getVpnProvider } from "@/lib/providers";
 import { suspendVpnForUser } from "@/lib/services";
 import { correlationId } from "@/lib/utils";
 
 export async function POST(req: Request) {
   return handle(async () => {
+    await requireProduct("vpn");
     const admin = await requireAdmin();
     const body = { data: await parseBody(req, z.object({ userId: z.string().min(1) })) };
     const db = getDb();
