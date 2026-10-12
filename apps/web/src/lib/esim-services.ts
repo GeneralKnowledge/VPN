@@ -189,6 +189,9 @@ export async function issueEsimForOrder(
   }
 
   try {
+    if (!user.email) {
+      throw new Error("eSIM orders require an email on the account");
+    }
     const issued = await esim.createOrder({
       clientRef: order.id,
       email: user.email,
@@ -239,7 +242,7 @@ export async function issueEsimForOrder(
     });
 
     await sendEmailSafe(email, {
-      to: user.email,
+      to: user.email!,
       template: "esim_ready",
       vars: {
         name: user.name ?? "there",

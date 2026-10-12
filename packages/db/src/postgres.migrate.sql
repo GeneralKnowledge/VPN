@@ -4,7 +4,8 @@
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  email TEXT NOT NULL,
+  username TEXT NOT NULL,
+  email TEXT,
   email_verified_at BIGINT,
   password_hash TEXT NOT NULL,
   name TEXT,
@@ -18,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
   updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_uidx ON users(username);
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_uidx ON users(email);
 CREATE UNIQUE INDEX IF NOT EXISTS users_referral_uidx ON users(referral_code);
 CREATE INDEX IF NOT EXISTS users_role_idx ON users(role);
@@ -69,6 +71,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   provider_subscription_id TEXT,
   current_period_end BIGINT,
   cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+  billing_mode TEXT NOT NULL DEFAULT 'subscription',
   created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
   updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
 );
@@ -116,6 +119,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS vpn_locations_provider_uidx ON vpn_locations(p
 
 ALTER TABLE vpn_locations ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
 ALTER TABLE vpn_locations ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_mode TEXT NOT NULL DEFAULT 'subscription';
+-- Optional email / required username: for existing DBs, backfill then relax email nullability manually if needed:
+-- UPDATE users SET username = lower(split_part(email, '@', 1)) WHERE username IS NULL;
+-- ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+-- ALTER TABLE users ALTER COLUMN username SET NOT NULL;
 
 CREATE TABLE IF NOT EXISTS vpn_connections (
   id TEXT PRIMARY KEY,

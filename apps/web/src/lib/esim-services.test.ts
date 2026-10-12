@@ -27,6 +27,7 @@ describe("esim checkout → issue", () => {
     const userId = newId("usr");
     await db.insert(users).values({
       id: userId,
+      username: `sim_${userId.slice(-8)}`,
       email: "esim@test.local",
       passwordHash: "x",
       role: "customer",

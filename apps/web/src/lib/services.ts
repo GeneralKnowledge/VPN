@@ -11,7 +11,7 @@ import {
   type CustomerLifecycle,
   type SubscriptionStatus,
 } from "@northstar/billing";
-import { resolveLocationCoords } from "@northstar/config";
+import { getPlan, resolveLocationCoords, type BillingMode } from "@northstar/config";
 import {
   devices,
   invoices,
@@ -19,6 +19,8 @@ import {
   providerEvents,
   payments,
   subscriptions,
+  supportMessages,
+  supportTickets,
   users,
   verificationTokens,
   vpnAccounts,
@@ -194,7 +196,7 @@ export async function provisionVpnForUser(
         username,
         password,
         externalCustomerId: userId,
-        email: user.email,
+        email: user.email ?? undefined,
         firstName: user.name?.split(" ")[0],
         lastName: user.name?.split(" ").slice(1).join(" ") || undefined,
       });
@@ -241,12 +243,14 @@ export async function provisionVpnForUser(
     });
 
     // Delivery problems must never turn a provisioned account into an error state.
-    await sendEmailSafe(email, {
-      to: user.email,
-      template: "vpn_provisioned",
-      vars: { name: user.name ?? "there" },
-      correlationId,
-    });
+    if (user.email) {
+      await sendEmailSafe(email, {
+        to: user.email,
+        template: "vpn_provisioned",
+        vars: { name: user.name ?? user.username },
+        correlationId,
+      });
+    }
 
     return { ...row, createdAt: existing[0]?.createdAt ?? new Date() };
   } catch (err) {
@@ -274,7 +278,9 @@ export async function provisionVpnForUser(
 
 function addBillingPeriod(from: Date, planId: string): Date {
   const end = new Date(from);
-  end.setMonth(end.getMonth() + (planId.includes("annual") ? 12 : 1));
+  const plan = getPlan(planId);
+  const months = plan?.billingInterval === "year" || planId.includes("annual") ? 12 : 1;
+  end.setMonth(end.getMonth() + months);
   return end;
 }
 
@@ -283,7 +289,7 @@ async function recordPaymentAndInvoice(
   input: {
     userId: string;
     subscriptionId: string;
-    provider: "mock" | "stripe";
+    provider: "mock" | "stripe" | "crypto";
     providerPaymentId: string;
     amount: number;
   },
@@ -441,12 +447,14 @@ export async function handlePaymentFailed(
     correlationId,
     metadata: { userId: user.id, lifecycle: next },
   });
-  await sendEmailSafe(email, {
-    to: user.email,
-    template: "payment_failed",
-    vars: { name: user.name ?? "there" },
-    correlationId,
-  });
+  if (user.email) {
+    await sendEmailSafe(email, {
+      to: user.email,
+      template: "payment_failed",
+      vars: { name: user.name ?? user.username },
+      correlationId,
+    });
+  }
   return sub;
 }
 
@@ -454,11 +462,20 @@ export async function handlePaymentFailed(
 export async function handleRenewal(
   db: Db,
   vpn: VPNProvider,
-  input: { providerSubscriptionId: string; providerPaymentId: string; amount: number; provider: "mock" | "stripe" },
+  input: {
+    providerSubscriptionId: string;
+    providerPaymentId: string;
+    amount: number;
+    provider: "mock" | "stripe" | "crypto";
+  },
   correlationId: string,
 ) {
   const sub = await findSubscriptionByProviderId(db, input.providerSubscriptionId);
   if (!sub) return null;
+  if (sub.billingMode === "prepaid") {
+    // Prepaid one-offs do not renew — ignore spurious renewal events.
+    return sub;
+  }
 
   const seen = await db
     .select()
@@ -546,6 +563,9 @@ export async function resumeSubscriptionForUser(
   const subs = await db.select().from(subscriptions).where(eq(subscriptions.userId, user.id));
   const sub = subs.find((s) => s.status === "cancelling");
   if (!sub?.providerSubscriptionId) return null;
+  if (sub.billingMode === "prepaid") {
+    throw new HttpError(400, "Prepaid access cannot be resumed — purchase again when it ends.");
+  }
   const updated = await billing.resumeSubscription(sub.providerSubscriptionId);
   await db
     .update(subscriptions)
@@ -567,8 +587,8 @@ export async function resumeSubscriptionForUser(
 
 /**
  * Close a customer's account: stop billing first (so they are never charged after deleting),
- * then remove the provider VPN account, revoke local access and anonymise the user record.
- * Payment and invoice rows are kept for accounting.
+ * then remove the provider VPN account, revoke local access and wipe known personal data.
+ * Payment and invoice rows are kept for accounting (amounts / provider ids only).
  */
 export async function deleteUserAccount(
   db: Db,
@@ -605,13 +625,31 @@ export async function deleteUserAccount(
   await db.update(devices).set({ revokedAt: new Date(), updatedAt: new Date() }).where(eq(devices.userId, user.id));
   await db.delete(verificationTokens).where(eq(verificationTokens.userId, user.id));
   await destroyUserSessions(db, user.id);
+
+  // Wipe support conversation bodies so deletion removes known personal content.
+  const tickets = await db.select({ id: supportTickets.id }).from(supportTickets).where(eq(supportTickets.userId, user.id));
+  for (const ticket of tickets) {
+    await db
+      .update(supportMessages)
+      .set({ body: "[deleted]", updatedAt: new Date() })
+      .where(eq(supportMessages.ticketId, ticket.id));
+    await db
+      .update(supportTickets)
+      .set({ subject: "[deleted]", status: "closed", updatedAt: new Date() })
+      .where(eq(supportTickets.id, ticket.id));
+  }
+
+  const tombstone = `deleted_${user.id.slice(-12)}`;
   await db
     .update(users)
     .set({
       deletedAt: new Date(),
-      email: `deleted+${user.id}@invalid.local`,
+      username: tombstone,
+      email: null,
       name: null,
       passwordHash: "!deleted",
+      preferredLocationId: null,
+      onboardingDismissedAt: new Date(),
       lifecycle: "cancelled",
       updatedAt: new Date(),
     })
@@ -623,6 +661,7 @@ export async function deleteUserAccount(
     targetType: "user",
     targetId: user.id,
     correlationId,
+    metadata: { wiped: true },
   });
 }
 
@@ -723,14 +762,21 @@ export async function activateSubscription(
     userId: string;
     planId: string;
     providerSubscriptionId: string;
-    provider: "mock" | "stripe";
+    provider: "mock" | "stripe" | "crypto";
     amount: number;
     correlationId: string;
+    billingMode?: BillingMode;
   },
 ) {
   const userRows = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
   const user = userRows[0];
   if (!user || user.deletedAt) throw new Error("User not found");
+
+  const catalogPlan = getPlan(input.planId);
+  const billingMode: BillingMode =
+    input.billingMode ?? catalogPlan?.billingMode ?? "subscription";
+  // Prepaid one-offs (crypto year, Gold Stripe) never auto-renew.
+  const cancelAtPeriodEnd = billingMode === "prepaid";
 
   const live = await findLiveSubscription(db, input.userId);
   if (live) {
@@ -766,12 +812,13 @@ export async function activateSubscription(
     await db.insert(subscriptions).values({
       id: subId,
       userId: input.userId,
-      planId: input.planId,
+      planId: catalogPlan?.id ?? input.planId,
       status: "active",
       provider: input.provider,
       providerSubscriptionId: input.providerSubscriptionId,
       currentPeriodEnd: addBillingPeriod(new Date(), input.planId),
-      cancelAtPeriodEnd: false,
+      cancelAtPeriodEnd,
+      billingMode,
     });
   } catch (err) {
     // Lost a race with a concurrent delivery for the same user: the winner's subscription stands.
@@ -797,14 +844,17 @@ export async function activateSubscription(
     targetType: "subscription",
     targetId: subId,
     correlationId: input.correlationId,
+    metadata: { billingMode, planId: catalogPlan?.id ?? input.planId },
   });
 
-  await sendEmailSafe(email, {
-    to: user.email,
-    template: "subscription_started",
-    vars: { name: user.name ?? "there", planName: input.planId },
-    correlationId: input.correlationId,
-  });
+  if (user.email) {
+    await sendEmailSafe(email, {
+      to: user.email,
+      template: "subscription_started",
+      vars: { name: user.name ?? user.username, planName: catalogPlan?.name ?? input.planId },
+      correlationId: input.correlationId,
+    });
+  }
 
   try {
     await provisionVpnForUser(db, vpn, email, input.userId, input.correlationId);

@@ -18,6 +18,8 @@ export default function PrivacyPage() {
           <li>Retention and deletion</li>
           <li>International transfers</li>
           <li>User rights and contact for privacy requests</li>
+          <li>Access tiers (email vs username, Stripe vs crypto prepaid) and what each stores</li>
+          <li>Self-serve account deletion and what is wiped vs kept for accounting</li>
         </ul>
         <p>Until reviewed, do not publish production privacy guarantees.</p>
       </div>

@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { cookies } from "next/headers";
-import { users } from "@northstar/db";
+import { getPlan } from "@northstar/config";
+import { subscriptions, users } from "@northstar/db";
 import { z } from "zod";
 import { SESSION_COOKIE, requireUser, verifyPassword } from "@/lib/auth";
 import { HttpError, handle, parseBody } from "@/lib/http";
-import { getBillingProvider, getDb, getVpnProvider } from "@/lib/providers";
+import { getBillingProvider, getBillingProviderForPlan, getDb, getVpnProvider } from "@/lib/providers";
 import { assertNotRateLimited, recordRateLimitHit } from "@/lib/rate-limit";
 import { deleteUserAccount } from "@/lib/services";
 import { correlationId } from "@/lib/utils";
@@ -25,7 +26,16 @@ export async function POST(req: Request) {
       throw new HttpError(400, "Password incorrect");
     }
 
-    await deleteUserAccount(db, getVpnProvider(), getBillingProvider(), user, correlationId());
+    const [sub] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, user.id))
+      .orderBy(desc(subscriptions.createdAt))
+      .limit(1);
+    const plan = sub ? getPlan(sub.planId) : undefined;
+    const billing = plan ? getBillingProviderForPlan(plan) : getBillingProvider();
+
+    await deleteUserAccount(db, getVpnProvider(), billing, user, correlationId());
     (await cookies()).delete(SESSION_COOKIE);
     return Response.json({ ok: true });
   });

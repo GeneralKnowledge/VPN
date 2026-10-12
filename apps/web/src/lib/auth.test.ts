@@ -26,6 +26,7 @@ describe("sessions and verification tokens", () => {
     db = createDb(url).db;
     await db.insert(users).values({
       id: "u1",
+      username: "u1",
       email: "u1@test.local",
       passwordHash: "x",
       role: "customer",

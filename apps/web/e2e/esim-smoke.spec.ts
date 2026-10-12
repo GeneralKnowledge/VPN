@@ -17,7 +17,7 @@ async function asVpn(page: Page) {
 
 async function loginAs(page: Page, email: string, password: string) {
   await page.goto(`${ORIGIN}/login`);
-  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Username or email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/dashboard/);
@@ -68,7 +68,7 @@ test("admin esim orders lists purchases from the VPN host", async ({ page }) => 
   await page.context().clearCookies();
   await asVpn(page);
   await page.goto(`${ORIGIN}/login`);
-  await page.getByLabel("Email").fill("admin@northstar.local");
+  await page.getByLabel("Username or email").fill("admin@northstar.local");
   await page.getByLabel("Password").fill("AdminDev123!");
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/admin/);

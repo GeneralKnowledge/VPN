@@ -35,12 +35,17 @@ export async function POST(req: Request) {
     // A reset is usually a response to compromise: sign out every existing session.
     await destroyUserSessions(db, userId);
 
-    await sendEmailSafe(getEmailProvider(), {
-      to: user.email,
-      template: "security_notification",
-      vars: { name: user.name ?? "there", message: "Your password was changed and all sessions were signed out." },
-      correlationId: correlationId(),
-    });
+    if (user.email) {
+      await sendEmailSafe(getEmailProvider(), {
+        to: user.email,
+        template: "security_notification",
+        vars: {
+          name: user.name ?? user.username,
+          message: "Your password was changed and all sessions were signed out.",
+        },
+        correlationId: correlationId(),
+      });
+    }
     await writeAudit(db, {
       actorId: userId,
       actorType: "user",

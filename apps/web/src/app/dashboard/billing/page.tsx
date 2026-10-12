@@ -58,9 +58,19 @@ export default async function BillingPage({
               {formatPrice(plan)} · <Badge tone={subscriptionStatus(sub.status).tone}>{subscriptionStatus(sub.status).label}</Badge>
             </p>
             {sub.currentPeriodEnd && sub.status === "active" ? (
-              <p className="mt-1 text-sm text-muted">Renews on {formatDate(sub.currentPeriodEnd)}</p>
+              <p className="mt-1 text-sm text-muted">
+                {sub.billingMode === "prepaid" || sub.cancelAtPeriodEnd
+                  ? `Access until ${formatDate(sub.currentPeriodEnd)}`
+                  : `Renews on ${formatDate(sub.currentPeriodEnd)}`}
+              </p>
             ) : null}
-            <BillingActions status={sub.status} />
+            {plan ? (
+              <p className="mt-1 text-xs text-muted">
+                {plan.tier} · {plan.paymentRail} · {plan.billingMode}
+                {plan.billingMode === "prepaid" ? " (no auto-renew)" : ""}
+              </p>
+            ) : null}
+            <BillingActions status={sub.status} prepaid={sub.billingMode === "prepaid"} />
           </>
         ) : (
           <p className="mt-2 text-muted">No active subscription.</p>
@@ -74,8 +84,15 @@ export default async function BillingPage({
             {plans.filter((p) => p.active).map((p) => (
               <div key={p.id} className="rounded-lg border border-border p-4">
                 <p className="font-medium">{p.name}</p>
+                <p className="text-xs text-muted">
+                  {p.tier} · {p.paymentRail} · {p.billingMode}
+                </p>
                 <p className="font-display text-2xl">{formatPrice(p)}</p>
-                <BillingActions planId={p.id} prefer={params.plan === p.id} />
+                <BillingActions
+                  planId={p.id}
+                  prefer={params.plan === p.id}
+                  prepaid={p.billingMode === "prepaid"}
+                />
               </div>
             ))}
           </div>

@@ -26,12 +26,12 @@ export default function FeaturesPage() {
       body: "Subscribe, view invoices, cancel at period end, or resume — all from Billing. No ticket required for routine changes.",
     },
     {
-      title: "Support when you need it",
-      body: "Use setup guides and FAQs first, then open a ticket from your account if you still need help.",
+      title: "Support matched to your tier",
+      body: "Full email help on Platinum; tickets only on Diamond/Gold; basic on Bronze; self-serve on Iron. Less data means less help.",
     },
     {
       title: "Account control",
-      body: "Change your password, share a referral code, or delete your account and remove VPN access yourself.",
+      body: "Change your password, share a referral code, or delete your account — wiping known personal data and VPN access yourself.",
     },
   ];
   return (

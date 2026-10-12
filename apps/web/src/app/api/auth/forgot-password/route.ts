@@ -25,14 +25,15 @@ export async function POST(req: Request) {
       .limit(1);
     const user = rows[0];
     const message = "If that email exists, a reset link was sent.";
-    if (!user) return Response.json({ message });
+    // Username-only accounts have no inbox — same generic response (no enumeration).
+    if (!user?.email) return Response.json({ message });
 
     const token = await createVerificationToken(db, user.id, "password_reset");
     const link = `${appUrl()}/reset-password?token=${token}`;
     await sendEmailSafe(getEmailProvider(), {
       to: user.email,
       template: "password_reset",
-      vars: { name: user.name ?? "there", link },
+      vars: { name: user.name ?? user.username, link },
       correlationId: correlationId(),
     });
     await writeAudit(db, {

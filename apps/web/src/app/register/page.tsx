@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useState, Suspense } from "react";
+import { FormEvent, useMemo, useState, Suspense } from "react";
+import { getPlan, tierMeta, tierRequiresEmail } from "@northstar/config";
 import { Logo } from "@/components/logo";
 import { PasswordInput } from "@/components/password-input";
 import { Button, FormError, Input, Label } from "@/components/ui";
@@ -13,6 +14,10 @@ function RegisterForm() {
   const params = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const planId = params.get("plan") ?? undefined;
+  const plan = useMemo(() => (planId ? getPlan(planId) : getPlan("platinum-monthly")), [planId]);
+  const needsEmail = plan ? tierRequiresEmail(plan.tier) : true;
+  const meta = plan ? tierMeta[plan.tier] : null;
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -25,10 +30,11 @@ function RegisterForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: form.get("email"),
+          username: form.get("username"),
+          email: form.get("email") || undefined,
           password: form.get("password"),
-          name: form.get("name"),
-          planId: params.get("plan") ?? undefined,
+          name: form.get("name") || undefined,
+          planId: planId,
           referralCode: form.get("referralCode") || undefined,
         }),
       });
@@ -49,13 +55,40 @@ function RegisterForm() {
 
   return (
     <form onSubmit={onSubmit} className="mt-8 space-y-4">
+      {meta ? (
+        <p className="rounded-xl border border-border bg-background/60 px-3 py-2 text-xs text-muted">
+          <span className="font-medium text-foreground">{meta.label}</span> — {meta.supportNote}
+        </p>
+      ) : null}
       <div>
-        <Label htmlFor="name">Name</Label>
-        <Input id="name" name="name" required autoComplete="name" />
+        <Label htmlFor="username">Username</Label>
+        <Input
+          id="username"
+          name="username"
+          required
+          minLength={3}
+          maxLength={32}
+          autoComplete="username"
+          pattern="[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}"
+          aria-describedby="username-hint register-error"
+        />
+        <p id="username-hint" className="mt-1.5 text-xs text-muted">
+          3–32 characters. Letters, numbers, . _ -
+        </p>
       </div>
+      {needsEmail ? (
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" name="email" type="email" required autoComplete="email" aria-describedby="register-error" />
+        </div>
+      ) : (
+        <p className="text-xs text-muted">
+          No email on this plan. Save your username and password — we cannot reset access without an inbox.
+        </p>
+      )}
       <div>
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" required autoComplete="email" aria-describedby="register-error" />
+        <Label htmlFor="name">Name (optional)</Label>
+        <Input id="name" name="name" autoComplete="name" />
       </div>
       <div>
         <Label htmlFor="password">Password</Label>
@@ -90,7 +123,9 @@ export default function RegisterPage() {
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 shadow-lg">
         <Logo />
         <h1 className="mt-6 font-display text-3xl">Create account</h1>
-        <p className="mt-2 text-sm text-muted">Create your account to get started.</p>
+        <p className="mt-2 text-sm text-muted">
+          Pick how much we know about you. Less data means less help if something goes wrong.
+        </p>
         <Suspense>
           <RegisterForm />
         </Suspense>

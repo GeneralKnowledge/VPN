@@ -25,8 +25,8 @@ const faqs = [
 
 export default async function HomePage() {
   const user = await getSessionUser();
-  const monthly = plans.find((p) => p.id === "premium-monthly")!;
-  const annual = plans.find((p) => p.id === "premium-annual")!;
+  const monthly = plans.find((p) => p.id === "platinum-monthly")!;
+  const annual = plans.find((p) => p.id === "platinum-annual")!;
 
   return (
     <div>
@@ -90,8 +90,8 @@ export default async function HomePage() {
                 body: "Subscribe, cancel at period end, resume, and view invoices from your dashboard — no ticket required.",
               },
               {
-                title: "Plain-spoken privacy",
-                body: "Clear policies written in plain language, with no slogans we cannot back up.",
+                title: "Trust you choose",
+                body: "Email + Stripe support, username-only middle ground, or crypto prepaid — less data means less help.",
               },
             ].map((item) => (
               <div key={item.title}>

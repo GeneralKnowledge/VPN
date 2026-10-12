@@ -1,92 +1,89 @@
 import Link from "next/link";
-import { brand } from "@northstar/config";
+import { brand, tierMeta } from "@northstar/config";
 import { MarketingPage } from "@/components/marketing-page";
 
 export const metadata = {
   title: "Trust",
-  description: `How ${brand.name} handles accounts, billing, and VPN access — in plain language.`,
+  description: `How ${brand.name} mixes trust with anonymity — third parties take payments and tunnels; you choose how little we keep.`,
 };
 
 export default function TrustPage() {
   return (
     <MarketingPage
       title="Trust & transparency"
-      description="What you manage yourself, what we store, and how VPN access works — without slogans we cannot back up."
+      description="We treat our limits as features: we do not hold card details, crypto keys, or VPN servers. You choose how much identity to leave with us."
     >
       <div className="max-w-2xl space-y-10 text-sm text-muted">
         <section className="space-y-3">
-          <h2 className="font-display text-2xl text-foreground">Self-serve by design</h2>
+          <h2 className="font-display text-2xl text-foreground">Trusted third parties do the hard parts</h2>
           <p>
-            Your dashboard is the control centre. Subscribe or cancel, download configs, manage devices, reset VPN
-            credentials, open support tickets, and delete your account — without waiting on a sales call.
+            Card payments go through Stripe. Crypto prepaid goes through a dedicated processor when enabled. VPN tunnels
+            run on managed infrastructure. {brand.name} focuses on accounts, billing honesty, and setup — not custody of
+            payment instruments or server racks.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="font-display text-2xl text-foreground">What we store</h2>
+          <h2 className="font-display text-2xl text-foreground">Access tiers: trust ↔ anonymity</h2>
+          <p>
+            Less information means less help. That trade-off is intentional and written on each tier.
+          </p>
           <ul className="list-disc space-y-2 pl-5">
-            <li>Account details you provide (email, name, password hash)</li>
-            <li>Subscription and payment records needed to bill and invoice you</li>
-            <li>Devices and connection labels you create in the dashboard</li>
-            <li>Support messages you send us</li>
+            {(["platinum", "diamond", "gold", "bronze", "iron"] as const).map((tier) => (
+              <li key={tier}>
+                <span className="font-medium text-foreground">{tierMeta[tier].label}</span> — {tierMeta[tier].blurb}{" "}
+                <span className="text-muted">({tierMeta[tier].supportNote})</span>
+              </li>
+            ))}
+          </ul>
+          <p>
+            See{" "}
+            <Link href="/pricing" className="text-sea hover:underline">
+              Pricing
+            </Link>{" "}
+            for month/year options. A crypto year is prepaid one-off access; a Stripe Platinum year renews until you
+            cancel.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="font-display text-2xl text-foreground">What we may store</h2>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>Username and password hash (always)</li>
+            <li>Email and name only when your tier asks for them</li>
+            <li>Subscription / prepaid period records needed to grant access</li>
+            <li>Devices and connection labels you create</li>
+            <li>Support messages you send (wiped on account deletion)</li>
             <li>Operational audit events for security and billing disputes</li>
           </ul>
           <p>
-            We do not ask you to trust marketing claims about logging. See the{" "}
+            We do not invent logging slogans. See the{" "}
             <Link href="/privacy" className="text-sea hover:underline">
               Privacy Policy
             </Link>{" "}
-            for the current draft of our practices.
+            draft for current practices.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="font-display text-2xl text-foreground">How the VPN tunnel works</h2>
+          <h2 className="font-display text-2xl text-foreground">Delete what we know</h2>
           <p>
-            {brand.name} provisions access on managed VPN infrastructure. You connect with standard WireGuard or
-            OpenVPN clients using a configuration you download (or a WireGuard QR code) from your account.
-          </p>
-          <p>
-            Server locations and tunnel capacity come from that infrastructure. We focus on clear account control,
-            billing, and setup — not unverifiable anonymity promises.
+            From{" "}
+            <Link href="/dashboard/account" className="text-sea hover:underline">
+              Account
+            </Link>
+            , delete your account yourself. That cancels billing, removes provisioned VPN access, clears sessions, and
+            wipes known personal fields and ticket content. Payment amounts may remain for accounting without your
+            contact details.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="font-display text-2xl text-foreground">Cancel, refunds, and deletion</h2>
-          <ul className="list-disc space-y-2 pl-5">
-            <li>
-              Cancel anytime from{" "}
-              <Link href="/dashboard/billing" className="text-sea hover:underline">
-                Billing
-              </Link>
-              . You keep access until the end of the paid period.
-            </li>
-            <li>
-              Refund terms are described on the{" "}
-              <Link href="/refund" className="text-sea hover:underline">
-                Refunds
-              </Link>{" "}
-              page.
-            </li>
-            <li>
-              Delete your account from{" "}
-              <Link href="/dashboard/account" className="text-sea hover:underline">
-                Account
-              </Link>
-              . That cancels billing and removes provisioned VPN access.
-            </li>
-          </ul>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="font-display text-2xl text-foreground">Questions</h2>
+          <h2 className="font-display text-2xl text-foreground">GDPR by minimisation — not magic</h2>
           <p>
-            Signed-in customers can open a ticket from the dashboard. Everyone else can use{" "}
-            <Link href="/contact" className="text-sea hover:underline">
-              Contact
-            </Link>{" "}
-            or email {brand.supportEmail}.
+            Collecting less and encouraging deletion shrinks what we hold. It does not remove every obligation for the
+            data that remains (usernames, billing provider ids, audit trails). We aim to hold as little as your chosen
+            tier allows — and to let you wipe it.
           </p>
         </section>
       </div>

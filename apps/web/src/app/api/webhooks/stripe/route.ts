@@ -96,6 +96,7 @@ export async function POST(req: Request) {
           provider,
           amount: obj?.amount_paid ?? plan.price,
           correlationId: corr,
+          billingMode: plan.billingMode,
         });
         break;
       }

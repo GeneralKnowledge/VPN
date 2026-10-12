@@ -5,6 +5,10 @@ import type { EmailProvider, SendEmailInput } from "@northstar/email";
  * triggered it (signup, provisioning, billing). Failures are logged for follow-up.
  */
 export async function sendEmailSafe(email: EmailProvider, input: SendEmailInput): Promise<boolean> {
+  if (!input.to?.trim()) {
+    // Username-only accounts intentionally have no inbox — skip quietly.
+    return false;
+  }
   try {
     await email.send(input);
     return true;

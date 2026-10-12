@@ -4,13 +4,22 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
-export function UserMenu({ email, name }: { email: string; name?: string | null }) {
+export function UserMenu({
+  email,
+  username,
+  name,
+}: {
+  email: string | null;
+  username: string;
+  name?: string | null;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
-  const initial = (name || email).trim().charAt(0).toUpperCase() || "?";
+  const label = name || username || email || "?";
+  const initial = label.trim().charAt(0).toUpperCase() || "?";
 
   useEffect(() => {
     if (!open) return;
@@ -53,7 +62,7 @@ export function UserMenu({ email, name }: { email: string; name?: string | null 
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sea text-xs font-semibold text-white" aria-hidden>
           {initial}
         </span>
-        <span className="hidden max-w-[10rem] truncate sm:inline">{name || email}</span>
+        <span className="hidden max-w-[10rem] truncate sm:inline">{label}</span>
         <span className="sr-only sm:hidden">Account menu</span>
       </button>
       {open ? (
@@ -61,7 +70,7 @@ export function UserMenu({ email, name }: { email: string; name?: string | null 
           id={menuId}
           className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-border bg-surface p-1 shadow-lg"
         >
-          <p className="truncate px-3 py-2 text-xs text-muted">{email}</p>
+          <p className="truncate px-3 py-2 text-xs text-muted">{email ?? username}</p>
           <Link href="/dashboard/account" className={itemClass} onClick={() => setOpen(false)}>
             Account
           </Link>

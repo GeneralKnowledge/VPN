@@ -109,6 +109,7 @@ export async function seed() {
   await db.insert(schema.users).values([
     {
       id: adminId,
+      username: "admin",
       email: adminEmail,
       emailVerifiedAt: new Date(),
       passwordHash: await bcrypt.hash(adminPassword, 10),
@@ -119,6 +120,7 @@ export async function seed() {
     },
     {
       id: customerId,
+      username: "ada",
       email: customerEmail,
       emailVerifiedAt: new Date(),
       passwordHash: await bcrypt.hash(customerPassword, 10),
@@ -130,6 +132,7 @@ export async function seed() {
     },
     {
       id: customer2Id,
+      username: "lee",
       email: "lead@northstar.local",
       emailVerifiedAt: new Date(),
       passwordHash: await bcrypt.hash("LeadDev123!", 10),
@@ -154,12 +157,13 @@ export async function seed() {
   await db.insert(schema.subscriptions).values({
     id: subId,
     userId: customerId,
-    planId: "premium-monthly",
+    planId: "platinum-monthly",
     status: "active",
     provider: "mock",
     providerSubscriptionId: id("sub_mock"),
     currentPeriodEnd: periodEnd,
     cancelAtPeriodEnd: false,
+    billingMode: "subscription",
   });
 
   const vpnAccountId = id("vpn");

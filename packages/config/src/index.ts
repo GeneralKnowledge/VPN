@@ -26,6 +26,32 @@ export {
 } from "./product";
 
 import { vpnBrand } from "./product";
+import {
+  accessTierSchema,
+  billingModeSchema,
+  identityModeSchema,
+  paymentRailSchema,
+  supportLevelSchema,
+  tierMeta,
+  type AccessTier,
+} from "./tiers";
+
+export {
+  accessTierSchema,
+  billingModeSchema,
+  identityModeSchema,
+  paymentRailSchema,
+  supportLevelSchema,
+  supportTicketLimitPerHour,
+  tierAllowsPasswordResetEmail,
+  tierMeta,
+  tierRequiresEmail,
+  type AccessTier,
+  type BillingMode,
+  type IdentityMode,
+  type PaymentRail,
+  type SupportLevel,
+} from "./tiers";
 
 /** @deprecated Prefer getBrand(product). Kept as the VPN brand for existing imports. */
 export const brand = vpnBrand;
@@ -42,56 +68,100 @@ export const planSchema = z.object({
   features: z.array(z.string()),
   maxDevices: z.number().int().positive(),
   active: z.boolean(),
+  tier: accessTierSchema,
+  identityMode: identityModeSchema,
+  paymentRail: paymentRailSchema,
+  billingMode: billingModeSchema,
+  supportLevel: supportLevelSchema,
   stripePriceEnvKey: z.string().optional(),
 });
 
 export type Plan = z.infer<typeof planSchema>;
 
-/** Prices in minor units (pence). Easy to change. */
+const vpnFeatures = [
+  "Up to 5 devices",
+  "All available locations",
+  "WireGuard & OpenVPN configs",
+] as const;
+
+function planFor(
+  tier: AccessTier,
+  interval: "month" | "year",
+  price: number,
+  extras: string[],
+  stripePriceEnvKey?: string,
+): Plan {
+  const meta = tierMeta[tier];
+  const billingLabel =
+    meta.billingMode === "prepaid"
+      ? interval === "month"
+        ? "one month prepaid"
+        : "one year prepaid"
+      : interval === "month"
+        ? "billed monthly"
+        : "billed yearly";
+  return {
+    id: `${tier}-${interval === "month" ? "monthly" : "annual"}`,
+    name: `${meta.label} ${interval === "month" ? "Monthly" : "Annual"}`,
+    description: `${meta.blurb} ${billingLabel}.`,
+    price,
+    currency: "GBP",
+    billingInterval: interval,
+    maxDevices: 5,
+    active: true,
+    tier,
+    identityMode: meta.identityMode,
+    paymentRail: meta.paymentRail,
+    billingMode: meta.billingMode,
+    supportLevel: meta.supportLevel,
+    stripePriceEnvKey,
+    features: [...vpnFeatures, ...extras],
+  };
+}
+
+/**
+ * Access tiers (trust ↔ anonymity). Same VPN capability; identity, payment rail,
+ * renew vs prepaid, and support level differ.
+ *
+ * Legacy ids `premium-monthly` / `premium-annual` resolve to Platinum via getPlan().
+ */
 export const plans: Plan[] = [
-  {
-    id: "premium-monthly",
-    name: "Northstar Premium",
-    description: "Full access billed monthly. Cancel anytime.",
-    price: 499,
-    currency: "GBP",
-    billingInterval: "month",
-    maxDevices: 5,
-    active: true,
-    stripePriceEnvKey: "STRIPE_PRICE_MONTHLY",
-    features: [
-      "Up to 5 devices",
-      "All available locations",
-      "WireGuard & OpenVPN configs",
-      "Email support",
-    ],
-  },
-  {
-    id: "premium-annual",
-    name: "Northstar Premium Annual",
-    description: "Same Premium access with annual billing.",
-    price: 3999,
-    currency: "GBP",
-    billingInterval: "year",
-    maxDevices: 5,
-    active: true,
-    stripePriceEnvKey: "STRIPE_PRICE_ANNUAL",
-    features: [
-      "Up to 5 devices",
-      "All available locations",
-      "WireGuard & OpenVPN configs",
-      "Email support",
-      "Lower annual rate",
-    ],
-  },
+  planFor("platinum", "month", 499, ["Email account", "Stripe subscription", "Full email support"], "STRIPE_PRICE_MONTHLY"),
+  planFor("platinum", "year", 3999, ["Email account", "Stripe subscription", "Full email support", "Lower annual rate"], "STRIPE_PRICE_ANNUAL"),
+  planFor("diamond", "month", 499, ["Username only", "Stripe subscription", "Ticket support (no email reset)"], "STRIPE_PRICE_DIAMOND_MONTHLY"),
+  planFor("diamond", "year", 3999, ["Username only", "Stripe subscription", "Ticket support (no email reset)"], "STRIPE_PRICE_DIAMOND_ANNUAL"),
+  planFor("gold", "month", 499, ["Stripe prepaid (no auto-renew)", "Email receipts"], "STRIPE_PRICE_GOLD_MONTHLY"),
+  planFor("gold", "year", 3999, ["Stripe prepaid — one year, then stops", "Email receipts"], "STRIPE_PRICE_GOLD_ANNUAL"),
+  planFor("bronze", "month", 499, ["Crypto prepaid", "Basic ticket support", "Email on file"]),
+  planFor("bronze", "year", 3999, ["Crypto prepaid — one year, then stops", "Basic ticket support"]),
+  planFor("iron", "month", 499, ["Username + crypto", "Self-serve only — no tickets"]),
+  planFor("iron", "year", 3999, ["Username + crypto — one year prepaid", "Self-serve only — no tickets"]),
 ];
 
+/** Old plan ids from seeds/tests/bookmarks → current Platinum plans. */
+const PLAN_ALIASES: Record<string, string> = {
+  "premium-monthly": "platinum-monthly",
+  "premium-annual": "platinum-annual",
+};
+
+export function resolvePlanId(id: string): string {
+  return PLAN_ALIASES[id] ?? id;
+}
+
 export function getPlan(id: string): Plan | undefined {
-  return plans.find((p) => p.id === id && p.active);
+  const resolved = resolvePlanId(id);
+  return plans.find((p) => p.id === resolved && p.active);
+}
+
+export function plansForTier(tier: AccessTier): Plan[] {
+  return plans.filter((p) => p.active && p.tier === tier);
 }
 
 export function formatPrice(plan: Plan): string {
   const major = (plan.price / 100).toFixed(2);
+  if (plan.billingMode === "prepaid") {
+    return plan.billingInterval === "month" ? `£${major} for 1 month` : `£${major} for 1 year`;
+  }
   const suffix = plan.billingInterval === "month" ? "/month" : "/year";
   return `£${major}${suffix}`;
 }
@@ -163,6 +233,12 @@ export const envSchema = z.object({
   STRIPE_PUBLISHABLE_KEY: z.string().optional().default(""),
   STRIPE_PRICE_MONTHLY: z.string().optional().default(""),
   STRIPE_PRICE_ANNUAL: z.string().optional().default(""),
+  STRIPE_PRICE_DIAMOND_MONTHLY: z.string().optional().default(""),
+  STRIPE_PRICE_DIAMOND_ANNUAL: z.string().optional().default(""),
+  STRIPE_PRICE_GOLD_MONTHLY: z.string().optional().default(""),
+  STRIPE_PRICE_GOLD_ANNUAL: z.string().optional().default(""),
+  /** mock | crypto — crypto rail for Bronze/Iron prepaid (stub until a processor is wired). */
+  CRYPTO_BILLING_PROVIDER: z.enum(["mock", "crypto"]).default("mock"),
   EMAIL_PROVIDER: z.enum(["mock", "smtp"]).default("mock"),
   SMTP_HOST: z.string().optional().default(""),
   SMTP_PORT: z.coerce.number().int().default(587),

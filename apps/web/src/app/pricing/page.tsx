@@ -1,86 +1,77 @@
 import Link from "next/link";
-import { formatPrice, plans } from "@northstar/config";
+import { formatPrice, plans, tierMeta, type AccessTier } from "@northstar/config";
 import { MarketingPage } from "@/components/marketing-page";
 import { Badge, Button } from "@/components/ui";
 
 export const metadata = {
   title: "Pricing",
-  description: "Simple transparent VPN plans. Monthly or annual billing, cancel anytime from your dashboard.",
+  description: "Access tiers from full email support to username + crypto prepaid — same VPN, different trust trade-offs.",
 };
+
+const tierOrder: AccessTier[] = ["platinum", "diamond", "gold", "bronze", "iron"];
 
 const faqs = [
   {
-    q: "Can I switch between monthly and annual later?",
-    a: "Yes. Choose a plan at signup, then manage billing from your dashboard. Switching plans follows your current billing period.",
+    q: "Why do some plans ask for less information?",
+    a: "Less personal data means stronger privacy — and less help we can give. Username-only plans cannot reset passwords by email. Iron is self-serve only.",
   },
   {
-    q: "What happens if I cancel?",
-    a: "You keep access until the end of the paid period. After that, VPN provisioning stops and configs stop working.",
+    q: "Is a crypto year the same as a Stripe year?",
+    a: "No. Stripe Platinum/Diamond years renew until you cancel. Crypto (and Gold Stripe prepaid) is a one-off: you pay once and access runs until that period ends.",
   },
   {
-    q: "How many devices can I use?",
-    a: "Both plans include up to five devices. Rename or revoke devices anytime from the dashboard.",
+    q: "Can I delete everything you know about me?",
+    a: "Yes. Account deletion cancels billing, removes VPN access, and wipes known personal fields and support message bodies. Accounting payment rows stay without your contact details.",
   },
 ];
 
 export default function PricingPage() {
-  const active = plans.filter((p) => p.active);
-  const monthly = active.find((p) => p.billingInterval === "month");
-  const annual = active.find((p) => p.billingInterval === "year");
-  const annualMonthly = annual ? annual.price / 12 / 100 : null;
-  const savingsPct =
-    monthly && annual
-      ? Math.round((1 - annual.price / (monthly.price * 12)) * 100)
-      : null;
-
   return (
     <MarketingPage
-      title="Pricing"
-      description="Simple, transparent plans. Cancel anytime from your dashboard."
+      title="Pricing & access tiers"
+      description="Same locations and devices. You choose how much we know — and how much help you get."
     >
-      <div className="grid gap-6 md:grid-cols-2">
-        {active.map((plan) => {
-          const featured = plan.billingInterval === "year";
+      <div className="space-y-12">
+        {tierOrder.map((tier) => {
+          const meta = tierMeta[tier];
+          const tierPlans = plans.filter((p) => p.active && p.tier === tier);
           return (
-            <div
-              key={plan.id}
-              className={
-                featured
-                  ? "relative rounded-2xl border-2 border-sea bg-surface p-6 shadow-sm"
-                  : "rounded-2xl border border-border bg-surface p-6"
-              }
-            >
-              {featured && savingsPct != null && savingsPct > 0 ? (
-                <Badge tone="sea" className="absolute -top-3 right-4">
-                  Save about {savingsPct}%
-                </Badge>
-              ) : null}
-              <h2 className="font-display text-2xl">{plan.name}</h2>
-              <p className="mt-2 font-display text-4xl">{formatPrice(plan)}</p>
-              {featured && annualMonthly != null ? (
-                <p className="mt-1 text-sm text-muted">About £{annualMonthly.toFixed(2)}/month, billed yearly</p>
-              ) : null}
-              <p className="mt-2 text-sm text-muted">{plan.description}</p>
-              <ul className="mt-6 space-y-2 text-sm">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex gap-2">
-                    <span className="text-sea" aria-hidden>
-                      ✓
-                    </span>
-                    <span>{f}</span>
-                  </li>
+            <section key={tier} className="space-y-4">
+              <div className="max-w-2xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-display text-2xl text-foreground">{meta.label}</h2>
+                  <Badge tone={tier === "platinum" ? "sea" : "neutral"}>{meta.supportLevel.replace("_", "-")} support</Badge>
+                </div>
+                <p className="mt-2 text-sm text-muted">{meta.blurb}</p>
+                <p className="mt-1 text-xs text-muted">{meta.supportNote}</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {tierPlans.map((plan) => (
+                  <div key={plan.id} className="rounded-2xl border border-border bg-surface p-5">
+                    <p className="text-sm text-muted">
+                      {plan.billingMode === "prepaid" ? "Prepaid" : "Subscription"} · {plan.paymentRail}
+                    </p>
+                    <p className="mt-1 font-display text-3xl">{formatPrice(plan)}</p>
+                    <ul className="mt-4 space-y-1.5 text-sm text-muted">
+                      {plan.features.slice(0, 4).map((f) => (
+                        <li key={f}>· {f}</li>
+                      ))}
+                    </ul>
+                    <Link href={`/register?plan=${plan.id}`} className="mt-5 inline-block">
+                      <Button variant={tier === "platinum" ? "primary" : "secondary"} size="sm">
+                        Get {meta.label}
+                      </Button>
+                    </Link>
+                  </div>
                 ))}
-              </ul>
-              <Link href={`/register?plan=${plan.id}`} className="mt-6 inline-block">
-                <Button variant={featured ? "primary" : "secondary"}>Get started</Button>
-              </Link>
-            </div>
+              </div>
+            </section>
           );
         })}
       </div>
 
       <section className="mt-16">
-        <h2 className="font-display text-2xl">Pricing questions</h2>
+        <h2 className="font-display text-2xl">Questions</h2>
         <dl className="mt-6 space-y-6">
           {faqs.map((item) => (
             <div key={item.q}>

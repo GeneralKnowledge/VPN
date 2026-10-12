@@ -5,11 +5,11 @@ import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
 import { HttpError, handle, parseBody } from "@/lib/http";
 import {
+  allowsMockCheckoutComplete,
   emailVerificationRequired,
-  getBillingProvider,
+  getBillingProviderForPlan,
   getDb,
   getEmailProvider,
-  getEnv,
   getVpnProvider,
   track,
 } from "@/lib/providers";
@@ -27,12 +27,6 @@ export async function POST(req: Request) {
   return handle(async () => {
     const user = await requireUser();
     const body = await parseBody(req, schema);
-    if (getEnv().BILLING_PROVIDER !== "mock") {
-      throw new HttpError(400, "Payments are confirmed by the payment provider.");
-    }
-    if (emailVerificationRequired() && !user.emailVerifiedAt) {
-      throw new HttpError(403, "Please verify your email address before subscribing.");
-    }
 
     const db = getDb();
     const [checkout] = await db
@@ -41,6 +35,15 @@ export async function POST(req: Request) {
       .where(eq(checkoutSessions.providerSessionId, body.sessionId))
       .limit(1);
     if (!checkout || checkout.userId !== user.id) throw new HttpError(404, "Checkout not found");
+
+    const plan = getPlan(checkout.planId);
+    if (!plan) throw new HttpError(404, "Plan not found");
+    if (!allowsMockCheckoutComplete(plan)) {
+      throw new HttpError(400, "Payments are confirmed by the payment provider.");
+    }
+    if (plan.identityMode === "email" && emailVerificationRequired() && !user.emailVerifiedAt) {
+      throw new HttpError(403, "Please verify your email address before subscribing.");
+    }
 
     // A session can only ever activate one subscription; replays (double-click, saved request) are no-ops.
     if (checkout.status === "complete") {
@@ -66,15 +69,15 @@ export async function POST(req: Request) {
 
     const corr = correlationId();
     try {
-      const sub = await getBillingProvider().completeCheckout(body.sessionId);
-      const plan = getPlan(checkout.planId);
+      const sub = await getBillingProviderForPlan(plan).completeCheckout(body.sessionId);
       await activateSubscription(db, getVpnProvider(), getEmailProvider(), {
         userId: user.id,
         planId: checkout.planId,
         providerSubscriptionId: sub.id,
-        provider: "mock",
-        amount: plan?.price ?? 0,
+        provider: sub.provider === "crypto" ? "crypto" : "mock",
+        amount: plan.price,
         correlationId: corr,
+        billingMode: plan.billingMode,
       });
     } catch (err) {
       await db

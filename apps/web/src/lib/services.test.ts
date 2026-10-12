@@ -33,7 +33,7 @@ function tempDb() {
 
 async function seedPlan(db: ReturnType<typeof createDb>["db"]) {
   await db.insert(plans).values({
-    id: "premium-monthly",
+    id: "platinum-monthly",
     name: "Premium",
     description: "test",
     price: 499,
@@ -63,6 +63,7 @@ describe("VPN lifecycle services", () => {
   it("subscription → provision → location → connection → config", async () => {
     await db.insert(users).values({
       id: "user_a",
+      username: "u_a",
       email: "a@test.local",
       passwordHash: "x",
       role: "customer",
@@ -72,7 +73,7 @@ describe("VPN lifecycle services", () => {
 
     await activateSubscription(db, vpn, email, {
       userId: "user_a",
-      planId: "premium-monthly",
+      planId: "platinum-monthly",
       providerSubscriptionId: "mock_sub_1",
       provider: "mock",
       amount: 499,
@@ -108,6 +109,7 @@ describe("VPN lifecycle services", () => {
   it("is idempotent when provider account exists but local is error/pending", async () => {
     await db.insert(users).values({
       id: "user_b",
+      username: "u_b",
       email: "b@test.local",
       passwordHash: "x",
       role: "customer",
@@ -117,7 +119,7 @@ describe("VPN lifecycle services", () => {
     await db.insert(subscriptions).values({
       id: "sub_b",
       userId: "user_b",
-      planId: "premium-monthly",
+      planId: "platinum-monthly",
       status: "active",
       provider: "mock",
       providerSubscriptionId: "ms_b",
@@ -148,6 +150,7 @@ describe("VPN lifecycle services", () => {
   it("reconcile repairs pending local vs active provider", async () => {
     await db.insert(users).values({
       id: "user_c",
+      username: "u_c",
       email: "c@test.local",
       passwordHash: "x",
       role: "customer",
@@ -157,7 +160,7 @@ describe("VPN lifecycle services", () => {
     await db.insert(subscriptions).values({
       id: "sub_c",
       userId: "user_c",
-      planId: "premium-monthly",
+      planId: "platinum-monthly",
       status: "active",
       provider: "mock",
       providerSubscriptionId: "ms_c",
@@ -189,6 +192,7 @@ describe("VPN lifecycle services", () => {
   it("suspend disables VPN and soft-revokes connections", async () => {
     await db.insert(users).values({
       id: "user_d",
+      username: "u_d",
       email: "d@test.local",
       passwordHash: "x",
       role: "customer",
@@ -198,7 +202,7 @@ describe("VPN lifecycle services", () => {
     await db.insert(subscriptions).values({
       id: "sub_d",
       userId: "user_d",
-      planId: "premium-monthly",
+      planId: "platinum-monthly",
       status: "active",
       provider: "mock",
       providerSubscriptionId: "ms_d",
@@ -228,6 +232,7 @@ describe("VPN lifecycle services", () => {
   it("refuses VPN provision without an active subscription", async () => {
     await db.insert(users).values({
       id: "user_f",
+      username: "u_f",
       email: "f@test.local",
       passwordHash: "x",
       role: "customer",
@@ -246,6 +251,7 @@ describe("VPN lifecycle services", () => {
   it("provider failure leaves structured error then reconcile repairs", async () => {
     await db.insert(users).values({
       id: "user_e",
+      username: "u_e",
       email: "e@test.local",
       passwordHash: "x",
       role: "customer",
@@ -255,7 +261,7 @@ describe("VPN lifecycle services", () => {
     await db.insert(subscriptions).values({
       id: "sub_e",
       userId: "user_e",
-      planId: "premium-monthly",
+      planId: "platinum-monthly",
       status: "active",
       provider: "mock",
       providerSubscriptionId: "ms_e",

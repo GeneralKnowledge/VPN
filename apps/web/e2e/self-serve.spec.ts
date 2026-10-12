@@ -2,16 +2,18 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function login(page: Page, email: string, password: string) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Username or email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/dashboard|admin/);
 }
 
 test("register then mock checkout reaches VPN-ready", async ({ page }) => {
-  const email = `e2e-sub-${Date.now()}@northstar.local`;
-  await page.goto("/register?plan=premium-monthly");
-  await page.getByLabel("Name").fill("E2E Subscriber");
+  const stamp = Date.now();
+  const email = `e2e-sub-${stamp}@northstar.local`;
+  await page.goto("/register?plan=platinum-monthly");
+  await page.getByLabel("Username").fill(`e2e${stamp}`);
+  await page.getByLabel("Name (optional)").fill("E2E Subscriber");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill("E2eSubscribe123!");
   await page.getByRole("button", { name: /Create account/i }).click();

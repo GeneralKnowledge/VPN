@@ -5,7 +5,8 @@ import { createDb } from "./client";
 const SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  email TEXT NOT NULL,
+  username TEXT NOT NULL,
+  email TEXT,
   email_verified_at INTEGER,
   password_hash TEXT NOT NULL,
   name TEXT,
@@ -19,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
   updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
 );
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_uidx ON users(username);
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_uidx ON users(email);
 CREATE UNIQUE INDEX IF NOT EXISTS users_referral_uidx ON users(referral_code);
 CREATE INDEX IF NOT EXISTS users_role_idx ON users(role);
@@ -70,6 +72,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   provider_subscription_id TEXT,
   current_period_end INTEGER,
   cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+  billing_mode TEXT NOT NULL DEFAULT 'subscription',
   created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
   updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
 );
@@ -310,11 +313,82 @@ const ALTERS = [
   `ALTER TABLE vpn_accounts ADD COLUMN last_reconciled_at INTEGER`,
   `ALTER TABLE users ADD COLUMN preferred_location_id TEXT`,
   `ALTER TABLE users ADD COLUMN onboarding_dismissed_at INTEGER`,
+  `ALTER TABLE users ADD COLUMN username TEXT`,
+  `ALTER TABLE subscriptions ADD COLUMN billing_mode TEXT NOT NULL DEFAULT 'subscription'`,
   `ALTER TABLE sessions ADD COLUMN user_agent TEXT`,
   `ALTER TABLE sessions ADD COLUMN ip_address TEXT`,
   `ALTER TABLE vpn_locations ADD COLUMN latitude REAL`,
   `ALTER TABLE vpn_locations ADD COLUMN longitude REAL`,
 ];
+
+/**
+ * Older DBs created users.email as NOT NULL without username. Rebuild once so email can be
+ * null (Diamond/Iron) and username is required + unique.
+ */
+function rebuildUsersForOptionalEmail(sqlite: {
+  exec: (sql: string) => void;
+  prepare: (sql: string) => { all: () => unknown[] };
+}) {
+  const cols = sqlite.prepare(`pragma table_info(users)`).all() as Array<{ name: string; notnull: number }>;
+  if (!cols.length) return;
+  const email = cols.find((c) => c.name === "email");
+  const hasUsername = cols.some((c) => c.name === "username");
+  if (hasUsername && email && email.notnull === 0) return;
+
+  sqlite.exec(`PRAGMA foreign_keys = OFF;`);
+  sqlite.exec(`
+    CREATE TABLE users_new (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      email TEXT,
+      email_verified_at INTEGER,
+      password_hash TEXT NOT NULL,
+      name TEXT,
+      role TEXT NOT NULL DEFAULT 'customer',
+      lifecycle TEXT NOT NULL DEFAULT 'customer',
+      referral_code TEXT NOT NULL,
+      referred_by_user_id TEXT,
+      preferred_location_id TEXT,
+      onboarding_dismissed_at INTEGER,
+      deleted_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+      updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+    );
+    INSERT INTO users_new (
+      id, username, email, email_verified_at, password_hash, name, role, lifecycle,
+      referral_code, referred_by_user_id, preferred_location_id, onboarding_dismissed_at,
+      deleted_at, created_at, updated_at
+    )
+    SELECT
+      id,
+      COALESCE(
+        NULLIF(username, ''),
+        lower(replace(substr(email, 1, instr(email || '@', '@') - 1), '.', '_')),
+        id
+      ),
+      email,
+      email_verified_at,
+      password_hash,
+      name,
+      role,
+      lifecycle,
+      referral_code,
+      referred_by_user_id,
+      preferred_location_id,
+      onboarding_dismissed_at,
+      deleted_at,
+      created_at,
+      updated_at
+    FROM users;
+    DROP TABLE users;
+    ALTER TABLE users_new RENAME TO users;
+    CREATE UNIQUE INDEX IF NOT EXISTS users_username_uidx ON users(username);
+    CREATE UNIQUE INDEX IF NOT EXISTS users_email_uidx ON users(email);
+    CREATE UNIQUE INDEX IF NOT EXISTS users_referral_uidx ON users(referral_code);
+    CREATE INDEX IF NOT EXISTS users_role_idx ON users(role);
+  `);
+  sqlite.exec(`PRAGMA foreign_keys = ON;`);
+}
 
 function monorepoRoot(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -337,6 +411,14 @@ export function migrate(databaseUrl = process.env.DATABASE_URL ?? "file:./data/n
     } catch {
       // column already exists
     }
+  }
+  try {
+    rebuildUsersForOptionalEmail(sqlite);
+  } catch (err) {
+    console.warn(
+      "[db] could not rebuild users for optional email / username",
+      err instanceof Error ? err.message : err,
+    );
   }
   try {
     sqlite.exec(

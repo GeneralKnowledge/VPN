@@ -53,6 +53,7 @@ describe("billing lifecycle", () => {
   async function addUser(id: string, lifecycle: "customer" | "active" = "customer") {
     await db.insert(users).values({
       id,
+      username: id,
       email: `${id}@test.local`,
       passwordHash: "x",
       role: "customer",
@@ -64,7 +65,7 @@ describe("billing lifecycle", () => {
   async function subscribe(userId: string, subId = `ms_${userId}`) {
     return activateSubscription(db, vpn, email, {
       userId,
-      planId: "premium-monthly",
+      planId: "platinum-monthly",
       providerSubscriptionId: subId,
       provider: "mock",
       amount: 499,
@@ -90,7 +91,7 @@ describe("billing lifecycle", () => {
     email = new MockEmailProvider();
     await db.insert(plans).values([
       {
-        id: "premium-monthly",
+        id: "platinum-monthly",
         name: "Premium",
         description: "t",
         price: 499,
@@ -132,7 +133,7 @@ describe("billing lifecycle", () => {
 
   it("the database refuses two live subscriptions for one user", async () => {
     await addUser("u1");
-    const base = { userId: "u1", planId: "premium-monthly", provider: "mock" as const, status: "active" as const };
+    const base = { userId: "u1", planId: "platinum-monthly", provider: "mock" as const, status: "active" as const };
     await db.insert(subscriptions).values({ id: "s1", ...base });
     await expect(db.insert(subscriptions).values({ id: "s2", ...base })).rejects.toThrow();
     await db.insert(subscriptions).values({ id: "s3", ...base, status: "cancelled" });
@@ -237,7 +238,11 @@ describe("billing lifecycle", () => {
     const checkout = await billing.createCheckout({
       customerId: "u1",
       customerEmail: "u1@test.local",
-      planId: "premium-monthly",
+      planId: "platinum-monthly",
+      billingMode: "subscription",
+      billingInterval: "month",
+      amount: 499,
+      paymentRail: "stripe",
       successUrl: "http://x/s",
       cancelUrl: "http://x/c",
     });
@@ -261,7 +266,11 @@ describe("billing lifecycle", () => {
       const checkout = await billing.createCheckout({
         customerId: "u1",
         customerEmail: "u1@test.local",
-        planId: "premium-monthly",
+        planId: "platinum-monthly",
+        billingMode: "subscription",
+        billingInterval: "month",
+        amount: 499,
+        paymentRail: "stripe",
         successUrl: "http://x/s",
         cancelUrl: "http://x/c",
       });
@@ -280,7 +289,8 @@ describe("billing lifecycle", () => {
       expect((await db.select().from(devices))[0]?.revokedAt).toBeTruthy();
       const user = await userRow("u1");
       expect(user.deletedAt).toBeTruthy();
-      expect(user.email).toBe("deleted+u1@invalid.local");
+      expect(user.email).toBeNull();
+      expect(user.username).toMatch(/^deleted_/);
       expect(user.passwordHash).toBe("!deleted");
       // Financial records are kept for accounting.
       expect(await db.select().from(payments)).toHaveLength(1);
