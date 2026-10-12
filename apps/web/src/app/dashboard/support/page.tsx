@@ -3,7 +3,8 @@ import { desc, eq } from "drizzle-orm";
 import { supportMessages, supportTickets } from "@northstar/db";
 import { requireUser } from "@/lib/auth";
 import { getDb } from "@/lib/providers";
-import { Badge, Button, Card, EmptyState, PageHeader } from "@/components/ui";
+import { supportLevelForUser } from "@/lib/support-tier";
+import { Alert, Badge, Button, Card, EmptyState, PageHeader } from "@/components/ui";
 import { SupportForm } from "./support-form";
 
 const statusLabel: Record<string, string> = {
@@ -16,6 +17,7 @@ const statusLabel: Record<string, string> = {
 export default async function SupportDashPage() {
   const user = await requireUser();
   const db = getDb();
+  const support = await supportLevelForUser(db, user.id);
   const tickets = await db
     .select()
     .from(supportTickets)
@@ -37,7 +39,7 @@ export default async function SupportDashPage() {
     <div className="space-y-6">
       <PageHeader
         title="Support"
-        description="Try the setup guides first — open a ticket here if you still need help."
+        description="Less personal data means less help. Your plan’s support level is shown below."
         actions={
           <Link href="/download">
             <Button size="sm" variant="secondary">
@@ -46,7 +48,17 @@ export default async function SupportDashPage() {
           </Link>
         }
       />
-      <SupportForm />
+      <Alert tone="info" title={`Support level: ${support.level.replace("_", " ")}`}>
+        {support.note}
+      </Alert>
+      {support.level === "self_serve" ? (
+        <EmptyState
+          title="Self-serve plan"
+          description="This tier has no tickets. Use the setup guides, or choose a higher-trust plan if you need human help."
+        />
+      ) : (
+        <SupportForm />
+      )}
       <div className="space-y-4">
         {withMessages.length === 0 ? (
           <EmptyState

@@ -10,10 +10,12 @@ export function BillingActions({
   planId,
   status,
   prefer,
+  prepaid,
 }: {
   planId?: string;
   status?: string;
   prefer?: boolean;
+  prepaid?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +45,11 @@ export function BillingActions({
     }
   }
 
-  async function post(path: string, successMessage: string, confirmation?: { title: string; description: string; confirmLabel: string }) {
+  async function post(
+    path: string,
+    successMessage: string,
+    confirmation?: { title: string; description: string; confirmLabel: string },
+  ) {
     if (confirmation && !(await confirm({ ...confirmation, destructive: true }))) return;
     setLoading(true);
     setError(null);
@@ -62,7 +68,6 @@ export function BillingActions({
   }
 
   useEffect(() => {
-    // Guard against React strict-mode double invocation, which would start two checkouts.
     if (prefer && planId && !autoStarted.current) {
       autoStarted.current = true;
       void startCheckout(planId);
@@ -74,7 +79,7 @@ export function BillingActions({
     return (
       <div className="mt-3">
         <Button type="button" disabled={loading} onClick={() => startCheckout(planId)}>
-          {loading ? "Starting…" : "Subscribe"}
+          {loading ? "Starting…" : prepaid ? "Pay once" : "Subscribe"}
         </Button>
         {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
       </div>
@@ -89,21 +94,29 @@ export function BillingActions({
           type="button"
           disabled={loading}
           onClick={() =>
-            post("/api/billing/cancel", "Your subscription will end at the end of the billing period.", {
-              title: "Cancel your subscription?",
-              description: "You keep full access until the end of your current billing period. You can resume before then.",
-              confirmLabel: "Cancel subscription",
-            })
+            post(
+              "/api/billing/cancel",
+              prepaid
+                ? "Prepaid access will end at the period end (or now if you chose immediate cancel)."
+                : "Your subscription will end at the end of the billing period.",
+              {
+                title: prepaid ? "End prepaid access early?" : "Cancel your subscription?",
+                description: prepaid
+                  ? "Prepaid plans do not renew. Cancel at period end keeps access until the date you paid for."
+                  : "You keep full access until the end of your current billing period. You can resume before then.",
+                confirmLabel: prepaid ? "End access" : "Cancel subscription",
+              },
+            )
           }
         >
-          Cancel subscription
+          {prepaid ? "End access" : "Cancel subscription"}
         </Button>
         {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
       </div>
     );
   }
 
-  if (status === "cancelling") {
+  if (status === "cancelling" && !prepaid) {
     return (
       <div className="mt-4">
         <Button type="button" disabled={loading} onClick={() => post("/api/billing/resume", "Your subscription has been resumed.")}>

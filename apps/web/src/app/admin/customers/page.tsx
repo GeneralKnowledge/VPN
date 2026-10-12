@@ -19,7 +19,12 @@ export default async function AdminCustomersPage({
     ? await db
         .select()
         .from(users)
-        .where(and(isNull(users.deletedAt), or(like(users.email, `%${q}%`), like(users.name, `%${q}%`))))
+        .where(
+          and(
+            isNull(users.deletedAt),
+            or(like(users.email, `%${q}%`), like(users.username, `%${q}%`), like(users.name, `%${q}%`)),
+          ),
+        )
         .orderBy(desc(users.createdAt))
         .limit(50)
     : await db.select().from(users).where(isNull(users.deletedAt)).orderBy(desc(users.createdAt)).limit(50);
@@ -33,7 +38,7 @@ export default async function AdminCustomersPage({
           type="search"
           aria-label="Search customers"
           defaultValue={q}
-          placeholder="Search email or name"
+          placeholder="Search username, email, or name"
           className="max-w-md"
         />
       </form>
@@ -45,13 +50,18 @@ export default async function AdminCustomersPage({
         rowKey={(u) => u.id}
         columns={[
           {
-            key: "email",
-            header: "Email",
+            key: "username",
+            header: "Username",
             cell: (u) => (
               <Link href={`/admin/customers/${u.id}`} className="font-medium hover:underline">
-                {u.email}
+                {u.username}
               </Link>
             ),
+          },
+          {
+            key: "email",
+            header: "Email",
+            cell: (u) => u.email || "—",
           },
           {
             key: "name",

@@ -55,10 +55,19 @@ export async function POST(req: Request) {
     }
 
     const user = await requireUser();
-    enforceRateLimit("support", [`user:${user.id}`], 20, 60 * 60_000);
     const db = getDb();
+    const { supportLevelForUser, ticketLimitForLevel } = await import("@/lib/support-tier");
+    const support = await supportLevelForUser(db, user.id);
+    const limit = user.role === "admin" ? 50 : ticketLimitForLevel(support.level);
 
     if (typeof payload.ticketId === "string") {
+      if (limit === 0 && user.role !== "admin") {
+        throw new HttpError(
+          403,
+          "Your plan is self-serve only. Use the setup guides — we do not offer tickets on this tier.",
+        );
+      }
+      enforceRateLimit("support", [`user:${user.id}`], Math.max(limit, 1), 60 * 60_000);
       const body = replySchema.safeParse(payload);
       if (!body.success) throw new HttpError(400, "Invalid message");
       const [ticket] = await db.select().from(supportTickets).where(eq(supportTickets.id, body.data.ticketId)).limit(1);
@@ -72,17 +81,25 @@ export async function POST(req: Request) {
       });
       if (user.role === "admin") {
         const [owner] = await db.select().from(users).where(eq(users.id, ticket.userId)).limit(1);
-        if (owner && !owner.deletedAt) {
+        if (owner?.email && !owner.deletedAt) {
           await sendEmailSafe(getEmailProvider(), {
             to: owner.email,
             template: "support_response",
-            vars: { name: owner.name ?? "there", ticketId: ticket.id, message: body.data.body },
+            vars: { name: owner.name ?? owner.username, ticketId: ticket.id, message: body.data.body },
             correlationId: correlationId(),
           });
         }
       }
       return Response.json({ ok: true });
     }
+
+    if (limit === 0) {
+      throw new HttpError(
+        403,
+        `${support.note} Open /download for guides, or choose a higher-trust plan if you need tickets.`,
+      );
+    }
+    enforceRateLimit("support", [`user:${user.id}`], limit, 60 * 60_000);
 
     const body = ticketSchema.safeParse(payload);
     if (!body.success) throw new HttpError(400, "Please enter a subject and a message.");
@@ -101,7 +118,8 @@ export async function POST(req: Request) {
       action: "support.ticket_created",
       targetType: "support_ticket",
       targetId: ticketId,
+      metadata: { supportLevel: support.level, planId: support.planId },
     });
-    return Response.json({ ok: true, id: ticketId });
+    return Response.json({ ok: true, id: ticketId, supportLevel: support.level });
   });
 }

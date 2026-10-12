@@ -40,8 +40,10 @@ export default async function AccountPage() {
         description="Your profile, security, sessions, and account deletion — all self-serve."
       />
       <Card>
-        <p className="text-sm text-muted">Email</p>
-        <p className="font-medium">{user.email}</p>
+        <p className="text-sm text-muted">Username</p>
+        <p className="font-medium">{user.username}</p>
+        <p className="mt-4 text-sm text-muted">Email</p>
+        <p className="font-medium">{user.email ?? "— (username-only account)"}</p>
         <p className="mt-4 text-sm text-muted">Name</p>
         <p className="font-medium">{user.name ?? "—"}</p>
         <p className="mt-4 text-sm text-muted">Referral code</p>
@@ -51,7 +53,7 @@ export default async function AccountPage() {
           <Link href="/dashboard/referral" className="text-sea hover:underline">
             Referral
           </Link>{" "}
-          page.
+          page. Deleting your account wipes known personal data and support message bodies.
         </p>
       </Card>
       <SessionsPanel sessions={sessionRows} />

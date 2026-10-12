@@ -21,7 +21,10 @@ export const users = sqliteTable(
   "users",
   {
     id: text("id").primaryKey(),
-    email: text("email").notNull(),
+    /** Login handle — always required. May match the email local-part for email tiers. */
+    username: text("username").notNull(),
+    /** Optional. Null for username-only (Diamond / Iron) accounts. */
+    email: text("email"),
     emailVerifiedAt: integer("email_verified_at", { mode: "timestamp_ms" }),
     passwordHash: text("password_hash").notNull(),
     name: text("name"),
@@ -50,6 +53,7 @@ export const users = sqliteTable(
     ...timestamps,
   },
   (t) => [
+    uniqueIndex("users_username_uidx").on(t.username),
     uniqueIndex("users_email_uidx").on(t.email),
     uniqueIndex("users_referral_uidx").on(t.referralCode),
     index("users_role_idx").on(t.role),
@@ -116,10 +120,14 @@ export const subscriptions = sqliteTable(
     status: text("status", {
       enum: ["trialing", "active", "past_due", "cancelling", "cancelled", "expired", "incomplete"],
     }).notNull(),
-    provider: text("provider", { enum: ["mock", "stripe"] }).notNull(),
+    provider: text("provider", { enum: ["mock", "stripe", "crypto"] }).notNull(),
     providerSubscriptionId: text("provider_subscription_id"),
     currentPeriodEnd: integer("current_period_end", { mode: "timestamp_ms" }),
     cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" }).notNull().default(false),
+    /** subscription = renewing; prepaid = one-off access until period end. */
+    billingMode: text("billing_mode", { enum: ["subscription", "prepaid"] })
+      .notNull()
+      .default("subscription"),
     ...timestamps,
   },
   (t) => [

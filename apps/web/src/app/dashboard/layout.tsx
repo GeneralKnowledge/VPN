@@ -49,12 +49,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle compact />
-            <UserMenu email={user.email} name={user.name} />
+            <UserMenu email={user.email} username={user.username} name={user.name} />
           </div>
         </div>
       </header>
       <PwaInstallBanner surface="dashboard" />
-      {emailVerificationRequired() && !user.emailVerifiedAt ? <VerifyEmailBanner email={user.email} /> : null}
+      {user.email && emailVerificationRequired() && !user.emailVerifiedAt ? (
+        <VerifyEmailBanner email={user.email} />
+      ) : null}
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row">
         <nav aria-label="Dashboard" className="hidden gap-2 lg:flex lg:w-48 lg:flex-col">
           {nav.map((item) => (

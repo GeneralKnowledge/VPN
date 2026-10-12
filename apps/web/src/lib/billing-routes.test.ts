@@ -21,8 +21,11 @@ const ctx = vi.hoisted(() => ({
 
 vi.mock("@/lib/providers", () => ({
   getDb: () => ctx.db,
-  getEnv: () => ({ BILLING_PROVIDER: ctx.billingKind }),
+  getEnv: () => ({ BILLING_PROVIDER: ctx.billingKind, CRYPTO_BILLING_PROVIDER: "mock" }),
   getBillingProvider: () => ctx.billing,
+  getBillingProviderForPlan: () => ctx.billing,
+  getCryptoBillingProvider: () => ctx.billing,
+  allowsMockCheckoutComplete: () => ctx.billingKind === "mock",
   getVpnProvider: () => ctx.vpn,
   getEmailProvider: () => ctx.email,
   emailVerificationRequired: () => !ctx.verified,
@@ -53,7 +56,7 @@ function json(body: unknown) {
   });
 }
 
-async function start(planId = "premium-monthly") {
+async function start(planId = "platinum-monthly") {
   const res = await checkout(json({ planId }));
   return { res, body: (await res.json()) as { sessionId?: string; error?: string } };
 }
@@ -74,7 +77,7 @@ describe("billing routes", () => {
     ctx.vpn = new MockVPNProvider();
     ctx.email = new MockEmailProvider();
     await db.insert(plans).values({
-      id: "premium-monthly",
+      id: "platinum-monthly",
       name: "Premium",
       description: "t",
       price: 499,
@@ -86,6 +89,7 @@ describe("billing routes", () => {
     });
     await db.insert(users).values({
       id: "u1",
+      username: "u1",
       email: "u1@test.local",
       passwordHash: "x",
       role: "customer",
@@ -153,6 +157,7 @@ describe("billing routes", () => {
     expect(res.status).toBe(404);
     await db.insert(users).values({
       id: "u2",
+      username: "u2",
       email: "u2@test.local",
       passwordHash: "x",
       role: "customer",
@@ -162,7 +167,7 @@ describe("billing routes", () => {
     await db.insert(checkoutSessions).values({
       id: "chk_x",
       userId: "u2",
-      planId: "premium-monthly",
+      planId: "platinum-monthly",
       providerSessionId: "cs_mock_other",
       status: "open",
     });

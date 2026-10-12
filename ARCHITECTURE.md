@@ -69,8 +69,8 @@ Provisioning is **idempotent**: a local `vpn_accounts` row is written first with
 ## Assumptions
 
 1. Placeholder brand is **Northstar VPN** (centralized in `@northstar/config`).
-2. Initial prices are £4.99/mo and £39.99/yr (config-driven).
-3. Marketing copy avoids unverifiable privacy/logging claims.
+2. Initial prices are £4.99/mo and £39.99/yr (config-driven) across access tiers (Platinum→Iron).
+3. Marketing copy avoids unverifiable privacy/logging claims. Tiers mix trust with anonymity: Stripe renewing vs prepaid one-offs (crypto/Gold), email vs username, support scaled to data held.
 4. Mock locations are fixtures; live inventory comes from the provider when `VPN_PROVIDER=vpnresellers`.
 5. Config downloads in mock mode are clearly marked.
 6. VPNresellers API v4.1 is the real adapter target (see `docs/vpnresellers.md`).

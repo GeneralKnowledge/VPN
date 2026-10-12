@@ -17,13 +17,21 @@ const SESSION_DAYS = 14;
 
 export type SessionUser = {
   id: string;
-  email: string;
+  username: string;
+  email: string | null;
   name: string | null;
   role: "customer" | "admin";
   lifecycle: string;
   emailVerifiedAt: Date | null;
   referralCode: string;
 };
+
+/** Public login handle: 3–32 chars, starts alphanumeric. */
+export const USERNAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$/;
+
+export function normaliseUsername(raw: string): string {
+  return raw.trim().toLowerCase();
+}
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -117,6 +125,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       sessionId: sessions.id,
       expiresAt: sessions.expiresAt,
       id: users.id,
+      username: users.username,
       email: users.email,
       name: users.name,
       role: users.role,
@@ -133,6 +142,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!user) return null;
   return {
     id: user.id,
+    username: user.username,
     email: user.email,
     name: user.name,
     role: user.role,

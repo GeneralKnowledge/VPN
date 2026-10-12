@@ -24,12 +24,20 @@ export const customerLifecycleSchema = z.enum([
 ]);
 export type CustomerLifecycle = z.infer<typeof customerLifecycleSchema>;
 
+export const billingModeSchema = z.enum(["subscription", "prepaid"]);
+export type BillingMode = z.infer<typeof billingModeSchema>;
+
+export const paymentRailSchema = z.enum(["stripe", "crypto"]);
+export type PaymentRail = z.infer<typeof paymentRailSchema>;
+
 export interface CheckoutSession {
   id: string;
   url: string;
   planId: string;
   customerId: string;
   status: "open" | "complete" | "expired";
+  billingMode: BillingMode;
+  paymentRail: PaymentRail;
 }
 
 export interface BillingSubscription {
@@ -39,7 +47,8 @@ export interface BillingSubscription {
   status: SubscriptionStatus;
   currentPeriodEnd: string;
   cancelAtPeriodEnd: boolean;
-  provider: "mock" | "stripe";
+  provider: "mock" | "stripe" | "crypto";
+  billingMode: BillingMode;
 }
 
 export interface Invoice {
@@ -72,8 +81,13 @@ export class BillingProviderError extends Error {
 
 export interface CreateCheckoutInput {
   customerId: string;
-  customerEmail: string;
+  /** Null for username-only accounts (Diamond / Iron). */
+  customerEmail: string | null;
   planId: string;
+  billingMode: BillingMode;
+  billingInterval: "month" | "year";
+  amount: number;
+  paymentRail: PaymentRail;
   successUrl: string;
   cancelUrl: string;
   idempotencyKey?: string;
@@ -94,7 +108,7 @@ export interface BillingProvider {
   simulatePaymentFailed?(subscriptionId: string): Promise<BillingSubscription>;
 }
 
-export type BillingProviderKind = "mock" | "stripe";
+export type BillingProviderKind = "mock" | "stripe" | "crypto";
 
 /** Pure state machine helpers — unit tested */
 export function nextLifecycleAfterPayment(
@@ -171,3 +185,10 @@ export function nextLifecycleAfterResume(
 
 /** Subscriptions stay usable for a short grace window after a missed renewal before access is cut. */
 export const RENEWAL_GRACE_DAYS = 3;
+
+/** Period end for month/year plans from a start date. */
+export function periodEndFrom(from: Date, billingInterval: "month" | "year"): Date {
+  const end = new Date(from);
+  end.setMonth(end.getMonth() + (billingInterval === "year" ? 12 : 1));
+  return end;
+}

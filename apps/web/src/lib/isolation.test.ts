@@ -26,7 +26,7 @@ describe("customer isolation", () => {
     const { db, close } = createDb(databaseUrl);
 
     await db.insert(plans).values({
-      id: "premium-monthly",
+      id: "platinum-monthly",
       name: "Premium",
       description: "t",
       price: 499,
@@ -40,6 +40,7 @@ describe("customer isolation", () => {
     await db.insert(users).values([
       {
         id: "user_a",
+        username: "u_a",
         email: "a@test.local",
         passwordHash: "x",
         role: "customer",
@@ -48,6 +49,7 @@ describe("customer isolation", () => {
       },
       {
         id: "user_b",
+        username: "u_b",
         email: "b@test.local",
         passwordHash: "x",
         role: "customer",

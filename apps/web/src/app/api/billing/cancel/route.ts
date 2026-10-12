@@ -1,11 +1,12 @@
 import { eq } from "drizzle-orm";
 import { nextLifecycleAfterCancel, type CustomerLifecycle } from "@northstar/billing";
+import { getPlan } from "@northstar/config";
 import { subscriptions, users } from "@northstar/db";
 import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
 import { HttpError, handle, readJson } from "@/lib/http";
 import { sendEmailSafe } from "@/lib/notify";
-import { getBillingProvider, getDb, getEmailProvider, getVpnProvider } from "@/lib/providers";
+import { getBillingProvider, getBillingProviderForPlan, getDb, getEmailProvider, getVpnProvider } from "@/lib/providers";
 import { endSubscription } from "@/lib/services";
 import { correlationId } from "@/lib/utils";
 
@@ -30,7 +31,9 @@ export async function POST(req: Request) {
       return Response.json({ ok: true, status: "cancelling", cancelAtPeriodEnd: true });
     }
 
-    const updated = await getBillingProvider().cancelSubscription(sub.providerSubscriptionId, atPeriodEnd);
+    const plan = getPlan(sub.planId);
+    const billing = plan ? getBillingProviderForPlan(plan) : getBillingProvider();
+    const updated = await billing.cancelSubscription(sub.providerSubscriptionId, atPeriodEnd);
     if (atPeriodEnd) {
       // Access continues until period end, so the VPN stays on; only the customer lifecycle changes.
       await db
@@ -48,12 +51,14 @@ export async function POST(req: Request) {
       await endSubscription(db, getVpnProvider(), sub, "cancelled", cid);
     }
 
-    await sendEmailSafe(getEmailProvider(), {
-      to: user.email,
-      template: "subscription_cancelled",
-      vars: { name: user.name ?? "there" },
-      correlationId: cid,
-    });
+    if (user.email) {
+      await sendEmailSafe(getEmailProvider(), {
+        to: user.email,
+        template: "subscription_cancelled",
+        vars: { name: user.name ?? user.username },
+        correlationId: cid,
+      });
+    }
     await writeAudit(db, {
       actorId: user.id,
       actorType: "user",

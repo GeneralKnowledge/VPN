@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   canProvisionVpn,
   createBillingProvider,
+  CryptoBillingProvider,
   MockBillingProvider,
   StripeBillingProvider,
   nextLifecycleAfterCancel,
   nextLifecycleAfterPayment,
   nextLifecycleAfterPaymentFailed,
   nextLifecycleAfterVpnProvisioned,
+  periodEndFrom,
 } from "./index";
 
 describe("subscription lifecycle", () => {
@@ -36,7 +38,11 @@ describe("MockBillingProvider", () => {
     const a = await billing.createCheckout({
       customerId: "u1",
       customerEmail: "a@test.local",
-      planId: "premium-monthly",
+      planId: "platinum-monthly",
+      billingMode: "subscription",
+      billingInterval: "month",
+      amount: 499,
+      paymentRail: "stripe",
       successUrl: "http://localhost/success",
       cancelUrl: "http://localhost/cancel",
       idempotencyKey: "key-1",
@@ -44,7 +50,11 @@ describe("MockBillingProvider", () => {
     const b = await billing.createCheckout({
       customerId: "u1",
       customerEmail: "a@test.local",
-      planId: "premium-monthly",
+      planId: "platinum-monthly",
+      billingMode: "subscription",
+      billingInterval: "month",
+      amount: 499,
+      paymentRail: "stripe",
       successUrl: "http://localhost/success",
       cancelUrl: "http://localhost/cancel",
       idempotencyKey: "key-1",
@@ -52,8 +62,51 @@ describe("MockBillingProvider", () => {
     expect(a.id).toBe(b.id);
     const sub = await billing.completeCheckout(a.id);
     expect(sub.status).toBe("active");
+    expect(sub.billingMode).toBe("subscription");
+    expect(sub.cancelAtPeriodEnd).toBe(false);
     const cancelled = await billing.cancelSubscription(sub.id, true);
     expect(cancelled.status).toBe("cancelling");
+  });
+
+  it("completes crypto year as prepaid that simply runs until period end", async () => {
+    const billing = new MockBillingProvider("test-webhook-secret", "crypto");
+    const session = await billing.createCheckout({
+      customerId: "u2",
+      customerEmail: "b@test.local",
+      planId: "bronze-annual",
+      billingMode: "prepaid",
+      billingInterval: "year",
+      amount: 3999,
+      paymentRail: "crypto",
+      successUrl: "http://localhost/success",
+      cancelUrl: "http://localhost/cancel",
+    });
+    const sub = await billing.completeCheckout(session.id);
+    expect(sub.billingMode).toBe("prepaid");
+    expect(sub.cancelAtPeriodEnd).toBe(true);
+    expect(sub.provider).toBe("crypto");
+    const end = new Date(sub.currentPeriodEnd).getTime();
+    const expected = periodEndFrom(new Date(), "year").getTime();
+    expect(Math.abs(end - expected)).toBeLessThan(5_000);
+    await expect(billing.resumeSubscription(sub.id)).rejects.toMatchObject({ code: "validation" });
+  });
+
+  it("keeps Stripe annual renewing (not the same as crypto year)", async () => {
+    const billing = new MockBillingProvider("sec");
+    const session = await billing.createCheckout({
+      customerId: "u3",
+      customerEmail: "c@test.local",
+      planId: "platinum-annual",
+      billingMode: "subscription",
+      billingInterval: "year",
+      amount: 3999,
+      paymentRail: "stripe",
+      successUrl: "http://localhost/success",
+      cancelUrl: "http://localhost/cancel",
+    });
+    const sub = await billing.completeCheckout(session.id);
+    expect(sub.billingMode).toBe("subscription");
+    expect(sub.cancelAtPeriodEnd).toBe(false);
   });
 
   it("hydrates seeded sub_mock_* ids after process restart", async () => {
@@ -71,7 +124,7 @@ describe("MockBillingProvider", () => {
       id: "evt_forge",
       type: "mock.checkout.completed",
       userId: "victim_user",
-      planId: "premium-monthly",
+      planId: "platinum-monthly",
     });
 
     expect((await locked.verifyWebhook(payload, null)).signatureValid).toBe(false);
@@ -80,7 +133,6 @@ describe("MockBillingProvider", () => {
     expect((await locked.verifyWebhook(payload, "wrong")).signatureValid).toBe(false);
     expect((await locked.verifyWebhook(payload, "super-secret-webhook")).signatureValid).toBe(true);
 
-    // Empty secret → never valid (fail closed)
     const open = new MockBillingProvider("");
     expect((await open.verifyWebhook(payload, null)).signatureValid).toBe(false);
     expect((await open.verifyWebhook(payload, "dev")).signatureValid).toBe(false);
@@ -89,6 +141,8 @@ describe("MockBillingProvider", () => {
   it("selects providers", () => {
     expect(createBillingProvider("mock")).toBeInstanceOf(MockBillingProvider);
     expect(createBillingProvider("mock", { webhookSecret: "x" })).toBeInstanceOf(MockBillingProvider);
+    expect(createBillingProvider("crypto")).toBeInstanceOf(CryptoBillingProvider);
+    expect(createBillingProvider("stripe", { secretKey: "sk" })).toBeInstanceOf(StripeBillingProvider);
   });
 });
 

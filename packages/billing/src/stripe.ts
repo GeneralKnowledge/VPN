@@ -11,7 +11,7 @@ import { BillingProviderError } from "./types";
 /**
  * Stripe adapter skeleton — compiles without Stripe credentials.
  * Live calls require STRIPE_SECRET_KEY. Prefer Stripe SDK when activating.
- * No invented Stripe endpoints; methods throw until configured.
+ * Subscription vs prepaid (Gold one-offs) is selected via input.billingMode.
  */
 export class StripeBillingProvider implements BillingProvider {
   constructor(
@@ -39,9 +39,13 @@ export class StripeBillingProvider implements BillingProvider {
     return { ok: true, provider: "stripe", detail: "Configured (live verification deferred)" };
   }
 
-  async createCheckout(_input: CreateCheckoutInput): Promise<CheckoutSession> {
+  async createCheckout(input: CreateCheckoutInput): Promise<CheckoutSession> {
     this.ensureConfigured();
-    // Production activation: use Stripe Checkout Sessions API via official SDK.
+    if (input.paymentRail !== "stripe") {
+      throw new BillingProviderError("Stripe provider cannot take crypto rail checkouts", "validation");
+    }
+    // Production: Checkout Session in subscription mode, or payment mode for prepaid (Gold).
+    void input.billingMode;
     throw new BillingProviderError(
       "Stripe checkout requires the Stripe SDK integration to be activated with live price IDs.",
       "unavailable",

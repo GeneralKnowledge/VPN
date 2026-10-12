@@ -46,11 +46,11 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### Seed credentials (development only)
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Admin | `admin@northstar.local` | `AdminDev123!` |
-| Customer (subscribed + VPN) | `customer@northstar.local` | `CustomerDev123!` |
-| Lead (no subscription) | `lead@northstar.local` | `LeadDev123!` |
+| Role | Username | Email | Password |
+| --- | --- | --- | --- |
+| Admin | `admin` | `admin@northstar.local` | `AdminDev123!` |
+| Customer (subscribed + VPN) | `ada` | `customer@northstar.local` | `CustomerDev123!` |
+| Lead (no subscription) | `lee` | `lead@northstar.local` | `LeadDev123!` |
 
 Never use these in production.
 

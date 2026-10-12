@@ -8,10 +8,11 @@ test("marketing homepage loads", async ({ page }) => {
 
 test("pricing page shows plans and savings", async ({ page }) => {
   await page.goto("/pricing");
-  await expect(page.getByRole("heading", { name: "Pricing", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Northstar Premium/i }).first()).toBeVisible();
-  await expect(page.getByText(/Save about/i)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Pricing questions" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pricing & access tiers", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Platinum", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Iron", exact: true })).toBeVisible();
+  await expect(page.getByText(/for 1 year/i).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Questions", exact: true })).toBeVisible();
 });
 
 test("sitemap and robots are served", async ({ request }) => {
@@ -40,7 +41,7 @@ test("theme toggle cycles appearance", async ({ page }) => {
 
 test("customer can log in to dashboard", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("Email").fill("customer@northstar.local");
+  await page.getByLabel("Username or email").fill("customer@northstar.local");
   await page.getByLabel("Password").fill("CustomerDev123!");
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/dashboard/);
@@ -49,12 +50,13 @@ test("customer can log in to dashboard", async ({ page }) => {
 
 test("trust page and self-serve onboarding checklist", async ({ page }) => {
   await page.goto("/trust");
-  await expect(page.getByRole("heading", { name: /Trust/i })).toBeVisible();
-  await expect(page.getByText(/Self-serve by design/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Trust & transparency", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Access tiers: trust ↔ anonymity", exact: true })).toBeVisible();
+  await expect(page.getByText(/Trusted third parties/i).first()).toBeVisible();
 
   // Lead seed user has no plan yet — checklist should guide them to billing.
   await page.goto("/login");
-  await page.getByLabel("Email").fill("lead@northstar.local");
+  await page.getByLabel("Username or email").fill("lead@northstar.local");
   await page.getByLabel("Password").fill("LeadDev123!");
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/dashboard/);
@@ -72,7 +74,7 @@ test("download guides include platform anchors", async ({ page }) => {
 
 test("admin can open customers table", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("Email").fill("admin@northstar.local");
+  await page.getByLabel("Username or email").fill("admin@northstar.local");
   await page.getByLabel("Password").fill("AdminDev123!");
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/admin/);
@@ -83,7 +85,7 @@ test("admin can open customers table", async ({ page }) => {
 
 test("admin subscriptions table lists seed customer", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("Email").fill("admin@northstar.local");
+  await page.getByLabel("Username or email").fill("admin@northstar.local");
   await page.getByLabel("Password").fill("AdminDev123!");
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/admin/);
@@ -105,7 +107,7 @@ test("mobile nav opens on a narrow viewport", async ({ page }) => {
 
 test("dashboard nav marks the current page and locations can be filtered", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("Email").fill("customer@northstar.local");
+  await page.getByLabel("Username or email").fill("customer@northstar.local");
   await page.getByLabel("Password").fill("CustomerDev123!");
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/dashboard/);
@@ -134,7 +136,7 @@ test("mobile dashboard uses bottom tabs and web manifest is served", async ({ pa
 
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto("/login");
-  await page.getByLabel("Email").fill("customer@northstar.local");
+  await page.getByLabel("Username or email").fill("customer@northstar.local");
   await page.getByLabel("Password").fill("CustomerDev123!");
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/dashboard/);
@@ -152,7 +154,7 @@ test("mobile dashboard uses bottom tabs and web manifest is served", async ({ pa
 
 test("set up this device wizard reaches WireGuard install step", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("Email").fill("customer@northstar.local");
+  await page.getByLabel("Username or email").fill("customer@northstar.local");
   await page.getByLabel("Password").fill("CustomerDev123!");
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/dashboard/);
@@ -174,7 +176,7 @@ test("login page shows a show/hide password toggle", async ({ page }) => {
 
 test("customer can show WireGuard QR for a connection", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("Email").fill("customer@northstar.local");
+  await page.getByLabel("Username or email").fill("customer@northstar.local");
   await page.getByLabel("Password").fill("CustomerDev123!");
   await page.getByRole("button", { name: /Sign in/i }).click();
   await expect(page).toHaveURL(/dashboard/);

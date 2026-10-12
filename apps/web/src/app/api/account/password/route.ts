@@ -34,12 +34,14 @@ export async function POST(req: Request) {
     const currentToken = (await cookies()).get(SESSION_COOKIE)?.value;
     await destroyUserSessions(db, user.id, currentToken);
 
-    await sendEmailSafe(getEmailProvider(), {
-      to: user.email,
-      template: "security_notification",
-      vars: { name: user.name ?? "there", message: "Your password was changed." },
-      correlationId: correlationId(),
-    });
+    if (user.email) {
+      await sendEmailSafe(getEmailProvider(), {
+        to: user.email,
+        template: "security_notification",
+        vars: { name: user.name ?? user.username, message: "Your password was changed." },
+        correlationId: correlationId(),
+      });
+    }
     await writeAudit(db, {
       actorId: user.id,
       actorType: "user",

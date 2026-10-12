@@ -5,6 +5,7 @@ import {
   parseEnv,
   productionEnvProblems,
   type AppEnv,
+  type Plan,
   type Product,
 } from "@northstar/config";
 import { createDb, type Db } from "@northstar/db";
@@ -20,6 +21,7 @@ const globalStore = globalThis as unknown as {
   northstarVpn?: VPNProvider;
   northstarEsim?: EsimProvider;
   northstarBilling?: BillingProvider;
+  northstarBillingCrypto?: BillingProvider;
   northstarEmail?: EmailProvider;
 };
 
@@ -104,19 +106,62 @@ export function getEsimProvider() {
   return globalStore.northstarEsim;
 }
 
+function stripePriceMap(env: AppEnv): Record<string, string> {
+  return {
+    "platinum-monthly": env.STRIPE_PRICE_MONTHLY,
+    "platinum-annual": env.STRIPE_PRICE_ANNUAL,
+    "premium-monthly": env.STRIPE_PRICE_MONTHLY,
+    "premium-annual": env.STRIPE_PRICE_ANNUAL,
+    "diamond-monthly": env.STRIPE_PRICE_DIAMOND_MONTHLY,
+    "diamond-annual": env.STRIPE_PRICE_DIAMOND_ANNUAL,
+    "gold-monthly": env.STRIPE_PRICE_GOLD_MONTHLY,
+    "gold-annual": env.STRIPE_PRICE_GOLD_ANNUAL,
+  };
+}
+
+/** Stripe-rail billing (Platinum / Diamond / Gold). */
 export function getBillingProvider() {
   if (!globalStore.northstarBilling) {
     const env = getEnv();
     globalStore.northstarBilling = createBillingProvider(env.BILLING_PROVIDER, {
       secretKey: env.STRIPE_SECRET_KEY,
       webhookSecret: env.STRIPE_WEBHOOK_SECRET,
-      priceMap: {
-        "premium-monthly": env.STRIPE_PRICE_MONTHLY,
-        "premium-annual": env.STRIPE_PRICE_ANNUAL,
-      },
+      priceMap: stripePriceMap(env),
+      defaultRail: "stripe",
     });
   }
   return globalStore.northstarBilling;
+}
+
+/** Crypto-rail billing (Bronze / Iron) — separate from Stripe; mock locally. */
+export function getCryptoBillingProvider() {
+  if (!globalStore.northstarBillingCrypto) {
+    const env = getEnv();
+    if (env.CRYPTO_BILLING_PROVIDER === "mock") {
+      globalStore.northstarBillingCrypto = createBillingProvider("mock", {
+        webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+        defaultRail: "crypto",
+      });
+    } else {
+      globalStore.northstarBillingCrypto = createBillingProvider("crypto", {
+        secretKey: "",
+        webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+      });
+    }
+  }
+  return globalStore.northstarBillingCrypto;
+}
+
+/** Pick the billing adapter for a plan’s payment rail. */
+export function getBillingProviderForPlan(plan: Plan): BillingProvider {
+  return plan.paymentRail === "crypto" ? getCryptoBillingProvider() : getBillingProvider();
+}
+
+/** Whether the browser mock-complete route may finalize this plan’s checkout. */
+export function allowsMockCheckoutComplete(plan: Plan): boolean {
+  const env = getEnv();
+  if (plan.paymentRail === "crypto") return env.CRYPTO_BILLING_PROVIDER === "mock";
+  return env.BILLING_PROVIDER === "mock";
 }
 
 export function getEmailProvider() {

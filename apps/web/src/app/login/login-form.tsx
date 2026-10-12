@@ -24,7 +24,7 @@ export function LoginForm({ showDevHint }: { showDevHint: boolean }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: form.get("email"),
+          login: form.get("login"),
           password: form.get("password"),
         }),
       });
@@ -50,15 +50,21 @@ export function LoginForm({ showDevHint }: { showDevHint: boolean }) {
         <h1 className="mt-6 font-display text-3xl">Log in</h1>
         {showDevHint ? (
           <p className="mt-2 text-sm text-muted">
-            Dev seeds: customer@northstar.local / CustomerDev123!
+            Dev seeds: ada / customer@northstar.local · CustomerDev123!
           </p>
         ) : (
-          <p className="mt-2 text-sm text-muted">Welcome back. Sign in to manage your VPN.</p>
+          <p className="mt-2 text-sm text-muted">Sign in with your username or email.</p>
         )}
         <form onSubmit={onSubmit} className="mt-8 space-y-4">
           <div>
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" required autoComplete="email" aria-describedby="login-error" />
+            <Label htmlFor="login">Username or email</Label>
+            <Input
+              id="login"
+              name="login"
+              required
+              autoComplete="username"
+              aria-describedby="login-error"
+            />
           </div>
           <div>
             <Label htmlFor="password">Password</Label>
@@ -73,6 +79,9 @@ export function LoginForm({ showDevHint }: { showDevHint: boolean }) {
           <Link href="/forgot-password" className="text-sea hover:underline">
             Forgot password?
           </Link>
+        </p>
+        <p className="mt-2 text-center text-xs text-muted">
+          Password reset needs an email on the account. Username-only plans cannot recover by mail.
         </p>
         <p className="mt-4 text-center text-sm text-muted">
           No account?{" "}

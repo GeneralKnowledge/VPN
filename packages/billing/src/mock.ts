@@ -1,14 +1,16 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type {
+  BillingMode,
   BillingProvider,
   BillingSubscription,
   BillingWebhookEvent,
   CheckoutSession,
   CreateCheckoutInput,
   Invoice,
+  PaymentRail,
   SubscriptionStatus,
 } from "./types";
-import { BillingProviderError } from "./types";
+import { BillingProviderError, periodEndFrom } from "./types";
 
 function id(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
@@ -21,8 +23,24 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ah, bh);
 }
 
+type StoredCheckout = CheckoutSession & {
+  email: string | null;
+  billingInterval: "month" | "year";
+  amount: number;
+};
+
+function inferInterval(planId: string): "month" | "year" {
+  return planId.includes("annual") || planId.includes("year") ? "year" : "month";
+}
+
+function inferPrepaid(planId: string, billingMode?: BillingMode): boolean {
+  if (billingMode) return billingMode === "prepaid";
+  // Legacy / hydrated sessions: crypto + gold plans are prepaid one-offs.
+  return /^(bronze|iron|gold)-/.test(planId) || planId.includes("crypto");
+}
+
 export class MockBillingProvider implements BillingProvider {
-  private checkouts = new Map<string, CheckoutSession & { email: string }>();
+  private checkouts = new Map<string, StoredCheckout>();
   private subscriptions = new Map<string, BillingSubscription>();
   private invoices = new Map<string, Invoice[]>();
   private idempotency = new Map<string, CheckoutSession>();
@@ -31,48 +49,67 @@ export class MockBillingProvider implements BillingProvider {
    * Shared secret for mock webhooks (reuse STRIPE_WEBHOOK_SECRET in app wiring).
    * Empty secret → all webhook signatures are invalid (fail closed).
    */
-  constructor(private readonly webhookSecret = "") {}
+  constructor(
+    private readonly webhookSecret = "",
+    private readonly defaultRail: PaymentRail = "stripe",
+  ) {}
 
   async getProviderStatus() {
-    return { ok: true, provider: "mock", detail: "Mock billing operational" };
+    return {
+      ok: true,
+      provider: "mock",
+      detail: `Mock billing operational (default rail: ${this.defaultRail})`,
+    };
   }
 
   async createCheckout(input: CreateCheckoutInput): Promise<CheckoutSession> {
     if (input.idempotencyKey && this.idempotency.has(input.idempotencyKey)) {
       return { ...this.idempotency.get(input.idempotencyKey)! };
     }
-    const session: CheckoutSession & { email: string } = {
-      id: id("cs_mock"),
-      url: `${input.successUrl}${input.successUrl.includes("?") ? "&" : "?"}session_id=pending`,
+    const session: StoredCheckout = {
+      id: id(input.paymentRail === "crypto" ? "cs_crypto" : "cs_mock"),
+      url: `/billing/mock-checkout?session_id=pending`,
       planId: input.planId,
       customerId: input.customerId,
       status: "open",
       email: input.customerEmail,
+      billingMode: input.billingMode,
+      paymentRail: input.paymentRail,
+      billingInterval: input.billingInterval,
+      amount: input.amount,
     };
-    // Point to local mock checkout completion page
     session.url = `/billing/mock-checkout?session_id=${session.id}`;
     this.checkouts.set(session.id, session);
-    if (input.idempotencyKey) this.idempotency.set(input.idempotencyKey, session);
-    return {
+    const publicSession: CheckoutSession = {
       id: session.id,
       url: session.url,
       planId: session.planId,
       customerId: session.customerId,
       status: session.status,
+      billingMode: session.billingMode,
+      paymentRail: session.paymentRail,
     };
+    if (input.idempotencyKey) this.idempotency.set(input.idempotencyKey, publicSession);
+    return { ...publicSession };
   }
 
   async completeCheckout(sessionId: string): Promise<BillingSubscription> {
     let session = this.checkouts.get(sessionId);
     // Survive process restarts / HMR: allow completing known mock session ids
-    if (!session && sessionId.startsWith("cs_mock_")) {
+    if (!session && (sessionId.startsWith("cs_mock_") || sessionId.startsWith("cs_crypto_"))) {
+      const rail: PaymentRail = sessionId.startsWith("cs_crypto_") ? "crypto" : this.defaultRail;
+      const planId = "platinum-monthly";
       session = {
         id: sessionId,
         url: `/billing/mock-checkout?session_id=${sessionId}`,
-        planId: "premium-monthly",
+        planId,
         customerId: "unknown",
         status: "open",
         email: "unknown@localhost",
+        billingMode: "subscription",
+        paymentRail: rail,
+        billingInterval: "month",
+        amount: 499,
       };
       this.checkouts.set(sessionId, session);
     }
@@ -84,22 +121,27 @@ export class MockBillingProvider implements BillingProvider {
       if (existing) return { ...existing };
     }
     session.status = "complete";
-    const periodEnd = new Date();
-    periodEnd.setMonth(periodEnd.getMonth() + (session.planId.includes("annual") ? 12 : 1));
+    const prepaid = inferPrepaid(session.planId, session.billingMode);
+    const interval = session.billingInterval || inferInterval(session.planId);
+    const periodEnd = periodEndFrom(new Date(), interval);
+    const provider: BillingSubscription["provider"] =
+      session.paymentRail === "crypto" ? "crypto" : "mock";
     const sub: BillingSubscription = {
-      id: id("sub_mock"),
+      id: id(provider === "crypto" ? "sub_crypto" : "sub_mock"),
       customerId: session.customerId,
       planId: session.planId,
       status: "active",
       currentPeriodEnd: periodEnd.toISOString(),
-      cancelAtPeriodEnd: false,
-      provider: "mock",
+      // Prepaid one-offs never renew — they simply expire at period end.
+      cancelAtPeriodEnd: prepaid,
+      provider,
+      billingMode: prepaid ? "prepaid" : "subscription",
     };
     this.subscriptions.set(sub.id, sub);
     const invoice: Invoice = {
       id: id("inv_mock"),
       customerId: session.customerId,
-      amount: session.planId.includes("annual") ? 3999 : 499,
+      amount: session.amount || (interval === "year" ? 3999 : 499),
       currency: "GBP",
       status: "paid",
       createdAt: new Date().toISOString(),
@@ -114,17 +156,18 @@ export class MockBillingProvider implements BillingProvider {
     let sub = this.subscriptions.get(subscriptionId);
     // Survive process restarts / HMR / DB seed: seed and prior checkouts use sub_mock_* ids
     // that are not in this process's memory map.
-    if (!sub && subscriptionId.startsWith("sub_mock_")) {
+    if (!sub && (subscriptionId.startsWith("sub_mock_") || subscriptionId.startsWith("sub_crypto_"))) {
       const periodEnd = new Date();
       periodEnd.setMonth(periodEnd.getMonth() + 1);
       sub = {
         id: subscriptionId,
         customerId: "unknown",
-        planId: "premium-monthly",
+        planId: "platinum-monthly",
         status: "active",
         currentPeriodEnd: periodEnd.toISOString(),
-        cancelAtPeriodEnd: false,
-        provider: "mock",
+        cancelAtPeriodEnd: subscriptionId.startsWith("sub_crypto_"),
+        provider: subscriptionId.startsWith("sub_crypto_") ? "crypto" : "mock",
+        billingMode: subscriptionId.startsWith("sub_crypto_") ? "prepaid" : "subscription",
       };
       this.subscriptions.set(subscriptionId, sub);
     }
@@ -134,6 +177,18 @@ export class MockBillingProvider implements BillingProvider {
 
   async cancelSubscription(subscriptionId: string, atPeriodEnd = true): Promise<BillingSubscription> {
     const sub = await this.getSubscription(subscriptionId);
+    if (sub.billingMode === "prepaid") {
+      // Prepaid already ends at period end; immediate cancel cuts access now.
+      if (!atPeriodEnd) {
+        sub.status = "cancelled";
+        sub.cancelAtPeriodEnd = false;
+      } else {
+        sub.cancelAtPeriodEnd = true;
+        sub.status = "cancelling";
+      }
+      this.subscriptions.set(subscriptionId, sub);
+      return { ...sub };
+    }
     if (atPeriodEnd) {
       sub.cancelAtPeriodEnd = true;
       sub.status = "cancelling";
@@ -147,6 +202,9 @@ export class MockBillingProvider implements BillingProvider {
 
   async resumeSubscription(subscriptionId: string): Promise<BillingSubscription> {
     const sub = await this.getSubscription(subscriptionId);
+    if (sub.billingMode === "prepaid") {
+      throw new BillingProviderError("Prepaid access cannot be resumed — purchase again when it ends", "validation");
+    }
     if (sub.status === "cancelled") {
       throw new BillingProviderError("Cannot resume cancelled subscription", "validation");
     }
@@ -158,6 +216,9 @@ export class MockBillingProvider implements BillingProvider {
 
   async changePlan(subscriptionId: string, planId: string): Promise<BillingSubscription> {
     const sub = await this.getSubscription(subscriptionId);
+    if (sub.billingMode === "prepaid") {
+      throw new BillingProviderError("Prepaid plans cannot be changed mid-period", "validation");
+    }
     sub.planId = planId;
     this.subscriptions.set(subscriptionId, sub);
     return { ...sub };
@@ -191,7 +252,10 @@ export class MockBillingProvider implements BillingProvider {
 
   async simulatePaymentFailed(subscriptionId: string): Promise<BillingSubscription> {
     const sub = await this.getSubscription(subscriptionId);
-    const next: SubscriptionStatus = sub.status === "past_due" ? "past_due" : "past_due";
+    if (sub.billingMode === "prepaid") {
+      throw new BillingProviderError("Prepaid access has no renewals to fail", "validation");
+    }
+    const next: SubscriptionStatus = "past_due";
     sub.status = next;
     this.subscriptions.set(subscriptionId, sub);
     return { ...sub };
