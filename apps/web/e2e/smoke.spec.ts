@@ -8,10 +8,11 @@ test("marketing homepage loads", async ({ page }) => {
 
 test("pricing page shows plans and savings", async ({ page }) => {
   await page.goto("/pricing");
-  await expect(page.getByRole("heading", { name: "Pricing", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Northstar Premium/i }).first()).toBeVisible();
-  await expect(page.getByText(/Save about/i)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Pricing questions" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pricing & access tiers", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Platinum", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Iron", exact: true })).toBeVisible();
+  await expect(page.getByText(/for 1 year/i).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Questions", exact: true })).toBeVisible();
 });
 
 test("sitemap and robots are served", async ({ request }) => {
@@ -49,8 +50,9 @@ test("customer can log in to dashboard", async ({ page }) => {
 
 test("trust page and self-serve onboarding checklist", async ({ page }) => {
   await page.goto("/trust");
-  await expect(page.getByRole("heading", { name: /Trust/i })).toBeVisible();
-  await expect(page.getByText(/Self-serve by design/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Trust & transparency", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Access tiers: trust ↔ anonymity", exact: true })).toBeVisible();
+  await expect(page.getByText(/Trusted third parties/i).first()).toBeVisible();
 
   // Lead seed user has no plan yet — checklist should guide them to billing.
   await page.goto("/login");
