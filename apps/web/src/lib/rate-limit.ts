@@ -39,9 +39,25 @@ export function checkRateLimit(
   return { ok: true, retryAfterSeconds: 0 };
 }
 
-/** Best-effort client IP. Only meaningful behind a proxy that sets the header; never the sole control. */
-export function clientIp(req: Request): string | null {
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+/**
+ * Best-effort client IP; never the sole control. The leftmost X-Forwarded-For entry is whatever the
+ * client sent, so it is never used. Instead:
+ * - CLIENT_IP_HEADER names a header the edge proxy overwrites (e.g. cf-connecting-ip), or
+ * - the entry TRUSTED_PROXY_COUNT places from the right of X-Forwarded-For (default 1: the address
+ *   the nearest proxy saw), which a client cannot forge as long as that many proxies append to it.
+ */
+export function clientIp(req: Request, env: Record<string, string | undefined> = process.env): string | null {
+  const headerName = env.CLIENT_IP_HEADER?.trim().toLowerCase();
+  if (headerName) {
+    return req.headers.get(headerName)?.split(",")[0]?.trim() || null;
+  }
+  const hops = Math.max(1, Number.parseInt(env.TRUSTED_PROXY_COUNT ?? "1", 10) || 1);
+  const chain = (req.headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  // Fewer entries than trusted proxies means the chain is not what we expect; do not guess.
+  const forwarded = chain.length >= hops ? chain[chain.length - hops] : undefined;
   return forwarded || req.headers.get("x-real-ip") || null;
 }
 

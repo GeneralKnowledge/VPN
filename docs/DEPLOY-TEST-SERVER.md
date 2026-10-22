@@ -74,6 +74,7 @@ AUTH_URL=https://vpn.avedeus.ovh
 PRODUCT_HOST_VPN=vpn.avedeus.ovh
 PRODUCT_HOST_ESIM=sim.avedeus.ovh
 TRUST_FORWARDED_HOST=false
+CLIENT_IP_HEADER=cf-connecting-ip
 
 DATABASE_URL=file:./data/northstar.db
 
@@ -89,12 +90,13 @@ ANALYTICS_PROVIDER=mock
 ERROR_REPORTER=console
 
 SEED_ADMIN_EMAIL=admin@northstar.local
-SEED_ADMIN_PASSWORD=AdminDev123!
+# The site is public: never use the README's default passwords here (openssl rand -base64 18)
+SEED_ADMIN_PASSWORD=paste-from-openssl
 SEED_CUSTOMER_EMAIL=customer@northstar.local
-SEED_CUSTOMER_PASSWORD=CustomerDev123!
+SEED_CUSTOMER_PASSWORD=paste-from-openssl
 ```
 
-Leave `TRUST_FORWARDED_HOST=false`. Tunnel preserves the public `Host`.
+Leave `TRUST_FORWARDED_HOST=false`. Tunnel preserves the public `Host`. `CLIENT_IP_HEADER=cf-connecting-ip` makes rate limits use the address Cloudflare saw, which a client cannot fake.
 
 ---
 
@@ -259,9 +261,9 @@ In a browser:
 
 1. [https://vpn.avedeus.ovh](https://vpn.avedeus.ovh) → **Northstar VPN**
 2. [https://sim.avedeus.ovh](https://sim.avedeus.ovh) → **Northstar SIM**
-3. Customer login (either host): `customer@northstar.local` / `CustomerDev123!`
+3. Customer login (either host): `customer@northstar.local` / your `SEED_CUSTOMER_PASSWORD`
 4. On SIM host: buy mock package → QR on `/dashboard/esim`
-5. Admin on VPN host: `admin@northstar.local` / `AdminDev123!` → `/admin`
+5. Admin on VPN host: `admin@northstar.local` / your `SEED_ADMIN_PASSWORD` → `/admin`
 6. [https://vpn.avedeus.ovh/api/health](https://vpn.avedeus.ovh/api/health) → 200
 
 From the server:
