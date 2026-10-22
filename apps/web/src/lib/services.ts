@@ -296,17 +296,28 @@ async function recordPaymentAndInvoice(
     providerPaymentId: string;
     amount: number;
   },
-) {
-  await db.insert(payments).values({
-    id: newId("pay"),
-    userId: input.userId,
-    subscriptionId: input.subscriptionId,
-    provider: input.provider,
-    providerPaymentId: input.providerPaymentId,
-    amount: input.amount,
-    currency: "GBP",
-    status: "succeeded",
-  });
+): Promise<boolean> {
+  try {
+    await db.insert(payments).values({
+      id: newId("pay"),
+      userId: input.userId,
+      subscriptionId: input.subscriptionId,
+      provider: input.provider,
+      providerPaymentId: input.providerPaymentId,
+      amount: input.amount,
+      currency: "GBP",
+      status: "succeeded",
+    });
+  } catch (err) {
+    // The unique (provider, payment id) index: a concurrent delivery already recorded this payment.
+    const [already] = await db
+      .select({ id: payments.id })
+      .from(payments)
+      .where(and(eq(payments.provider, input.provider), eq(payments.providerPaymentId, input.providerPaymentId)))
+      .limit(1);
+    if (already) return false;
+    throw err;
+  }
   await db.insert(invoices).values({
     id: newId("inv"),
     userId: input.userId,
@@ -316,6 +327,7 @@ async function recordPaymentAndInvoice(
     currency: "GBP",
     status: "paid",
   });
+  return true;
 }
 
 async function findLiveSubscription(db: Db, userId: string) {
@@ -558,6 +570,17 @@ export async function handleRenewal(
     }
   }
 
+  // Record the payment first: the unique index makes this the claim, so two concurrent deliveries
+  // for one invoice cannot both extend the period.
+  const recorded = await recordPaymentAndInvoice(db, {
+    userId: sub.userId,
+    subscriptionId: sub.id,
+    provider: input.provider,
+    providerPaymentId: input.providerPaymentId,
+    amount: input.amount,
+  });
+  if (!recorded) return sub;
+
   const periodStart = sub.currentPeriodEnd && sub.currentPeriodEnd > new Date() ? sub.currentPeriodEnd : new Date();
   await db
     .update(subscriptions)
@@ -567,13 +590,6 @@ export async function handleRenewal(
       updatedAt: new Date(),
     })
     .where(eq(subscriptions.id, sub.id));
-  await recordPaymentAndInvoice(db, {
-    userId: sub.userId,
-    subscriptionId: sub.id,
-    provider: input.provider,
-    providerPaymentId: input.providerPaymentId,
-    amount: input.amount,
-  });
   if (!sub.cancelAtPeriodEnd) {
     await restoreAccessAfterPayment(db, vpn, sub.userId, user.lifecycle as CustomerLifecycle, correlationId);
   }
