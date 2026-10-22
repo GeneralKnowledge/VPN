@@ -310,7 +310,7 @@ sudo systemctl restart cloudflared
 
 | Symptom | Likely cause |
 | --- | --- |
-| App won’t boot | Weak `AUTH_SECRET`, non-https `APP_URL`, or mock billing without `ALLOW_MOCK_BILLING_IN_PRODUCTION=true` |
+| App won’t boot | Weak `AUTH_SECRET`, non-https `APP_URL`, mock billing (Stripe or crypto rail) without `ALLOW_MOCK_BILLING_IN_PRODUCTION=true`, or mock billing with a live `ESIM_PROVIDER` |
 | Both hosts look like VPN | Typo in `PRODUCT_HOST_ESIM` / URL |
 | Tunnel up but 502 | `northstar` app service down — `sudo systemctl status northstar` |
 | `hetzner.avedeus.ovh` broke | Existing ingress rule was overwritten — restore its hostname/service line |

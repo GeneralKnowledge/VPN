@@ -228,7 +228,7 @@ export const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional().default(""),
   /** Shared secret for /api/webhooks/stripe (required for valid signatures, mock or stripe). */
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(""),
-  /** Optional secret for /api/webhooks/vpnresellers; falls back to CRON_SECRET at the route. */
+  /** Shared secret for /api/webhooks/vpnresellers; empty rejects every delivery (no CRON_SECRET fallback). */
   VPNRESELLERS_WEBHOOK_SECRET: z.string().optional().default(""),
   STRIPE_PUBLISHABLE_KEY: z.string().optional().default(""),
   STRIPE_PRICE_MONTHLY: z.string().optional().default(""),
@@ -315,6 +315,16 @@ export function productionEnvProblems(env: AppEnv): string[] {
   if (env.BILLING_PROVIDER === "mock" && !env.ALLOW_MOCK_BILLING_IN_PRODUCTION) {
     problems.push(
       "BILLING_PROVIDER=mock grants subscriptions without payment. Use a real provider, or set ALLOW_MOCK_BILLING_IN_PRODUCTION=true for a private beta",
+    );
+  }
+  if (env.CRYPTO_BILLING_PROVIDER === "mock" && !env.ALLOW_MOCK_BILLING_IN_PRODUCTION) {
+    problems.push(
+      "CRYPTO_BILLING_PROVIDER=mock grants prepaid crypto plans without payment. Set CRYPTO_BILLING_PROVIDER=crypto (checkout stays closed until a processor is wired), or ALLOW_MOCK_BILLING_IN_PRODUCTION=true for a private beta",
+    );
+  }
+  if (env.BILLING_PROVIDER === "mock" && env.ESIM_PROVIDER !== "mock") {
+    problems.push(
+      "BILLING_PROVIDER=mock with a live ESIM_PROVIDER issues real eSIMs from the reseller wallet without payment. Keep ESIM_PROVIDER=mock until eSIM checkout takes real payments",
     );
   }
   if (env.BILLING_PROVIDER === "stripe" && !env.STRIPE_WEBHOOK_SECRET) {

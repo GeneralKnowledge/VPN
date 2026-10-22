@@ -37,6 +37,14 @@ describe("MockVPNProvider", () => {
     await expect(provider.getAccount(account.providerAccountId)).rejects.toBeInstanceOf(VpnProviderError);
   });
 
+  it("records an account expiry and rejects unknown accounts", async () => {
+    const provider = new MockVPNProvider();
+    const account = await provider.createAccount({ username: "exp_mock", password: "secret-pass", externalCustomerId: "u" });
+    const updated = await provider.setAccountExpiry(account.providerAccountId, "2026-02-01T00:00:00.000Z");
+    expect(updated.expiresAt).toBe("2026-02-01T00:00:00.000Z");
+    await expect(provider.setAccountExpiry("missing", "2026-02-01")).rejects.toMatchObject({ code: "not_found" });
+  });
+
   it("rejects duplicate usernames with conflict", async () => {
     const provider = new MockVPNProvider();
     await provider.createAccount({
@@ -219,6 +227,31 @@ describe("VPNResellersProvider", () => {
       expiresAt: "2025-12-31T12:00:00.000Z",
     });
     expect(account.expiresAt).toContain("2025-12-31");
+  });
+
+  it("sets the expiry of an existing account", async () => {
+    const calls: string[] = [];
+    const fetchFn = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const href = String(url);
+      const method = init?.method ?? "GET";
+      calls.push(`${method} ${href}`);
+      if (method === "PUT" && href.endsWith("/accounts/7/expire")) {
+        expect(JSON.parse(String(init?.body))).toEqual({ expire_at: "2026-01-15" });
+        return jsonResponse({ data: { id: 7, username: "u", status: "Active" } });
+      }
+      if (method === "GET" && href.endsWith("/accounts/7")) {
+        return jsonResponse({ data: { id: 7, username: "u", status: "Active", expired_at: "2026-01-15" } });
+      }
+      return jsonResponse({ message: "nope" }, 404);
+    });
+    const provider = new VPNResellersProvider({
+      apiUrl: "https://api.vpnresellers.com/v4_1",
+      apiToken: "t",
+      fetchFn: fetchFn as unknown as typeof fetch,
+    });
+    const account = await provider.setAccountExpiry("7", "2026-01-15T09:30:00.000Z");
+    expect(account.expiresAt).toBe("2026-01-15");
+    expect(calls[0]).toMatch(/^PUT .*\/accounts\/7\/expire$/);
   });
 
   it("resolves openvpn port via /ports", async () => {

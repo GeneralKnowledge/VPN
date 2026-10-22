@@ -212,13 +212,7 @@ export class VPNResellersProvider implements VPNProvider {
 
     if (input.expiresAt) {
       try {
-        await this.request(
-          "PUT",
-          `/accounts/${encodeURIComponent(account.providerAccountId)}/expire`,
-          { expire_at: toExpireDate(input.expiresAt) },
-          "expireAccount",
-        );
-        account = await this.getAccount(account.providerAccountId);
+        account = await this.setAccountExpiry(account.providerAccountId, input.expiresAt);
       } catch {
         // Account exists; expire can be retried via reconcile
       }
@@ -272,6 +266,16 @@ export class VPNResellersProvider implements VPNProvider {
 
   async deleteAccount(providerAccountId: string): Promise<void> {
     await this.request("DELETE", `/accounts/${encodeURIComponent(providerAccountId)}`, undefined, "deleteAccount");
+  }
+
+  async setAccountExpiry(providerAccountId: string, expiresAt: string): Promise<VpnAccount> {
+    await this.request(
+      "PUT",
+      `/accounts/${encodeURIComponent(providerAccountId)}/expire`,
+      { expire_at: toExpireDate(expiresAt) },
+      "expireAccount",
+    );
+    return this.getAccount(providerAccountId);
   }
 
   async changePassword(providerAccountId: string, password: string): Promise<void> {
