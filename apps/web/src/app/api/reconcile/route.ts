@@ -6,9 +6,13 @@ import { reconcileVpnProvisioning } from "@/lib/services";
 import { secretsMatch } from "@/lib/secrets";
 import { correlationId } from "@/lib/utils";
 
-async function authorizeReconcile(req: Request): Promise<void> {
+function hasCronSecret(req: Request): boolean {
   const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null;
-  if (secretsMatch(bearer, getEnv().CRON_SECRET)) return;
+  return secretsMatch(bearer, getEnv().CRON_SECRET);
+}
+
+async function authorizeReconcile(req: Request): Promise<void> {
+  if (hasCronSecret(req)) return;
   await requireAdmin();
 }
 
@@ -41,11 +45,15 @@ export async function POST(req: Request) {
   );
 }
 
-/** Same as POST so schedulers that can only issue GET (e.g. Vercel Cron) can drive reconciliation. */
+/**
+ * Same as POST so schedulers that can only issue GET (e.g. Vercel Cron) can drive reconciliation.
+ * Bearer token only: a session cookie rides along on any link an admin opens, so a state-changing
+ * GET must not accept it.
+ */
 export async function GET(req: Request) {
   return handle(
     async () => {
-      await authorizeReconcile(req);
+      if (!hasCronSecret(req)) throw new HttpError(401, "Bearer token required");
       return run({});
     },
     { audience: "admin" },

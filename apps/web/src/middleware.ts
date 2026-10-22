@@ -7,6 +7,7 @@ import {
   type Product,
 } from "@northstar/config";
 import { NextResponse, type NextRequest } from "next/server";
+import { hostOf, isCrossSiteWrite } from "./lib/csrf";
 
 /** Marketing paths rewritten to /sim/* on the eSIM host. */
 const ESIM_MARKETING = new Set([
@@ -60,6 +61,18 @@ export function middleware(req: NextRequest) {
   });
   const product = resolveProductFromHost(host, config);
   const { pathname } = req.nextUrl;
+
+  if (
+    pathname.startsWith("/api/") &&
+    isCrossSiteWrite(req.method, req.headers, [
+      req.headers.get("host"),
+      host,
+      hostOf(process.env.APP_URL),
+      hostOf(process.env.ESIM_APP_URL),
+    ])
+  ) {
+    return NextResponse.json({ error: "Cross-site request refused" }, { status: 403 });
+  }
 
   if (
     pathname.startsWith("/_next") ||

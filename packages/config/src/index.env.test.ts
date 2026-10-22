@@ -8,6 +8,7 @@ const base = {
   APP_ENV: "production",
   BILLING_PROVIDER: "stripe",
   STRIPE_WEBHOOK_SECRET: "whsec_x",
+  CRYPTO_BILLING_PROVIDER: "crypto",
 };
 
 describe("production env", () => {
@@ -42,6 +43,35 @@ describe("production env", () => {
   it("allows mock billing only with the explicit override", () => {
     const env = parseEnv({ ...base, BILLING_PROVIDER: "mock", ALLOW_MOCK_BILLING_IN_PRODUCTION: "true" });
     expect(productionEnvProblems(env)).toEqual([]);
+  });
+
+  it("rejects mock crypto billing, which would grant prepaid plans for free", () => {
+    const problems = productionEnvProblems(parseEnv({ ...base, CRYPTO_BILLING_PROVIDER: "mock" }));
+    expect(problems.join("\n")).toMatch(/CRYPTO_BILLING_PROVIDER=mock/);
+  });
+
+  it("defaults crypto billing to mock, so an unset value is refused too", () => {
+    const problems = productionEnvProblems(parseEnv({ ...base, CRYPTO_BILLING_PROVIDER: undefined }));
+    expect(problems.join("\n")).toMatch(/CRYPTO_BILLING_PROVIDER=mock/);
+  });
+
+  it("allows mock crypto billing with the explicit mock-billing override", () => {
+    const env = parseEnv({ ...base, CRYPTO_BILLING_PROVIDER: "mock", ALLOW_MOCK_BILLING_IN_PRODUCTION: "true" });
+    expect(productionEnvProblems(env)).toEqual([]);
+  });
+
+  it("refuses mock billing together with a live eSIM provider, even with the override", () => {
+    const problems = productionEnvProblems(
+      parseEnv({
+        ...base,
+        BILLING_PROVIDER: "mock",
+        ALLOW_MOCK_BILLING_IN_PRODUCTION: "true",
+        ESIM_PROVIDER: "resellportal",
+        RESELLPORTAL_API_KEY: "k",
+        RESELLPORTAL_API_SECRET: "s",
+      }),
+    );
+    expect(problems.join("\n")).toMatch(/ESIM_PROVIDER/);
   });
 
   it("does not police non-production environments", () => {

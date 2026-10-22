@@ -256,7 +256,11 @@ export const payments = sqliteTable(
     }).notNull(),
     ...timestamps,
   },
-  (t) => [index("payments_user_idx").on(t.userId)],
+  (t) => [
+    index("payments_user_idx").on(t.userId),
+    // One row per provider payment: concurrent webhook deliveries cannot record (and extend for) it twice.
+    uniqueIndex("payments_provider_payment_uidx").on(t.provider, t.providerPaymentId),
+  ],
 );
 
 export const invoices = sqliteTable(

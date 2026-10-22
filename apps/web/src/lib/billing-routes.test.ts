@@ -1,6 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { checkoutSessions, createDb, migrate, plans, subscriptions, users, vpnAccounts } from "@northstar/db";
+import {
+  checkoutSessions,
+  createDb,
+  migrate,
+  payments,
+  plans,
+  subscriptions,
+  users,
+  vpnAccounts,
+  webhookEvents,
+} from "@northstar/db";
 import { MockBillingProvider } from "@northstar/billing";
 import { MockVPNProvider } from "@northstar/vpn-provider";
 import { MockEmailProvider } from "@northstar/email";
@@ -47,6 +57,8 @@ vi.mock("@/lib/auth", async () => {
 import { POST as checkout } from "@/app/api/billing/checkout/route";
 import { POST as complete } from "@/app/api/billing/complete/route";
 import { POST as cancel } from "@/app/api/billing/cancel/route";
+import { POST as stripeWebhook } from "@/app/api/webhooks/stripe/route";
+import { activateSubscription } from "@/lib/services";
 
 function json(body: unknown) {
   return new Request("http://localhost/api", {
@@ -195,5 +207,89 @@ describe("billing routes", () => {
     const bad = new Request("http://localhost/api", { method: "POST", body: "{not json" });
     expect((await checkout(bad)).status).toBe(400);
     expect((await complete(json({ nope: 1 }))).status).toBe(400);
+  });
+
+  describe("stripe webhook", () => {
+    function delivery(event: Record<string, unknown>) {
+      return new Request("http://localhost/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-northstar-signature": "secret" },
+        body: JSON.stringify(event),
+      });
+    }
+
+    async function subscribed() {
+      await activateSubscription(db, ctx.vpn as MockVPNProvider, ctx.email as MockEmailProvider, {
+        userId: "u1",
+        planId: "platinum-monthly",
+        providerSubscriptionId: "ms_1",
+        provider: "mock",
+        amount: 499,
+        correlationId: "c",
+      });
+      return (await db.select().from(subscriptions))[0]!;
+    }
+
+    const renewal = (eventId: string, invoiceId = "in_1") => ({
+      id: eventId,
+      type: "mock.invoice.paid",
+      subscriptionId: "ms_1",
+      paymentId: invoiceId,
+      amount: 499,
+    });
+
+    it("rejects an unsigned delivery", async () => {
+      const res = await stripeWebhook(
+        new Request("http://localhost/api/webhooks/stripe", { method: "POST", body: JSON.stringify(renewal("evt_x")) }),
+      );
+      expect(res.status).toBe(401);
+    });
+
+    it("concurrent deliveries of one event extend the period once", async () => {
+      const before = await subscribed();
+      const results = await Promise.all([
+        stripeWebhook(delivery(renewal("evt_1"))),
+        stripeWebhook(delivery(renewal("evt_1"))),
+        stripeWebhook(delivery(renewal("evt_1"))),
+      ]);
+      expect(results.every((r) => r.status === 200 || r.status === 409)).toBe(true);
+      const after = (await db.select().from(subscriptions))[0]!;
+      expect(after.currentPeriodEnd!.getMonth()).toBe((before.currentPeriodEnd!.getMonth() + 1) % 12);
+      expect(await db.select().from(payments).where(eq(payments.providerPaymentId, "in_1"))).toHaveLength(1);
+    });
+
+    it("two different events for the same invoice record one payment and one extension", async () => {
+      const before = await subscribed();
+      await Promise.all([
+        stripeWebhook(delivery(renewal("evt_a", "in_9"))),
+        stripeWebhook(delivery(renewal("evt_b", "in_9"))),
+      ]);
+      const after = (await db.select().from(subscriptions))[0]!;
+      expect(after.currentPeriodEnd!.getMonth()).toBe((before.currentPeriodEnd!.getMonth() + 1) % 12);
+      expect(await db.select().from(payments).where(eq(payments.providerPaymentId, "in_9"))).toHaveLength(1);
+    });
+
+    it("refuses a delivery while another holds the claim, and retries a stale claim", async () => {
+      await subscribed();
+      await db.insert(webhookEvents).values({
+        id: "wh_1",
+        provider: "stripe",
+        eventId: "evt_busy",
+        eventType: "mock.invoice.paid",
+        payloadJson: "{}",
+        signatureValid: true,
+        processingError: "processing",
+      });
+      expect((await stripeWebhook(delivery(renewal("evt_busy")))).status).toBe(409);
+
+      await db
+        .update(webhookEvents)
+        .set({ updatedAt: new Date(Date.now() - 10 * 60_000) })
+        .where(eq(webhookEvents.id, "wh_1"));
+      expect((await stripeWebhook(delivery(renewal("evt_busy")))).status).toBe(200);
+      const [row] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, "wh_1"));
+      expect(row?.processedAt).toBeTruthy();
+      expect((await stripeWebhook(delivery(renewal("evt_busy")))).status).toBe(200);
+    });
   });
 });
