@@ -109,6 +109,12 @@ export function getEsimProvider() {
       apiSecret: env.RESELLPORTAL_API_SECRET,
       timeoutMs: env.RESELLPORTAL_TIMEOUT_MS,
       testMode: env.RESELLPORTAL_TEST_MODE,
+      pricing: {
+        wholesaleCurrency: env.ESIM_WHOLESALE_CURRENCY,
+        usdToGbp: env.ESIM_USD_TO_GBP,
+        markup: env.ESIM_MARKUP,
+        minPricePence: env.ESIM_MIN_PRICE_PENCE,
+      },
     });
   }
   return globalStore.northstarEsim;

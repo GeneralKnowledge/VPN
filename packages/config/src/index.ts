@@ -212,6 +212,14 @@ export const envSchema = z.object({
   RESELLPORTAL_API_KEY: z.string().optional().default(""),
   RESELLPORTAL_API_SECRET: z.string().optional().default(""),
   RESELLPORTAL_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  /** Currency of ResellPortal's package prices (its balance endpoint reports USD). */
+  ESIM_WHOLESALE_CURRENCY: z.enum(["USD", "GBP"]).default("USD"),
+  /** GBP per 1 USD, used to convert USD wholesale prices. Set it slightly above the market rate as a buffer. */
+  ESIM_USD_TO_GBP: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().positive().max(10).optional()),
+  /** Retail = wholesale in GBP × this. 1.4 is 40% on cost, before card fees. */
+  ESIM_MARKUP: z.coerce.number().min(1).max(10).default(1.4),
+  /** No eSIM sells for less than this, in pence. */
+  ESIM_MIN_PRICE_PENCE: z.coerce.number().int().nonnegative().default(99),
   /** Sends ResellPortal's X-RP-Test-Mode header: orders are validated but nothing is charged or issued. */
   RESELLPORTAL_TEST_MODE: z
     .enum(["true", "false"])
@@ -361,6 +369,9 @@ export function productionEnvProblems(env: AppEnv): string[] {
   }
   if (env.BILLING_PROVIDER === "stripe" && !env.STRIPE_SECRET_KEY) {
     problems.push("BILLING_PROVIDER=stripe requires STRIPE_SECRET_KEY");
+  }
+  if (env.ESIM_PROVIDER === "resellportal" && env.ESIM_WHOLESALE_CURRENCY === "USD" && !env.ESIM_USD_TO_GBP) {
+    problems.push("ESIM_PROVIDER=resellportal prices in USD: set ESIM_USD_TO_GBP (GBP per 1 USD) so retail prices are converted");
   }
   if (env.ESIM_PROVIDER === "resellportal" && env.RESELLPORTAL_TEST_MODE) {
     problems.push("RESELLPORTAL_TEST_MODE=true issues sample eSIMs that do not work; turn it off in production");

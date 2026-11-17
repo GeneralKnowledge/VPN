@@ -38,6 +38,15 @@ describe("production env", () => {
     expect(problems).toMatch(/RESELLPORTAL_TEST_MODE/);
   });
 
+  it("requires a USD rate for live eSIM pricing and treats an empty value as unset", () => {
+    const live = { ...base, ESIM_PROVIDER: "resellportal", RESELLPORTAL_API_KEY: "k", RESELLPORTAL_API_SECRET: "s" };
+    expect(productionEnvProblems(parseEnv({ ...live, ESIM_USD_TO_GBP: "" })).join("\n")).toMatch(/ESIM_USD_TO_GBP/);
+    const env = parseEnv({ ...live, ESIM_USD_TO_GBP: "0.8" });
+    expect(env.ESIM_USD_TO_GBP).toBe(0.8);
+    expect(env.ESIM_MARKUP).toBe(1.4);
+    expect(productionEnvProblems(env).join("\n")).not.toMatch(/ESIM_USD_TO_GBP/);
+  });
+
   it("checks the card-statement suffixes", () => {
     expect(parseEnv(base).STRIPE_STATEMENT_SUFFIX_ESIM).toBe("ESIM");
     const problems = productionEnvProblems(parseEnv({ ...base, STRIPE_STATEMENT_SUFFIX_ESIM: "<bad>" })).join("\n");

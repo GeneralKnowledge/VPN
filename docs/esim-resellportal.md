@@ -67,7 +67,7 @@ Treat QR URLs and ICCIDs as **sensitive**. Do not log them.
 
 - **`activation_url` format** is shown only as `https://...`. It could be an LPA string, an Apple `esimsetup.apple.com` link or a web page. Find out with one test-mode order (below) and then one real cheap order; the native app's install flow depends on it.
 - **No idempotency key** on `POST /orders`. A retry after a timeout can issue, and pay for, a second eSIM. The app therefore never retries an order whose outcome is unknown (see order states below).
-- **Package price currency** is not stated; the balance endpoint reports USD. The adapter's `retailMarkup` treats the wholesale number as if it were GBP, which leaves only about 10% margin after conversion. Replace it with an explicit price map before launch.
+- **Package price currency** is not stated; the balance endpoint reports USD, so prices are treated as USD (`ESIM_WHOLESALE_CURRENCY`) and converted. Confirm with the first live package list.
 - **Insufficient balance** has no documented status code; 402 is assumed.
 - **Status values** differ between pages (`AVAILABLE`, `GOT_RESOURCE`); both map to `available`.
 - **Clients**: `POST /clients` documents `name` and `email`. Whether a second client with the same email is refused is unknown; one client is created per order today.
@@ -133,4 +133,16 @@ Keep `ESIM_PROVIDER=mock` until credentials are available. Wallet balance is req
 
 ## Retail pricing
 
-Live wholesale amounts are converted to display GBP pence with a simple markup in the adapter (`retailMarkup`, default 1.4). Adjust or replace with an explicit price map before launch.
+Retail prices are in GBP pence, worked out in `packages/esim-provider/src/pricing.ts`:
+
+```
+retail pence = max(ESIM_MIN_PRICE_PENCE, ceil(wholesale × rate × 100 × ESIM_MARKUP))
+rate = ESIM_USD_TO_GBP when ESIM_WHOLESALE_CURRENCY=USD (the default), 1 when GBP
+```
+
+- `ESIM_USD_TO_GBP` (GBP per 1 USD) has no default. Production refuses to boot with ResellPortal and USD prices without it, and the adapter refuses to list packages. Set it slightly **above** the market rate so a weaker pound doesn't eat the margin, and review it when the pound moves.
+- `ESIM_MARKUP` (default 1.4) is applied to the converted cost, so 1.4 means 40% on cost before Stripe's card fee (about 1.5% + 20p for UK cards).
+- Rounding is always up, and a package without a usable supplier price is not offered.
+- Prices are fixed when checkout starts (`esim_orders.amount`), so a rate change never alters an order in flight.
+
+Example: a $10.00 package at 0.79 and 1.4 → £7.90 cost → £11.06 retail.
