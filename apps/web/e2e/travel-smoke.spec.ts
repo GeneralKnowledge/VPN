@@ -37,8 +37,8 @@ test("a destination page shows essentials, our eSIM plans and a budget", async (
   await expect(page.getByText("£1,000.00")).toBeVisible();
 });
 
-test("travel host has no sign-in or dashboard yet, and other hosts have no travel pages", async ({ page }) => {
-  await page.goto(`${ORIGIN}/login`);
+test("travel host has no dashboard, and other hosts have no travel pages", async ({ page }) => {
+  await page.goto(`${ORIGIN}/dashboard`);
   await expect(page).toHaveURL(`${ORIGIN}/`);
 
   await page.setExtraHTTPHeaders({});
@@ -68,4 +68,30 @@ test("travel host serves its own sitemap and robots", async ({ request }) => {
   const robots = await (await request.get(`${ORIGIN}/robots.txt`, { headers })).text();
   expect(robots).toContain("Disallow: /api/");
   expect(robots).not.toContain("/dashboard/");
+});
+
+test("a signed-in person saves a trip and sees it under My trips", async ({ page }) => {
+  await page.goto(`${ORIGIN}/destinations/greece`);
+  await expect(page.getByText(/to save Greece to your trips/)).toBeVisible();
+
+  await page.goto(`${ORIGIN}/login`);
+  await page.getByLabel("Username or email").fill("customer@northstar.local");
+  await page.getByLabel("Password").fill("CustomerDev123!");
+  await page.getByRole("button", { name: /Sign in/i }).click();
+  await expect(page).toHaveURL(`${ORIGIN}/trips`);
+  await expect(page.getByRole("heading", { name: "My trips" })).toBeVisible();
+
+  const note = `e2e ${Date.now()}`;
+  await page.goto(`${ORIGIN}/destinations/greece`);
+  await page.getByLabel("From (optional)").fill("2027-06-01");
+  await page.getByLabel("To (optional)").fill("2027-06-08");
+  await page.getByLabel("Notes (optional)").fill(note);
+  await page.getByRole("button", { name: "Save Greece trip" }).click();
+  await expect(page).toHaveURL(`${ORIGIN}/trips`);
+
+  const trip = page.getByRole("listitem").filter({ hasText: note });
+  await expect(trip.getByText("1 Jun 2027 – 8 Jun 2027 (7 nights)")).toBeVisible();
+  await trip.getByRole("button", { name: "Delete Greece trip" }).click();
+  await trip.getByRole("button", { name: "Delete Greece trip" }).click();
+  await expect(page.getByText(note)).toHaveCount(0);
 });

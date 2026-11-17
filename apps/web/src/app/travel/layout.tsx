@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { travelBrand } from "@northstar/config";
 import { TravelSiteChrome } from "@/components/travel-site-chrome";
+import { getSessionUser } from "@/lib/auth";
 import { appUrl } from "@/lib/providers";
 
 // URLs come from the runtime env (TRAVEL_APP_URL etc.), not the build machine.
@@ -23,9 +24,10 @@ export function generateMetadata(): Metadata {
   };
 }
 
-export default function TravelLayout({ children }: { children: React.ReactNode }) {
+export default async function TravelLayout({ children }: { children: React.ReactNode }) {
+  const user = await getSessionUser();
   return (
-    <TravelSiteChrome esimUrl={appUrl("esim")} vpnUrl={appUrl("vpn")}>
+    <TravelSiteChrome authed={Boolean(user)} esimUrl={appUrl("esim")} vpnUrl={appUrl("vpn")}>
       {children}
     </TravelSiteChrome>
   );

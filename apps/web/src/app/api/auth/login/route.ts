@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { createSession, setSessionCookie, writeAudit } from "@/lib/auth";
 import { handle, parseBody } from "@/lib/http";
 import { loginSchema, verifyLogin } from "@/lib/login";
+import { getProduct } from "@/lib/product";
 import { getDb, track } from "@/lib/providers";
 import { correlationId } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
     });
 
     track({ name: "login_completed", userId: user.id });
-    return Response.json({ ok: true, redirectTo: user.role === "admin" ? "/admin" : "/dashboard" });
+    const home = (await getProduct()) === "travel" ? "/trips" : "/dashboard";
+    return Response.json({ ok: true, redirectTo: user.role === "admin" ? "/admin" : home });
   });
 }

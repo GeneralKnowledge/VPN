@@ -34,7 +34,7 @@ pnpm dev
 - Middleware sets `x-northstar-product` and rewrites eSIM marketing routes to `/sim/*`.
 - VPN-only dashboard routes redirect to `/dashboard` on the eSIM host.
 - `/sim/*` redirects to `/` on the VPN host.
-- Travel host: `/` and `/destinations/*` are rewritten to `/travel/*`; any other page (sign-in, dashboard, pricing, VPN or eSIM pages) redirects to `/`, because Travel has no sign-in or checkout of its own yet. `/api/*` passes through, except admin APIs (404). `/admin` redirects to the VPN host.
+- Travel host: `/`, `/destinations/*` and `/trips/*` are rewritten to `/travel/*`, and the sign-in pages (`/login`, `/register`, password reset, email verification) are served as they are, landing on `/trips`. Any other page (dashboard, pricing, VPN or eSIM pages) redirects to `/`, because Travel has no dashboard or checkout of its own. `/api/*` passes through, except admin APIs (404). `/admin` redirects to the VPN host.
 - `/travel/*` redirects to `/` on the VPN and eSIM hosts.
 - `sitemap.xml` and `robots.txt` answer per host for Travel (the middleware skips them, so they resolve the host with the same rules).
 - Admin lives on the VPN host; eSIM host `/admin` redirects to `APP_URL/admin`.

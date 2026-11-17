@@ -318,3 +318,15 @@ CREATE TABLE IF NOT EXISTS esim_profiles (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS esim_profiles_order_uidx ON esim_profiles(order_id);
 CREATE INDEX IF NOT EXISTS esim_profiles_user_idx ON esim_profiles(user_id);
+
+CREATE TABLE IF NOT EXISTS trips (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  destination_slug TEXT NOT NULL,
+  start_date TEXT,
+  end_date TEXT,
+  notes TEXT,
+  created_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint),
+  updated_at BIGINT NOT NULL DEFAULT ((extract(epoch from clock_timestamp()) * 1000)::bigint)
+);
+CREATE INDEX IF NOT EXISTS trips_user_idx ON trips(user_id);

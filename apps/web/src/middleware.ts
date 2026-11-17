@@ -27,16 +27,19 @@ const ESIM_MARKETING = new Set([
 ]);
 
 /**
- * Pages the Travel host serves, rewritten to /travel/*. Everything else that is a page redirects
- * to its home: Travel has no sign-in, dashboard or checkout of its own yet (docs/TRAVEL-HUB.md).
+ * Pages the Travel host serves, rewritten to /travel/*. Sign-in pages are served as they are (with
+ * host-only cookies, so a Travel session is its own). Everything else that is a page redirects to
+ * its home: Travel has no dashboard or checkout of its own (docs/TRAVEL-HUB.md).
  */
 function travelRewrite(pathname: string): string | null {
   if (pathname === "/") return "/travel";
-  if (pathname === "/destinations" || pathname.startsWith("/destinations/")) {
-    return `/travel${pathname}`;
+  for (const prefix of ["/destinations", "/trips"]) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return `/travel${pathname}`;
   }
   return null;
 }
+
+const TRAVEL_AUTH_PAGES = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email"] as const;
 
 function startsWithAny(pathname: string, prefixes: readonly string[]): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -116,6 +119,10 @@ export function middleware(req: NextRequest) {
     }
 
     if (startsWithAny(pathname, TRAVEL_ONLY_PREFIXES)) {
+      return nextWithProduct(req, product);
+    }
+
+    if (startsWithAny(pathname, TRAVEL_AUTH_PAGES)) {
       return nextWithProduct(req, product);
     }
 

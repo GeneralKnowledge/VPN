@@ -3,10 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { entryRequirementsUrl, getDestination, isReviewed } from "@northstar/destinations";
 import { Badge } from "@/components/ui";
+import { getSessionUser } from "@/lib/auth";
 import { formatMoney } from "@/lib/format";
 import { appUrl } from "@/lib/providers";
 import { esimPlansUrl, packagesForDestination } from "@/lib/travel";
 import { BudgetEstimate } from "./budget-estimate";
+import { SaveTripForm } from "./save-trip-form";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -51,6 +53,7 @@ export default async function DestinationPage({ params }: Props) {
   const esim = await packagesForDestination(destination);
   const esimBase = appUrl("esim");
   const reviewed = isReviewed(destination);
+  const user = await getSessionUser();
 
   const facts: [string, string][] = [
     ["Currency", `${destination.currency.name} (${destination.currency.code})`],
@@ -152,6 +155,19 @@ export default async function DestinationPage({ params }: Props) {
           destinationName={destination.name}
           packages={esim.packages.map((p) => ({ code: p.code, name: p.name, price: p.price }))}
         />
+      </Section>
+
+      <Section id="save-trip" title="Save as a trip">
+        {user ? (
+          <SaveTripForm slug={destination.slug} name={destination.name} />
+        ) : (
+          <p className="text-sm">
+            <Link href="/login">
+              <span className="font-medium text-sea underline">Log in</span>
+            </Link>{" "}
+            to save {destination.name} to your trips. They also show in the Northstar app.
+          </p>
+        )}
       </Section>
     </div>
   );

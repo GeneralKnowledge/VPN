@@ -3,25 +3,29 @@ import { travelBrand } from "@northstar/config";
 import { Logo } from "./logo";
 import { MobileNav } from "./mobile-nav";
 import { ThemeToggle } from "./theme-toggle";
+import { Button } from "./ui";
 
-const nav = [
+const baseNav = [
   { href: "/", label: "Explore" },
   { href: "/destinations", label: "Destinations" },
 ];
 
 /**
- * Travel host chrome. Travel has no sign-in of its own yet, so there is no account button; the
- * footer links to the two products it introduces, which keep their own sites and checkout.
+ * Travel host chrome. The footer links to the two products Travel introduces, which keep their
+ * own sites and checkout.
  */
 export function TravelSiteChrome({
+  authed,
   esimUrl,
   vpnUrl,
   children,
 }: {
+  authed: boolean;
   esimUrl: string;
   vpnUrl: string;
   children: React.ReactNode;
 }) {
+  const nav = authed ? [...baseNav, { href: "/trips", label: "My trips" }] : baseNav;
   return (
     <div>
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
@@ -38,7 +42,14 @@ export function TravelSiteChrome({
           </nav>
           <div className="flex items-center gap-2">
             <ThemeToggle compact className="hidden sm:inline-flex" />
-            <MobileNav items={nav} hideAuth />
+            {authed ? null : (
+              <Link href="/login" className="hidden sm:inline">
+                <Button variant="ghost" size="sm">
+                  Log in
+                </Button>
+              </Link>
+            )}
+            <MobileNav items={nav} authed={authed} />
           </div>
         </div>
       </header>

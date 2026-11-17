@@ -36,11 +36,19 @@ describe("travel host routing", () => {
   });
 
   it("sends pages Travel doesn't have back to its home", () => {
-    for (const path of ["/login", "/dashboard", "/dashboard/esim", "/pricing", "/sim", "/download"]) {
+    for (const path of ["/dashboard", "/dashboard/esim", "/pricing", "/sim", "/download"]) {
       const res = middleware(req(path, "travel.localhost"));
       expect(res.status, path).toBe(307);
       expect(res.headers.get("location"), path).toBe("http://travel.localhost/");
     }
+  });
+
+  it("serves sign-in pages and rewrites trips", () => {
+    expect(middleware(req("/login", "travel.localhost")).headers.get("x-middleware-next")).toBe("1");
+    expect(middleware(req("/register", "travel.localhost")).headers.get("x-northstar-product")).toBe("travel");
+    expect(middleware(req("/trips", "travel.localhost")).headers.get("x-middleware-rewrite")).toBe(
+      "http://travel.localhost/travel/trips",
+    );
   });
 
   it("sends admin to the VPN host and hides admin APIs", async () => {
