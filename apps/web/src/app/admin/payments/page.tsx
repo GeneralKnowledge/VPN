@@ -16,6 +16,7 @@ export default async function AdminPaymentsPage() {
       currency: payments.currency,
       status: payments.status,
       provider: payments.provider,
+      product: payments.product,
       createdAt: payments.createdAt,
       userId: users.id,
       email: users.email,
@@ -58,6 +59,7 @@ export default async function AdminPaymentsPage() {
               </Badge>
             ),
           },
+          { key: "product", header: "Product", cell: (p) => (p.product === "esim" ? "eSIM" : "VPN") },
           { key: "provider", header: "Provider", cell: (p) => p.provider },
           {
             key: "created",

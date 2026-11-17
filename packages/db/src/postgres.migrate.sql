@@ -169,6 +169,9 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 CREATE INDEX IF NOT EXISTS payments_user_idx ON payments(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS payments_provider_payment_uidx ON payments(provider, provider_payment_id);
+-- Which resold product a payment was for (VPN and eSIM books are kept apart).
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS product TEXT NOT NULL DEFAULT 'vpn';
+CREATE INDEX IF NOT EXISTS payments_product_idx ON payments(product);
 
 CREATE TABLE IF NOT EXISTS invoices (
   id TEXT PRIMARY KEY,
@@ -318,6 +321,9 @@ CREATE TABLE IF NOT EXISTS esim_profiles (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS esim_profiles_order_uidx ON esim_profiles(order_id);
 CREATE INDEX IF NOT EXISTS esim_profiles_user_idx ON esim_profiles(user_id);
+
+-- Payments recorded before payments.product existed (runs after esim_orders exists).
+UPDATE payments SET product = 'esim' WHERE product = 'vpn' AND provider_payment_id IN (SELECT provider_payment_id FROM esim_orders WHERE provider_payment_id IS NOT NULL);
 
 CREATE TABLE IF NOT EXISTS trips (
   id TEXT PRIMARY KEY,
