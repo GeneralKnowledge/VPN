@@ -24,6 +24,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/vpnresellers.md](./docs/vpnre
 
 ```
 apps/web                 Next.js (VPN + eSIM hosts, dashboard, admin, API)
+apps/ios                 Native iPhone app (Forge: Rust core + SwiftUI), see apps/ios/README.md
 packages/config          Brands, plans, product hosts, env
 packages/db              Drizzle schema, migrate, seed
 packages/vpn-provider    MockVPNProvider + VPNResellersProvider
