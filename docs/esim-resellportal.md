@@ -106,7 +106,7 @@ STRIPE_WEBHOOK_SECRET=whsec_...   # from `stripe listen --forward-to localhost:3
 ESIM_PROVIDER=mock                # or resellportal + RESELLPORTAL_TEST_MODE=true
 ```
 
-Buy a package on the eSIM host, pay with card `4242 4242 4242 4242`, and the order should reach `issued`. VPN subscription checkout is not wired to Stripe yet, so it fails with `BILLING_PROVIDER=stripe`. Live keys are refused until `STRIPE_ALLOW_LIVE_PAYMENTS=true`, which waits for the company and the decision to take public orders.
+Buy a package on the eSIM host, pay with card `4242 4242 4242 4242`, and the order should reach `issued`. VPN subscriptions use the same Stripe account ([stripe-subscriptions.md](./stripe-subscriptions.md)). Live keys are refused until `STRIPE_ALLOW_LIVE_PAYMENTS=true`, which waits for the company and the decision to take public orders.
 
 Webhook events to enable on the endpoint: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`.
 

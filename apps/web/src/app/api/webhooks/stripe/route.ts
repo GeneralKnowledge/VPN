@@ -19,6 +19,12 @@ import {
   handleSubscriptionEnded,
 } from "@/lib/services";
 import { correlationId, newId } from "@/lib/utils";
+import {
+  confirmVpnCheckout,
+  expireVpnCheckout,
+  recordVpnRefundFromStripe,
+  syncStripeSubscription,
+} from "@/lib/vpn-billing";
 
 /** A delivery that started processing but never finished (crash, timeout) may be retried after this. */
 const PROCESSING_LEASE_MS = 5 * 60_000;
@@ -29,6 +35,7 @@ type StripeObject = {
   subscription?: string | null;
   amount_paid?: number;
   billing_reason?: string;
+  parent?: { subscription_details?: { subscription?: string | null } | null } | null;
   metadata?: { userId?: string; planId?: string; kind?: string; orderId?: string };
   payment_intent?: string | { id?: string } | null;
 };
@@ -117,7 +124,9 @@ export async function POST(req: Request) {
     const env = getEnv();
     const provider = env.BILLING_PROVIDER === "stripe" ? "stripe" : "mock";
     const vpn = getVpnProvider();
-    const subscriptionId = data.subscriptionId ?? obj?.subscription ?? obj?.id;
+    // Newer Stripe API versions moved an invoice's subscription under parent.subscription_details.
+    const subscriptionId =
+      data.subscriptionId ?? obj?.subscription ?? obj?.parent?.subscription_details?.subscription ?? obj?.id;
 
     // One-time eSIM payments are tagged metadata.kind=esim when the session is created. They are
     // handled here and never reach the subscription handlers below.
@@ -151,11 +160,45 @@ export async function POST(req: Request) {
       // Charges carry no session metadata copy we rely on; match by payment intent instead.
       const pi = typeof obj?.payment_intent === "string" ? obj.payment_intent : obj?.payment_intent?.id;
       if (pi && (await recordEsimRefundFromStripe(db, pi, corr))) handled = true;
+      if (!handled && obj) {
+        await recordVpnRefundFromStripe(db, { vpn, billing }, obj as Record<string, unknown>, corr);
+        handled = true;
+      }
+    }
+
+    // Real Stripe Checkout for a VPN plan (tagged metadata.kind=vpn when the session is created).
+    // Access is granted only for a paid session that matches a checkout this site started.
+    if (!handled && obj?.metadata?.kind === "vpn") {
+      switch (event.type) {
+        case "checkout.session.completed":
+        case "checkout.session.async_payment_succeeded":
+          handled = true;
+          await confirmVpnCheckout(
+            db,
+            { vpn, email: getEmailProvider(), billing, oneTime: getOneTimePayments() },
+            obj as Record<string, unknown>,
+            corr,
+          );
+          break;
+        case "checkout.session.expired":
+        case "checkout.session.async_payment_failed":
+          handled = true;
+          if (obj.id) await expireVpnCheckout(db, obj.id);
+          break;
+        case "customer.subscription.updated":
+          handled = true;
+          await syncStripeSubscription(db, vpn, obj as Record<string, unknown>, corr);
+          break;
+        default:
+          break;
+      }
     }
 
     if (!handled) switch (event.type) {
       case "checkout.session.completed":
       case "mock.checkout.completed": {
+        // With real Stripe, VPN checkouts are handled above; an untagged session is not ours.
+        if (provider === "stripe") break;
         const userId = data.userId ?? obj?.metadata?.userId;
         const planId = data.planId ?? obj?.metadata?.planId;
         const plan = planId ? getPlan(planId) : undefined;

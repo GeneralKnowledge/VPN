@@ -96,7 +96,7 @@ When cutting each vendor live, add only that vendor’s keys and switch its `*_P
 | --- | --- | --- |
 | A | `VPN_PROVIDER=vpnresellers` + token | Admin locations sync; one test account; config download |
 | B | `ESIM_PROVIDER=resellportal` + key/secret + wallet | One cheap test package; QR/ICCID in dashboard. Production refuses to boot with mock billing and a live eSIM provider, so run this test with `APP_ENV` other than production |
-| C | `BILLING_PROVIDER=stripe` + webhook secret + price IDs | eSIM payment-mode Checkout in test mode (card 4242…), webhook issues the eSIM; VPN subscription checkout is not wired yet |
+| C | `BILLING_PROVIDER=stripe` + webhook secret + price IDs | eSIM payment-mode Checkout in test mode (card 4242…), webhook issues the eSIM; VPN subscription Checkout in test mode, webhook activates the plan ([stripe-subscriptions.md](./stripe-subscriptions.md)) |
 | D | `EMAIL_PROVIDER=smtp` + transport | Welcome / eSIM-ready / reset mail deliver |
 | E | `ALLOW_MOCK_BILLING_IN_PRODUCTION=false` | No free grants in prod |
 

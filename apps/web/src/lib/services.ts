@@ -330,7 +330,7 @@ async function recordPaymentAndInvoice(
   return true;
 }
 
-async function findLiveSubscription(db: Db, userId: string) {
+export async function findLiveSubscription(db: Db, userId: string) {
   const rows = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
   return rows.find((s) => isLiveSubscriptionStatus(s.status));
 }
@@ -463,7 +463,7 @@ export async function expireLapsedSubscriptions(
   return ended;
 }
 
-async function findSubscriptionByProviderId(db: Db, providerSubscriptionId: string) {
+export async function findSubscriptionByProviderId(db: Db, providerSubscriptionId: string) {
   const rows = await db
     .select()
     .from(subscriptions)
@@ -827,6 +827,8 @@ export async function activateSubscription(
     userId: string;
     planId: string;
     providerSubscriptionId: string;
+    /** The provider's id for this payment (Stripe invoice or payment intent); defaults to the subscription id. */
+    providerPaymentId?: string;
     provider: "mock" | "stripe" | "crypto";
     amount: number;
     correlationId: string;
@@ -852,7 +854,7 @@ export async function activateSubscription(
         userId: input.userId,
         subscriptionId: live.id,
         provider: input.provider,
-        providerPaymentId: input.providerSubscriptionId,
+        providerPaymentId: input.providerPaymentId ?? input.providerSubscriptionId,
         amount: input.amount,
       });
       await writeAudit(db, {
@@ -896,7 +898,7 @@ export async function activateSubscription(
     userId: input.userId,
     subscriptionId: subId,
     provider: input.provider,
-    providerPaymentId: input.providerSubscriptionId,
+    providerPaymentId: input.providerPaymentId ?? input.providerSubscriptionId,
     amount: input.amount,
   });
 
