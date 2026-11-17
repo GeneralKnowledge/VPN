@@ -7,6 +7,7 @@ import {
   type Product,
 } from "@northstar/config";
 import { headers } from "next/headers";
+import { bearerTokenFrom, requireUser } from "./auth";
 import { HttpError } from "./http";
 import { getEnv } from "./providers";
 
@@ -24,6 +25,26 @@ export async function requireProduct(expected: Product): Promise<Product> {
     throw new HttpError(404, "Not available on this host");
   }
   return product;
+}
+
+/**
+ * True when the native app is calling: it signs in with a bearer token and talks to one server
+ * address for every product, so host routing does not apply to it.
+ */
+export async function isAppRequest(): Promise<boolean> {
+  return bearerTokenFrom((await headers()).get("authorization")) !== null;
+}
+
+/**
+ * Like requireProduct, but the signed-in native app may call from any host. The bearer token must
+ * belong to a live session, so a made-up header does not skip the host check.
+ */
+export async function requireProductOrApp(expected: Product): Promise<Product> {
+  if (await isAppRequest()) {
+    await requireUser();
+    return expected;
+  }
+  return requireProduct(expected);
 }
 
 export async function getProductBrand(): Promise<BrandConfig> {
