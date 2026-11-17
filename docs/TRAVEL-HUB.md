@@ -40,7 +40,7 @@ Confirmed by Reuben, 2026-11-17: one iPhone app shell (and one web deploy) is fi
 
 | Piece | Where | Why |
 |---|---|---|
-| Web Travel Hub | `apps/web`, served on a third product host (`PRODUCT_HOST_TRAVEL`, e.g. `travel.example.com`). The host routing knows only `vpn` and `esim` today and must be extended, see [A third product host](#a-third-product-host) | Affiliate programmes judge us on a public website and its traffic; the web is where most referral clicks will happen |
+| Web Travel Hub | `apps/web`, served on a third product host (`PRODUCT_HOST_TRAVEL`, `travel.example.com`, on the existing deployment; decided 2026-11-17). The host routing knows only `vpn` and `esim` today and must be extended, see [A third product host](#a-third-product-host) | Affiliate programmes judge us on a public website and its traffic; the web is where most referral clicks will happen |
 | Partner adapters | new `packages/travel-partners`: a `TravelPartner` interface, a `MockTravelPartner`, then one adapter per network | Same pattern as `vpn-provider` and `esim-provider`; the app never builds a partner URL by hand |
 | Destination content | new `packages/destinations`: curated country/city data (JSON in the repo, reviewed by a person) | Small, checkable, no scraping |
 | Tables | `packages/db`: `travel_partners`, `outbound_links`, `partner_events`, `trips`, `trip_items` | `referrals` already exists (customer refer-a-friend), so partner tracking uses different names |
@@ -136,7 +136,7 @@ Each phase is one or a few PRs, with its own tests, and ends with a working stat
 | Phase | Delivers | Done when | Needs from Reuben |
 |---|---|---|---|
 | 0 | This plan | Merged | Review the open questions |
-| 1 | Travel host on the web, destination pages for ~10 countries from curated data, saved trips (web + API), Explore and Trips tabs in the iPhone app. Mock partner only | A signed-in person can open Japan, see our eSIM packages, save the trip on the web and see it on the phone | Which ~10 destinations first |
+| 1 | Travel host on the web, destination pages for the first ten countries from curated data, saved trips (web + API), Explore and Trips tabs in the iPhone app. Mock partner only | A signed-in person can open Japan, see our eSIM packages, save the trip on the web and see it on the phone | Nothing (destinations decided) |
 | 2 | `travel-partners` package, `/go/` redirect and click records, disclosure component, consent and policy page updates, first `link` partners (flights, hotels) | A real partner link works end to end in test, with a recorded click and visible disclosure | Programme sign-ups (he applies, or says go) |
 | 3 | eSIM in journeys: trip-aware package suggestions, "connectivity" item on a trip, activation guidance; reads the eSIM product, changes nothing in its checkout | Starting from a trip, a person reaches eSIM checkout in one tap | eSIM launch stream finished first |
 | 4 | Travel essentials: parking, transfers, car hire, activities as `link` partners | Two essentials categories live | Partner approvals |
@@ -156,8 +156,13 @@ Once someone saves a trip (Japan, three weeks in April), Travel Hub should use t
 - Direct eSIM sales, our own margin.
 - Later, maybe: premium trip tools (alerts, shared trips). Not planned in detail; nothing gets paywalled in phases 1 to 4.
 
-## Open questions for Reuben
+## Decisions
 
-1. Should Travel Hub get its own web host and brand, or live on the eSIM host to start? (Recommended: its own host on the same deploy, so its marketing and cookies stay separate.)
-2. Which destinations first? Suggested: Japan, USA, Spain, France, Italy, Greece, Portugal, Turkey, Thailand, UAE.
-3. Who will run the insurance compliance review, and when?
+Reuben, 2026-11-17:
+
+1. **Travel's own host:** `travel.example.com`, on the existing deployment, with its own marketing and cookies.
+2. **First ten destinations:** Japan, USA, Spain, France, Italy, Greece, Portugal, Turkey, Thailand and UAE.
+
+## Still open
+
+- Who will run the insurance compliance review, and when. A later dependency for phase 5 only.
