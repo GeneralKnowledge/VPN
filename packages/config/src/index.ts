@@ -11,6 +11,7 @@ export {
   PRODUCT_HEADER,
   VPN_ONLY_PREFIXES,
   ESIM_ONLY_PREFIXES,
+  TRAVEL_ONLY_PREFIXES,
   brands,
   esimBrand,
   getBrand,
@@ -19,13 +20,14 @@ export {
   products,
   resolveProductFromHost,
   resolveRequestHost,
+  travelBrand,
   vpnBrand,
   type BrandConfig,
   type Product,
   type ProductHostConfig,
 } from "./product";
 
-import { vpnBrand } from "./product";
+import { vpnBrand, type Product } from "./product";
 import {
   accessTierSchema,
   billingModeSchema,
@@ -181,6 +183,8 @@ export const envSchema = z.object({
   APP_URL: z.string().url().default("http://localhost:3000"),
   /** Public URL for the eSIM host (emails / checkout returns). Defaults to APP_URL. */
   ESIM_APP_URL: z.string().url().optional(),
+  /** Public URL for the Travel host (canonical links, sitemap). Defaults to APP_URL. */
+  TRAVEL_APP_URL: z.string().url().optional(),
   APP_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_NAME: z.string().default(brand.name),
   DATABASE_URL: z.string().min(1),
@@ -190,6 +194,8 @@ export const envSchema = z.object({
   PRODUCT_HOST_VPN: z.string().optional().default(""),
   /** Comma-separated hosts that serve the eSIM product (e.g. sim.localhost,sim.example.com). */
   PRODUCT_HOST_ESIM: z.string().optional().default("sim.localhost,sim.example.com"),
+  /** Comma-separated hosts that serve Travel Hub (e.g. travel.localhost,travel.example.com). */
+  PRODUCT_HOST_TRAVEL: z.string().optional().default("travel.localhost,travel.example.com"),
   /**
    * When true, product routing may use client `x-forwarded-host`.
    * Only enable behind a reverse proxy that overwrites that header (never on a raw public Node).
@@ -280,17 +286,24 @@ export function parseEnv(raw: Record<string, string | undefined> = process.env):
   return envSchema.parse({ ...raw, APP_ENV: appEnv });
 }
 
-export function productHostConfig(env: Pick<AppEnv, "PRODUCT_HOST_VPN" | "PRODUCT_HOST_ESIM">) {
+export function productHostConfig(
+  env: Pick<AppEnv, "PRODUCT_HOST_VPN" | "PRODUCT_HOST_ESIM"> &
+    Partial<Pick<AppEnv, "PRODUCT_HOST_TRAVEL">>,
+) {
   return {
     vpnHosts: hostList(env.PRODUCT_HOST_VPN, []),
     esimHosts: hostList(env.PRODUCT_HOST_ESIM, ["sim.localhost", "sim.example.com"]),
+    travelHosts: hostList(env.PRODUCT_HOST_TRAVEL, ["travel.localhost", "travel.example.com"]),
     defaultProduct: "vpn" as const,
   };
 }
 
-export function appUrlForProduct(env: AppEnv, product: "vpn" | "esim"): string {
+export function appUrlForProduct(env: AppEnv, product: Product): string {
   if (product === "esim" && env.ESIM_APP_URL) {
     return env.ESIM_APP_URL.replace(/\/$/, "");
+  }
+  if (product === "travel" && env.TRAVEL_APP_URL) {
+    return env.TRAVEL_APP_URL.replace(/\/$/, "");
   }
   return env.APP_URL.replace(/\/$/, "");
 }

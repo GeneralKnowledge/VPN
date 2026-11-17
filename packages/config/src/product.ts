@@ -1,4 +1,4 @@
-export const products = ["vpn", "esim"] as const;
+export const products = ["vpn", "esim", "travel"] as const;
 export type Product = (typeof products)[number];
 
 export const PRODUCT_HEADER = "x-northstar-product";
@@ -83,9 +83,40 @@ export const esimBrand = {
   },
 } as const satisfies BrandConfig;
 
+/**
+ * Travel Hub brand: travel discovery that introduces people to the eSIM and VPN products.
+ * It sells nothing itself (docs/TRAVEL-HUB.md).
+ */
+export const travelBrand = {
+  name: "Northstar Travel",
+  shortName: "Northstar Travel",
+  legalName: "Northstar VPN Ltd",
+  tagline: "Get connected, stay protected, get where you're going.",
+  supportEmail: "travel@northstar.local",
+  domain: "travel.northstar.local",
+  referralPrefix: "TRAVEL",
+  colors: {
+    ink: "#13262B",
+    mist: "#EDF4F1",
+    sea: "#2E7D6B",
+    seaDark: "#1D5A4C",
+    accent: "#D08C3C",
+    accentSoft: "#F1D9B8",
+    danger: "#B33A3A",
+    success: "#2F7D4A",
+    muted: "#5A7180",
+  },
+  fonts: {
+    display: "Fraunces",
+    body: "Source Sans 3",
+    mono: "IBM Plex Mono",
+  },
+} as const satisfies BrandConfig;
+
 export const brands = {
   vpn: vpnBrand,
   esim: esimBrand,
+  travel: travelBrand,
 } as const;
 
 export function getBrand(product: Product = "vpn"): BrandConfig {
@@ -93,7 +124,7 @@ export function getBrand(product: Product = "vpn"): BrandConfig {
 }
 
 export function isProduct(value: string | null | undefined): value is Product {
-  return value === "vpn" || value === "esim";
+  return (products as readonly string[]).includes(value ?? "");
 }
 
 /** Normalise a Host header to hostname without port. */
@@ -109,6 +140,7 @@ export function hostWithoutPort(host: string): string {
 export type ProductHostConfig = {
   vpnHosts: string[];
   esimHosts: string[];
+  travelHosts: string[];
   defaultProduct: Product;
 };
 
@@ -123,6 +155,7 @@ export function resolveProductFromHost(
   if (!hostHeader) return config.defaultProduct;
   const host = hostWithoutPort(hostHeader);
   if (config.esimHosts.some((h) => hostWithoutPort(h) === host)) return "esim";
+  if (config.travelHosts.some((h) => hostWithoutPort(h) === host)) return "travel";
   if (config.vpnHosts.some((h) => hostWithoutPort(h) === host)) return "vpn";
   return config.defaultProduct;
 }
@@ -156,3 +189,6 @@ export const VPN_ONLY_PREFIXES = [
 
 /** Paths that only make sense on the eSIM product host (after rewrite, under /sim). */
 export const ESIM_ONLY_PREFIXES = ["/dashboard/esim", "/sim"] as const;
+
+/** Paths that only make sense on the Travel host (after rewrite, under /travel). */
+export const TRAVEL_ONLY_PREFIXES = ["/travel"] as const;

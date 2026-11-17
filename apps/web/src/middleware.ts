@@ -1,5 +1,6 @@
 import {
   PRODUCT_HEADER,
+  TRAVEL_ONLY_PREFIXES,
   VPN_ONLY_PREFIXES,
   productHostConfig,
   resolveProductFromHost,
@@ -24,6 +25,18 @@ const ESIM_MARKETING = new Set([
   "/refund",
   "/cookies",
 ]);
+
+/**
+ * Pages the Travel host serves, rewritten to /travel/*. Everything else that is a page redirects
+ * to its home: Travel has no sign-in, dashboard or checkout of its own yet (docs/TRAVEL-HUB.md).
+ */
+function travelRewrite(pathname: string): string | null {
+  if (pathname === "/") return "/travel";
+  if (pathname === "/destinations" || pathname.startsWith("/destinations/")) {
+    return `/travel${pathname}`;
+  }
+  return null;
+}
 
 function startsWithAny(pathname: string, prefixes: readonly string[]): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -58,6 +71,7 @@ export function middleware(req: NextRequest) {
   const config = productHostConfig({
     PRODUCT_HOST_VPN: process.env.PRODUCT_HOST_VPN ?? "",
     PRODUCT_HOST_ESIM: process.env.PRODUCT_HOST_ESIM ?? "sim.localhost,sim.example.com",
+    PRODUCT_HOST_TRAVEL: process.env.PRODUCT_HOST_TRAVEL ?? "travel.localhost,travel.example.com",
   });
   const product = resolveProductFromHost(host, config);
   const { pathname } = req.nextUrl;
@@ -69,6 +83,7 @@ export function middleware(req: NextRequest) {
       host,
       hostOf(process.env.APP_URL),
       hostOf(process.env.ESIM_APP_URL),
+      hostOf(process.env.TRAVEL_APP_URL),
     ])
   ) {
     return NextResponse.json({ error: "Cross-site request refused" }, { status: 403 });
@@ -80,6 +95,47 @@ export function middleware(req: NextRequest) {
     pathname.includes(".")
   ) {
     return nextWithProduct(req, product);
+  }
+
+  if (product === "travel") {
+    if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+      const vpnBase = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+      return NextResponse.redirect(new URL(`/admin${pathname.slice("/admin".length)}`, vpnBase));
+    }
+
+    if (
+      pathname === "/api/admin" ||
+      pathname.startsWith("/api/admin/") ||
+      pathname === "/api/reconcile"
+    ) {
+      return NextResponse.json({ error: "Not available on this host" }, { status: 404 });
+    }
+
+    if (pathname.startsWith("/api/")) {
+      return nextWithProduct(req, product);
+    }
+
+    if (startsWithAny(pathname, TRAVEL_ONLY_PREFIXES)) {
+      return nextWithProduct(req, product);
+    }
+
+    const rewritten = travelRewrite(pathname);
+    if (rewritten) {
+      const url = req.nextUrl.clone();
+      url.pathname = rewritten;
+      return rewriteWithProduct(req, product, url);
+    }
+
+    const url = req.nextUrl.clone();
+    url.pathname = "/";
+    url.search = "";
+    return redirectWithProduct(req, product, url);
+  }
+
+  if (startsWithAny(pathname, TRAVEL_ONLY_PREFIXES)) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/";
+    return redirectWithProduct(req, product, url);
   }
 
   if (product === "esim") {

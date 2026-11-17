@@ -1,6 +1,6 @@
 # Travel Hub plan
 
-Status: plan only. Nothing here is built, and no affiliate programme has been applied to or contacted. Agreed direction from Reuben, 2026-11-17; names are provisional.
+Status: phase 1 in progress (the Travel host and destination pages are built; saved trips and the iPhone tabs are next). No affiliate programme has been applied to or contacted. Agreed direction from Reuben, 2026-11-17; names are provisional.
 
 ## In one paragraph
 
