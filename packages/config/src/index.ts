@@ -245,6 +245,12 @@ export const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(""),
   /** Shared secret for /api/webhooks/vpnresellers; empty rejects every delivery (no CRON_SECRET fallback). */
   VPNRESELLERS_WEBHOOK_SECRET: z.string().optional().default(""),
+  /**
+   * Card-statement suffixes, so VPN and eSIM charges read differently on a customer's statement
+   * (they are resold from different suppliers). Shown after the account's descriptor prefix.
+   */
+  STRIPE_STATEMENT_SUFFIX_VPN: z.string().optional().default("VPN"),
+  STRIPE_STATEMENT_SUFFIX_ESIM: z.string().optional().default("ESIM"),
   STRIPE_PUBLISHABLE_KEY: z.string().optional().default(""),
   STRIPE_PRICE_MONTHLY: z.string().optional().default(""),
   STRIPE_PRICE_ANNUAL: z.string().optional().default(""),
@@ -344,6 +350,14 @@ export function productionEnvProblems(env: AppEnv): string[] {
   }
   if (env.BILLING_PROVIDER === "stripe" && !env.STRIPE_WEBHOOK_SECRET) {
     problems.push("BILLING_PROVIDER=stripe requires STRIPE_WEBHOOK_SECRET");
+  }
+  for (const [name, value] of [
+    ["STRIPE_STATEMENT_SUFFIX_VPN", env.STRIPE_STATEMENT_SUFFIX_VPN],
+    ["STRIPE_STATEMENT_SUFFIX_ESIM", env.STRIPE_STATEMENT_SUFFIX_ESIM],
+  ] as const) {
+    if (value && !(/^[A-Za-z0-9 .-]{1,12}$/.test(value) && /[A-Za-z]/.test(value))) {
+      problems.push(`${name} must be 1-12 letters, digits, spaces, dots or dashes, with at least one letter`);
+    }
   }
   if (env.BILLING_PROVIDER === "stripe" && !env.STRIPE_SECRET_KEY) {
     problems.push("BILLING_PROVIDER=stripe requires STRIPE_SECRET_KEY");

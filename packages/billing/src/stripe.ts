@@ -31,6 +31,11 @@ export class StripeBillingProvider implements BillingProvider {
     private readonly config: StripeClientConfig & {
       webhookSecret: string;
       priceMap: Record<string, string>;
+      /**
+       * Card-statement suffix for one-off (prepaid) plans. Subscription renewals take the
+       * statement descriptor of the Stripe Product behind the Price, set in the dashboard.
+       */
+      statementSuffix?: string;
     },
   ) {
     this.client = new StripeRestClient(config);
@@ -70,7 +75,14 @@ export class StripeBillingProvider implements BillingProvider {
       line_items: [{ price, quantity: 1 }],
       metadata,
       // Copied onto the subscription or payment so later events can be traced to the customer.
-      ...(subscription ? { subscription_data: { metadata } } : { payment_intent_data: { metadata } }),
+      ...(subscription
+        ? { subscription_data: { metadata } }
+        : {
+            payment_intent_data: {
+              metadata,
+              statement_descriptor_suffix: this.config.statementSuffix || undefined,
+            },
+          }),
     });
     const session = await this.client.request<{ id?: string; url?: string }>(
       "POST",

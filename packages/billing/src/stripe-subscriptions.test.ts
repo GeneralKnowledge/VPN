@@ -70,6 +70,19 @@ describe("StripeBillingProvider subscriptions", () => {
     expect(form.get("customer_email")).toBeNull();
   });
 
+  it("puts the VPN statement suffix on one-off plans only", async () => {
+    const { fn, calls } = fakeFetch([
+      { status: 200, body: { id: "cs_test_3", url: "https://checkout.stripe.com/c/3" } },
+      { status: 200, body: { id: "cs_test_4", url: "https://checkout.stripe.com/c/4" } },
+    ]);
+    const stripe = new StripeBillingProvider({ secretKey: "sk_test_x", webhookSecret: "w", priceMap, fetchFn: fn, statementSuffix: "VPN" });
+    await stripe.createCheckout({ ...input, planId: "gold-annual", billingMode: "prepaid" });
+    await stripe.createCheckout(input);
+    expect(new URLSearchParams(calls[0]!.body).get("payment_intent_data[statement_descriptor_suffix]")).toBe("VPN");
+    // Subscription mode takes no payment_intent_data; renewals use the Product's descriptor.
+    expect(new URLSearchParams(calls[1]!.body).get("payment_intent_data[statement_descriptor_suffix]")).toBeNull();
+  });
+
   it("refuses a plan with no configured price, and live keys without the launch gate", async () => {
     const { fn, calls } = fakeFetch([]);
     await expect(provider(fn).createCheckout({ ...input, planId: "diamond-monthly" })).rejects.toThrow(/No Stripe price/);

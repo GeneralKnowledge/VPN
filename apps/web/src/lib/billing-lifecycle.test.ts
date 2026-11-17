@@ -111,6 +111,7 @@ describe("billing lifecycle", () => {
     await addUser("u1");
     await subscribe("u1");
     expect(await db.select().from(payments)).toHaveLength(1);
+    expect((await db.select().from(payments))[0]!.product).toBe("vpn");
     expect(await db.select().from(invoices)).toHaveLength(1);
     expect((await userRow("u1")).lifecycle).toBe("active");
   });

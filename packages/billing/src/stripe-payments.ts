@@ -183,12 +183,23 @@ export class StripeRestClient {
 }
 
 /** One-time payments: Checkout in payment mode plus refunds. */
+/**
+ * Card statements show the account's descriptor prefix plus this suffix, so each resold product
+ * can be told apart on a customer's statement. Stripe allows letters, digits, spaces and a few
+ * marks, at least one letter, and 22 characters with the prefix.
+ */
+export function isValidStatementSuffix(suffix: string): boolean {
+  return /^[A-Za-z0-9 .-]{1,12}$/.test(suffix) && /[A-Za-z]/.test(suffix);
+}
+
 export class StripeOneTimePayments implements OneTimePayments {
   readonly provider = "stripe" as const;
   private readonly client: StripeRestClient;
+  private readonly statementSuffix?: string;
 
-  constructor(config: StripeClientConfig) {
+  constructor(config: StripeClientConfig & { statementSuffix?: string }) {
     this.client = new StripeRestClient(config);
+    this.statementSuffix = config.statementSuffix || undefined;
   }
 
   async createOneTimeCheckout(input: OneTimeCheckoutInput): Promise<OneTimeCheckoutSession> {
@@ -214,7 +225,10 @@ export class StripeOneTimePayments implements OneTimePayments {
         },
       ],
       metadata: { kind: input.kind, orderId: input.orderId },
-      payment_intent_data: { metadata: { kind: input.kind, orderId: input.orderId } },
+      payment_intent_data: {
+        metadata: { kind: input.kind, orderId: input.orderId },
+        statement_descriptor_suffix: this.statementSuffix,
+      },
     });
     const session = await this.client.request<{ id?: string; url?: string }>(
       "POST",

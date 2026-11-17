@@ -85,6 +85,14 @@ eSIMs are one-time purchases through Stripe Checkout in payment mode. No Stripe 
 2. `checkout.session.completed` (or `async_payment_succeeded`) arrives at `/api/webhooks/stripe`, signed. The handler checks `payment_status=paid` and that amount and currency match the order, records one `payments` row, and issues.
 3. Webhook events are claimed once (from PR #17); the order moves `pending → paid` with a conditional update, so duplicate deliveries issue once.
 
+### Kept apart from VPN billing
+
+VPN and eSIM are resold from different suppliers, so their money is booked separately, though both use one Stripe account:
+
+- Every `payments` row has `product` (`vpn` or `esim`). Admin → Payments shows it. Payments from before the column existed are labelled by the migration, using the eSIM order they belong to.
+- Card statements carry a per-product suffix after the account's descriptor prefix: `STRIPE_STATEMENT_SUFFIX_ESIM` (default `ESIM`) and `STRIPE_STATEMENT_SUFFIX_VPN` (default `VPN`, for one-off plans). Stripe applies no suffix to subscription renewals; set the statement descriptor on the VPN Products in the Stripe dashboard instead.
+- Stripe events are routed by `metadata.kind`, and the VPN refund handler only touches `product = vpn` payments.
+
 ### Order states
 
 | Status | Meaning | What happens next |

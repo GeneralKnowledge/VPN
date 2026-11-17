@@ -136,6 +136,7 @@ export function getOneTimePayments(): OneTimePayments {
         ? new StripeOneTimePayments({
             secretKey: env.STRIPE_SECRET_KEY,
             allowLiveKeys: env.STRIPE_ALLOW_LIVE_PAYMENTS,
+            statementSuffix: env.STRIPE_STATEMENT_SUFFIX_ESIM,
           })
         : new MockOneTimePayments();
   }
@@ -151,6 +152,7 @@ export function getBillingProvider() {
       webhookSecret: env.STRIPE_WEBHOOK_SECRET,
       priceMap: stripePriceMap(env),
       allowLiveKeys: env.STRIPE_ALLOW_LIVE_PAYMENTS,
+      statementSuffix: env.STRIPE_STATEMENT_SUFFIX_VPN,
       defaultRail: "stripe",
     });
   }

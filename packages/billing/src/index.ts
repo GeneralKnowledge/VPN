@@ -11,6 +11,8 @@ export function createBillingProvider(
     priceMap?: Record<string, string>;
     /** Launch gate for live Stripe keys (STRIPE_ALLOW_LIVE_PAYMENTS). */
     allowLiveKeys?: boolean;
+    /** Card-statement suffix for one-off Stripe payments. */
+    statementSuffix?: string;
     /** Used when kind is mock to label the default rail in status. */
     defaultRail?: PaymentRail;
   },
@@ -29,6 +31,7 @@ export function createBillingProvider(
     webhookSecret: options?.webhookSecret ?? "",
     priceMap: options?.priceMap ?? {},
     allowLiveKeys: options?.allowLiveKeys ?? false,
+    statementSuffix: options?.statementSuffix,
   });
 }
 

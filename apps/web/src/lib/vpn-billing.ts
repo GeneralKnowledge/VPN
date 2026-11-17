@@ -259,7 +259,9 @@ export async function recordVpnRefundFromStripe(
   const [payment] = await db
     .select()
     .from(payments)
-    .where(and(eq(payments.provider, "stripe"), inArray(payments.providerPaymentId, keys)))
+    .where(
+      and(eq(payments.provider, "stripe"), eq(payments.product, "vpn"), inArray(payments.providerPaymentId, keys)),
+    )
     .limit(1);
   if (!payment) return false;
   if (payment.status === "refunded") return true;

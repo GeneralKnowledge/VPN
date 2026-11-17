@@ -245,7 +245,10 @@ describe("esim Stripe payments, failures and refunds", () => {
 
     expect(state.calls).toBe(1);
     expect((await orderOf(created.orderId)).status).toBe("issued");
-    expect(await db.select().from(payments)).toHaveLength(1);
+    const recorded = await db.select().from(payments);
+    expect(recorded).toHaveLength(1);
+    // eSIM money is booked separately from VPN money.
+    expect(recorded[0]!.product).toBe("esim");
   });
 
   it("does nothing for an unpaid session and holds a wrong amount for review", async () => {

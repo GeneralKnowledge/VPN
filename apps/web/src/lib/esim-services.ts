@@ -185,6 +185,7 @@ export async function confirmEsimPayment(
       amount: input.amountTotal ?? order.amount,
       currency: (input.currency ?? order.currency).toUpperCase(),
       status: "succeeded",
+      product: "esim",
     })
     .onConflictDoNothing();
 
@@ -369,6 +370,7 @@ export async function completeEsimOrder(
       amount: order.amount,
       currency: order.currency,
       status: "succeeded",
+      product: "esim",
     });
   } else if (order.status !== "paid" && order.status !== "failed") {
     throw new HttpError(400, "Order is not ready to complete");
