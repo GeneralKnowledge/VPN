@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MockOneTimePayments,
+  isValidStatementSuffix,
   StripeOneTimePayments,
   parseCheckoutSession,
   signStripePayload,
@@ -45,7 +46,7 @@ describe("StripeOneTimePayments", () => {
 
   it("creates a payment-mode session with server amount, metadata and idempotency key", async () => {
     const { fn, calls } = fakeFetch([{ status: 200, body: { id: "cs_test_1", url: "https://checkout.stripe.com/c/1" } }]);
-    const stripe = new StripeOneTimePayments({ secretKey: "sk_test_x", fetchFn: fn });
+    const stripe = new StripeOneTimePayments({ secretKey: "sk_test_x", fetchFn: fn, statementSuffix: "ESIM" });
     const session = await stripe.createOneTimeCheckout({
       orderId: "eso_1",
       amount: 1299,
@@ -66,6 +67,7 @@ describe("StripeOneTimePayments", () => {
     expect(form.get("metadata[orderId]")).toBe("eso_1");
     expect(form.get("metadata[kind]")).toBe("esim");
     expect(form.get("payment_intent_data[metadata][orderId]")).toBe("eso_1");
+    expect(form.get("payment_intent_data[statement_descriptor_suffix]")).toBe("ESIM");
     expect((calls[0]!.init.headers as Record<string, string>)["Idempotency-Key"]).toBe("esim_key_1");
   });
 
@@ -120,5 +122,15 @@ describe("helpers", () => {
     await mock.refund("pi", "k1");
     await mock.refund("pi", "k1");
     expect(mock.refunds).toHaveLength(1);
+  });
+});
+
+describe("isValidStatementSuffix", () => {
+  it("accepts short lettered suffixes and refuses the rest", () => {
+    expect(isValidStatementSuffix("ESIM")).toBe(true);
+    expect(isValidStatementSuffix("VPN 2")).toBe(true);
+    expect(isValidStatementSuffix("1234")).toBe(false);
+    expect(isValidStatementSuffix("<script>")).toBe(false);
+    expect(isValidStatementSuffix("A".repeat(13))).toBe(false);
   });
 });

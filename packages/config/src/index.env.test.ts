@@ -38,6 +38,12 @@ describe("production env", () => {
     expect(problems).toMatch(/RESELLPORTAL_TEST_MODE/);
   });
 
+  it("checks the card-statement suffixes", () => {
+    expect(parseEnv(base).STRIPE_STATEMENT_SUFFIX_ESIM).toBe("ESIM");
+    const problems = productionEnvProblems(parseEnv({ ...base, STRIPE_STATEMENT_SUFFIX_ESIM: "<bad>" })).join("\n");
+    expect(problems).toMatch(/STRIPE_STATEMENT_SUFFIX_ESIM/);
+  });
+
   it("keeps live Stripe payments off unless explicitly allowed", () => {
     expect(parseEnv(base).STRIPE_ALLOW_LIVE_PAYMENTS).toBe(false);
     expect(parseEnv({ ...base, STRIPE_ALLOW_LIVE_PAYMENTS: "true" }).STRIPE_ALLOW_LIVE_PAYMENTS).toBe(true);

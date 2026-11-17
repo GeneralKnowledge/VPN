@@ -307,6 +307,7 @@ async function recordPaymentAndInvoice(
       amount: input.amount,
       currency: "GBP",
       status: "succeeded",
+      product: "vpn",
     });
   } catch (err) {
     // The unique (provider, payment id) index: a concurrent delivery already recorded this payment.

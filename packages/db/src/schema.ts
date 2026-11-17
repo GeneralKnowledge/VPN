@@ -254,10 +254,13 @@ export const payments = sqliteTable(
     status: text("status", {
       enum: ["pending", "succeeded", "failed", "refunded"],
     }).notNull(),
+    /** Which resold product this payment was for. VPN and eSIM books are kept separate. */
+    product: text("product", { enum: ["vpn", "esim"] }).notNull().default("vpn"),
     ...timestamps,
   },
   (t) => [
     index("payments_user_idx").on(t.userId),
+    index("payments_product_idx").on(t.product),
     // One row per provider payment: concurrent webhook deliveries cannot record (and extend for) it twice.
     uniqueIndex("payments_provider_payment_uidx").on(t.provider, t.providerPaymentId),
   ],

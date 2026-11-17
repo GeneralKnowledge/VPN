@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS payments (
   amount INTEGER NOT NULL,
   currency TEXT NOT NULL DEFAULT 'GBP',
   status TEXT NOT NULL,
+  product TEXT NOT NULL DEFAULT 'vpn',
   created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
   updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
 );
@@ -321,6 +322,8 @@ const ALTERS = [
   `ALTER TABLE sessions ADD COLUMN ip_address TEXT`,
   `ALTER TABLE vpn_locations ADD COLUMN latitude REAL`,
   `ALTER TABLE vpn_locations ADD COLUMN longitude REAL`,
+  // Which resold product a payment was for (VPN and eSIM are separate businesses' books).
+  `ALTER TABLE payments ADD COLUMN product TEXT NOT NULL DEFAULT 'vpn'`,
 ];
 
 /**
@@ -414,6 +417,9 @@ export function migrate(databaseUrl = process.env.DATABASE_URL ?? "file:./data/n
       // column already exists
     }
   }
+  // Payments recorded before the product column existed: eSIM ones are those tied to an eSIM order.
+  sqlite.exec(`UPDATE payments SET product = 'esim' WHERE product = 'vpn' AND provider_payment_id IN (SELECT provider_payment_id FROM esim_orders WHERE provider_payment_id IS NOT NULL)`);
+  sqlite.exec(`CREATE INDEX IF NOT EXISTS payments_product_idx ON payments(product)`);
   try {
     rebuildUsersForOptionalEmail(sqlite);
   } catch (err) {
