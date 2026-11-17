@@ -75,6 +75,100 @@ pub struct ApiConnection {
     pub country_code: String,
 }
 
+// Travel Hub (docs/app-api.md, "Travel").
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiDestinationSummary {
+    pub slug: String,
+    pub name: String,
+    pub country_code: String,
+    pub summary: String,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ApiCurrency {
+    pub code: String,
+    pub name: String,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ApiEmergencyNumber {
+    pub label: String,
+    pub number: String,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiDestination {
+    pub slug: String,
+    pub name: String,
+    pub country_code: String,
+    pub summary: String,
+    pub currency: ApiCurrency,
+    pub languages: Vec<String>,
+    pub drives_on: String,
+    pub plug_types: Vec<String>,
+    pub voltage: u32,
+    pub emergency_numbers: Vec<ApiEmergencyNumber>,
+    pub travel_advice_url: String,
+    pub entry_requirements_url: String,
+    pub reviewed: bool,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiEsimPackage {
+    pub code: String,
+    pub name: String,
+    pub country_name: String,
+    pub data_volume: String,
+    pub validity: String,
+    /// Minor units (pence).
+    pub price: u64,
+    pub currency: String,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiDestinationEsim {
+    pub available: bool,
+    pub packages: Vec<ApiEsimPackage>,
+    pub plans_url: String,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ApiDestinationDetail {
+    pub destination: ApiDestination,
+    pub esim: ApiDestinationEsim,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ApiTripDestination {
+    pub slug: String,
+    pub name: String,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiTrip {
+    pub id: String,
+    pub destination: ApiTripDestination,
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct Destinations {
+    destinations: Vec<ApiDestinationSummary>,
+}
+
+#[derive(Deserialize)]
+struct Trips {
+    trips: Vec<ApiTrip>,
+}
+
 #[derive(Deserialize)]
 struct Locations {
     locations: Vec<ApiLocation>,
@@ -180,6 +274,43 @@ impl Api<'_> {
         String::from_utf8(response.body).map_err(|_| AppError::Server {
             reason: "the config was not text".into(),
         })
+    }
+
+    pub fn destinations(&self) -> Result<Vec<ApiDestinationSummary>, AppError> {
+        self.json::<Destinations>(Method::Get, "/api/travel/destinations", None)
+            .map(|d| d.destinations)
+    }
+
+    pub fn destination(&self, slug: &str) -> Result<ApiDestinationDetail, AppError> {
+        let path = format!("/api/travel/destinations/{}", encode(slug));
+        self.json(Method::Get, &path, None)
+    }
+
+    pub fn trips(&self) -> Result<Vec<ApiTrip>, AppError> {
+        self.json::<Trips>(Method::Get, "/api/travel/trips", None)
+            .map(|t| t.trips)
+    }
+
+    pub fn create_trip(
+        &self,
+        destination_slug: &str,
+        start_date: Option<&str>,
+        end_date: Option<&str>,
+        notes: Option<&str>,
+    ) -> Result<(), AppError> {
+        let body = serde_json::json!({
+            "destinationSlug": destination_slug,
+            "startDate": start_date,
+            "endDate": end_date,
+            "notes": notes,
+        });
+        self.send(Method::Post, "/api/travel/trips", Some(body))
+            .map(|_| ())
+    }
+
+    pub fn delete_trip(&self, id: &str) -> Result<(), AppError> {
+        let path = format!("/api/travel/trips/{}", encode(id));
+        self.send(Method::Delete, &path, None).map(|_| ())
     }
 
     fn json<T: DeserializeOwned>(

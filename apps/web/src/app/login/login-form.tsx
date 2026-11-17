@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import type { BrandConfig } from "@northstar/config";
 import { Logo } from "@/components/logo";
 import { PasswordInput } from "@/components/password-input";
 import { Button, FormError, Input, Label } from "@/components/ui";
 import { safeJson } from "@/lib/client";
 
-export function LoginForm({ showDevHint }: { showDevHint: boolean }) {
+export function LoginForm({ showDevHint, brand }: { showDevHint: boolean; brand?: BrandConfig }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -46,7 +47,7 @@ export function LoginForm({ showDevHint }: { showDevHint: boolean }) {
   return (
     <div className="hero-mesh flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 shadow-lg">
-        <Logo />
+        <Logo brand={brand} />
         <h1 className="mt-6 font-display text-3xl">Log in</h1>
         {showDevHint ? (
           <p className="mt-2 text-sm text-muted">

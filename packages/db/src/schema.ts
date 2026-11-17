@@ -505,6 +505,28 @@ export const esimProfiles = sqliteTable(
   ],
 );
 
+/**
+ * Travel Hub saved trips (docs/TRAVEL-HUB.md). Personal data: a destination, optional dates and the
+ * person's own notes. Never logged; deleted with the account.
+ */
+export const trips = sqliteTable(
+  "trips",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** A @northstar/destinations slug. */
+    destinationSlug: text("destination_slug").notNull(),
+    /** ISO dates (YYYY-MM-DD), both optional. */
+    startDate: text("start_date"),
+    endDate: text("end_date"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [index("trips_user_idx").on(t.userId)],
+);
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   subscriptions: many(subscriptions),
   vpnAccount: one(vpnAccounts),

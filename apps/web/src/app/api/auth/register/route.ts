@@ -3,6 +3,7 @@ import { eq, or } from "drizzle-orm";
 import { getPlan, tierRequiresEmail } from "@northstar/config";
 import { referrals, users } from "@northstar/db";
 import { cookies } from "next/headers";
+import { getProduct } from "@/lib/product";
 import {
   USERNAME_PATTERN,
   createSession,
@@ -157,7 +158,9 @@ export async function POST(req: Request) {
     track({ name: "signup_completed", userId });
     const redirectTo = body.planId
       ? `/dashboard/billing?plan=${encodeURIComponent(body.planId)}`
-      : "/dashboard";
+      : (await getProduct()) === "travel"
+        ? "/trips"
+        : "/dashboard";
     return Response.json({
       ok: true,
       redirectTo,

@@ -23,11 +23,12 @@ Northstar VPN is a white-label consumer VPN business built on managed infrastruc
 ## Repository layout
 
 ```
-apps/web                 Next.js — marketing, dashboard, admin, API (host-routed VPN + eSIM)
+apps/web                 Next.js — marketing, dashboard, admin, API (host-routed VPN + eSIM + Travel)
 packages/config          Brands, plans, product hosts, env parsing (Zod)
 packages/db              Drizzle schema, migrations, seed
 packages/vpn-provider    VPNProvider interface + Mock + VPNResellers
 packages/esim-provider   EsimProvider interface + Mock + ResellPortal
+packages/destinations    Travel Hub destination facts (curated, reviewed by a person)
 packages/billing         BillingProvider + Mock + Stripe stub
 packages/email           EmailProvider + Mock (+ production stub)
 docs/                    Provider research, runbooks, launch checklist
@@ -44,7 +45,7 @@ EmailProvider ── MockEmailProvider | SmtpEmailProvider
 
 Application services call interfaces only. `VPN_PROVIDER`, `ESIM_PROVIDER`, `BILLING_PROVIDER`, etc. select implementations at boot.
 
-Hostname → product (`vpn` | `esim`) is resolved in middleware; see [docs/MULTI-PRODUCT.md](docs/MULTI-PRODUCT.md).
+Hostname → product (`vpn` | `esim` | `travel`) is resolved in middleware; see [docs/MULTI-PRODUCT.md](docs/MULTI-PRODUCT.md).
 
 ## Domain model (high level)
 

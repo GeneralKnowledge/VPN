@@ -1,6 +1,6 @@
-# Multi-product hosts (VPN + eSIM)
+# Multi-product hosts (VPN + eSIM + Travel)
 
-One Next.js deploy serves two products by **hostname**. Marketing copy stays separate; accounts are shared in the database but **sessions do not cross hosts** (host-only cookies).
+One Next.js deploy serves three products by **hostname**: VPN and eSIM, which each sell their own product, and Travel Hub, which sells nothing and introduces people to the other two ([TRAVEL-HUB.md](./TRAVEL-HUB.md)). Marketing copy stays separate; accounts are shared in the database but **sessions do not cross hosts** (host-only cookies).
 
 ## Hosts
 
@@ -8,10 +8,11 @@ One Next.js deploy serves two products by **hostname**. Marketing copy stays sep
 | --- | --- | --- |
 | VPN | `vpn.example.com`, `vpn.localhost` | `PRODUCT_HOST_VPN` |
 | eSIM | `sim.example.com`, `sim.localhost` | `PRODUCT_HOST_ESIM` |
+| Travel | `travel.example.com`, `travel.localhost` | `PRODUCT_HOST_TRAVEL` |
 
 Unmatched hosts (including plain `localhost:3000`) default to **VPN**.
 
-Set `ESIM_APP_URL` for eSIM checkout return links and emails when it differs from `APP_URL`.
+Set `ESIM_APP_URL` for eSIM checkout return links and emails when it differs from `APP_URL`, and `TRAVEL_APP_URL` for Travel's canonical links and sitemap.
 
 ## Before server / paid APIs
 
@@ -25,6 +26,7 @@ Point both hosts at the same port (e.g. `sim.localhost` / `vpn.localhost` → `1
 pnpm dev
 # VPN:  http://localhost:3000  or http://vpn.localhost:3000
 # eSIM: http://sim.localhost:3000
+# Travel: http://travel.localhost:3000
 ```
 
 ## Behaviour
@@ -32,6 +34,9 @@ pnpm dev
 - Middleware sets `x-northstar-product` and rewrites eSIM marketing routes to `/sim/*`.
 - VPN-only dashboard routes redirect to `/dashboard` on the eSIM host.
 - `/sim/*` redirects to `/` on the VPN host.
+- Travel host: `/`, `/destinations/*` and `/trips/*` are rewritten to `/travel/*`, and the sign-in pages (`/login`, `/register`, password reset, email verification) are served as they are, landing on `/trips`. Any other page (dashboard, pricing, VPN or eSIM pages) redirects to `/`, because Travel has no dashboard or checkout of its own. `/api/*` passes through, except admin APIs (404). `/admin` redirects to the VPN host.
+- `/travel/*` redirects to `/` on the VPN and eSIM hosts.
+- `sitemap.xml` and `robots.txt` answer per host for Travel (the middleware skips them, so they resolve the host with the same rules).
 - Admin lives on the VPN host; eSIM host `/admin` redirects to `APP_URL/admin`.
 - VPN: recurring subscription → provision account → configs.
 - eSIM: one-time package checkout → issue profile → QR in `/dashboard/esim`.

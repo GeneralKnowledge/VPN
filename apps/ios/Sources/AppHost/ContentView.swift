@@ -32,7 +32,7 @@ private struct AppScreens: View {
     var body: some View {
         Group {
             if model.signedIn {
-                HomeScreen(model: model)
+                MainTabs(model: model)
             } else {
                 SignInScreen(model: model)
             }
@@ -53,6 +53,26 @@ private struct AppScreens: View {
         }
         .sheet(item: $model.pendingConfig, onDismiss: model.finishSharing) { pending in
             ShareConfigSheet(fileURL: pending.fileURL)
+        }
+    }
+}
+
+/// The signed-in app: the VPN, and Travel's Explore and Trips. eSIM and VPN
+/// stay separate products with their own purchasing; Travel sells nothing.
+private struct MainTabs: View {
+    let model: AppModel
+
+    var body: some View {
+        TabView {
+            HomeScreen(model: model)
+                .tabItem { Label("VPN", systemImage: "lock.shield") }
+                .accessibilityIdentifier("tab.vpn")
+            ExploreScreen(model: model)
+                .tabItem { Label("Explore", systemImage: "globe.europe.africa") }
+                .accessibilityIdentifier("tab.explore")
+            TripsScreen(model: model)
+                .tabItem { Label("Trips", systemImage: "suitcase") }
+                .accessibilityIdentifier("tab.trips")
         }
     }
 }

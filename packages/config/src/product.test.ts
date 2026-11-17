@@ -11,6 +11,8 @@ describe("product helpers", () => {
   it("identifies product ids", () => {
     expect(isProduct("vpn")).toBe(true);
     expect(isProduct("esim")).toBe(true);
+    expect(isProduct("travel")).toBe(true);
+    expect(isProduct(null)).toBe(false);
     expect(isProduct("other")).toBe(false);
   });
 
@@ -18,6 +20,7 @@ describe("product helpers", () => {
     expect(getBrand("vpn").name).toContain("VPN");
     expect(getBrand("esim").name).toContain("SIM");
     expect(getBrand("vpn").name).not.toBe(getBrand("esim").name);
+    expect(getBrand("travel").name).toContain("Travel");
   });
 
   it("strips ports from hosts", () => {
@@ -29,9 +32,12 @@ describe("product helpers", () => {
     const config = {
       vpnHosts: ["vpn.localhost", "vpn.example.com"],
       esimHosts: ["sim.localhost", "sim.example.com"],
+      travelHosts: ["travel.localhost", "travel.example.com"],
       defaultProduct: "vpn" as const,
     };
     expect(resolveProductFromHost("sim.localhost:3000", config)).toBe("esim");
+    expect(resolveProductFromHost("travel.example.com", config)).toBe("travel");
+    expect(resolveProductFromHost("TRAVEL.localhost:3000", config)).toBe("travel");
     expect(resolveProductFromHost("vpn.example.com", config)).toBe("vpn");
     expect(resolveProductFromHost("localhost:3000", config)).toBe("vpn");
   });

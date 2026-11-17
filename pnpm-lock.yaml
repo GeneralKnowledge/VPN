@@ -32,6 +32,9 @@ importers:
       '@northstar/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@northstar/destinations':
+        specifier: workspace:*
+        version: link:../../packages/destinations
       '@northstar/email':
         specifier: workspace:*
         version: link:../../packages/email
@@ -219,6 +222,28 @@ importers:
       tsx:
         specifier: ^4.19.3
         version: 4.23.15
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.71.1
+        version: 8.71.1(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
+      vitest:
+        specifier: ^3.0.9
+        version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)
+
+  packages/destinations:
+    dependencies:
+      zod:
+        specifier: ^3.24.2
+        version: 3.25.76
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.39.5
+        version: 9.39.5
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
       typescript:
         specifier: ^5.8.2
         version: 5.9.3

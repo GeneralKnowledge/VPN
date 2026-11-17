@@ -29,4 +29,20 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(AppModel.describe(AppError.Refused(message: "Device limit reached (5)")), "Device limit reached (5)")
         XCTAssertFalse(AppModel.describe(AppError.Server(reason: "HTTP 500 from /api/app/summary")).contains("500"))
     }
+
+    func testTripDatesReadAsDays() {
+        func trip(_ start: String?, _ end: String?) -> Trip {
+            Trip(id: "t", destinationSlug: "japan", destinationName: "Japan", startDate: start, endDate: end, notes: nil)
+        }
+        XCTAssertEqual(AppModel.tripDates(trip(nil, nil)), "No dates yet")
+        XCTAssertTrue(AppModel.tripDates(trip("2027-04-01", nil)).hasPrefix("From "))
+        XCTAssertTrue(AppModel.tripDates(trip("2027-04-01", "2027-04-21")).contains("2027"))
+    }
+
+    func testIsoDayUsesTheGregorianCalendar() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let date = calendar.date(from: DateComponents(year: 2027, month: 4, day: 1, hour: 12))!
+        XCTAssertEqual(AppModel.isoDay(date), "2027-04-01")
+    }
 }

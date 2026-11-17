@@ -37,6 +37,7 @@ Pick hostnames before signing up for anything else:
 | --- | --- | --- |
 | VPN site | `vpn.yourdomain.com` | `APP_URL`, `PRODUCT_HOST_VPN` |
 | eSIM site | `sim.yourdomain.com` | `ESIM_APP_URL`, `PRODUCT_HOST_ESIM` |
+| Travel site | `travel.yourdomain.com` | `TRAVEL_APP_URL`, `PRODUCT_HOST_TRAVEL` |
 | Deploy | Your test server + Cloudflare (or Vercel) + DB | `DATABASE_URL` |
 
 - [ ] Both DNS names planned (same app deployment, two hostnames)
@@ -68,6 +69,8 @@ APP_URL=https://vpn.yourdomain.com
 ESIM_APP_URL=https://sim.yourdomain.com
 PRODUCT_HOST_VPN=vpn.yourdomain.com
 PRODUCT_HOST_ESIM=sim.yourdomain.com
+TRAVEL_APP_URL=https://travel.yourdomain.com
+PRODUCT_HOST_TRAVEL=travel.yourdomain.com
 DATABASE_URL=postgres://…
 AUTH_SECRET=<openssl rand -base64 48>
 CRON_SECRET=<strong secret>

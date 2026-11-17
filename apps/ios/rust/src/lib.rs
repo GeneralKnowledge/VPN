@@ -2,7 +2,8 @@
 //!
 //! The app signs in to the VPN service, shows the customer's plan, adds this
 //! iPhone as a WireGuard device at a chosen location, and hands its config
-//! to the official WireGuard app. It has no tunnel of its own yet: that
+//! to the official WireGuard app. Its Travel tabs ([`travel`]) show
+//! destinations and the customer's saved trips. It has no tunnel of its own yet: that
 //! needs a Network Extension, which Apple only allows on a paid team
 //! enrolled as an organisation.
 //!
@@ -22,6 +23,9 @@ use forge_storage::{JsonFile, StorageError};
 use serde::{Deserialize, Serialize};
 
 mod api;
+mod travel;
+
+pub use travel::{DestinationDetail, DestinationSummary, EsimPlan, Fact, Trip};
 
 // Keychain, directories, notifications, permissions and deep links, as
 // `crate::native`; the Swift side is ForgeKit's ForgeNative.
@@ -100,6 +104,10 @@ pub struct Home {
     pub locations: Vec<Location>,
     /// The server address used last, for the sign-in screen.
     pub last_server: String,
+    /// Travel Hub destinations, filled by `load_destinations`.
+    pub destinations: Vec<DestinationSummary>,
+    /// Saved trips, newest first, filled by `load_trips`.
+    pub trips: Vec<Trip>,
 }
 
 /// What can go wrong. Arrives in Swift as a thrown `AppError`.

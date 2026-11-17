@@ -5,7 +5,16 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
 
-export function MobileNav({ items, authed }: { items: { href: string; label: string }[]; authed?: boolean }) {
+export function MobileNav({
+  items,
+  authed,
+  hideAuth = false,
+}: {
+  items: { href: string; label: string }[];
+  authed?: boolean;
+  /** For a site with no sign-in (the Travel host): no "Log in" item. */
+  hideAuth?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const panelId = useId();
@@ -55,7 +64,7 @@ export function MobileNav({ items, authed }: { items: { href: string; label: str
                 </Link>
               </li>
             ))}
-            {!authed ? (
+            {!authed && !hideAuth ? (
               <li>
                 <Link href="/login" className="block rounded-md px-3 py-3 text-base text-foreground hover:bg-surface-2">
                   Log in
