@@ -103,7 +103,7 @@ Same deploy, hostname selects product. Sessions stay host-scoped (no cross-subdo
 
 **Before deploying or buying APIs**, follow [docs/PRE-CUTOVER.md](./docs/PRE-CUTOVER.md).  
 **Test server + Cloudflare subdomains:** [docs/DEPLOY-TEST-SERVER.md](./docs/DEPLOY-TEST-SERVER.md).  
-Also: [docs/MULTI-PRODUCT.md](./docs/MULTI-PRODUCT.md), [docs/esim-resellportal.md](./docs/esim-resellportal.md).
+Also: [docs/MULTI-PRODUCT.md](./docs/MULTI-PRODUCT.md), [docs/esim-resellportal.md](./docs/esim-resellportal.md), and the Travel Hub plan [docs/TRAVEL-HUB.md](./docs/TRAVEL-HUB.md).
 
 ## Activating VPNresellers
 
