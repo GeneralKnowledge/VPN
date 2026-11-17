@@ -317,3 +317,157 @@ fn tunnel_file_names_are_short_and_plain() {
     assert_eq!(tunnel_filename("Oslo, Norway"), "Northstar-Oslo.conf");
     assert_eq!(tunnel_filename(""), "Northstar.conf");
 }
+
+// Travel Hub.
+
+fn travel_server() -> StaticClient {
+    server()
+        .route(
+            Method::Get,
+            format!("{SERVER}/api/travel/destinations"),
+            ok(serde_json::json!({ "destinations": [
+                { "slug": "japan", "name": "Japan", "countryCode": "JP", "summary": "Fast trains." }
+            ]})),
+        )
+        .route(
+            Method::Get,
+            format!("{SERVER}/api/travel/destinations/japan"),
+            ok(serde_json::json!({
+                "destination": {
+                    "slug": "japan", "name": "Japan", "countryCode": "JP", "summary": "Fast trains.",
+                    "currency": { "code": "JPY", "name": "Japanese yen" }, "languages": ["Japanese"],
+                    "drivesOn": "left", "plugTypes": ["A", "B"], "voltage": 100,
+                    "emergencyNumbers": [{ "label": "Police", "number": "110" }],
+                    "esimCodes": ["JP"],
+                    "travelAdviceUrl": "https://www.gov.uk/foreign-travel-advice/japan",
+                    "entryRequirementsUrl": "https://www.gov.uk/foreign-travel-advice/japan/entry-requirements",
+                    "review": null, "reviewed": false
+                },
+                "esim": {
+                    "available": true,
+                    "packages": [{ "code": "MOCK-JP-3GB-15D", "name": "Japan 3GB 15 Days", "countryCode": "JP",
+                        "countryName": "Japan", "dataVolume": "3 GB", "validity": "15 days", "price": 999, "currency": "GBP" }],
+                    "plansUrl": "https://sim.example.com/pricing?country=JP"
+                }
+            })),
+        )
+        .route(
+            Method::Get,
+            format!("{SERVER}/api/travel/trips"),
+            ok(serde_json::json!({ "trips": [{
+                "id": "trip_1", "destination": { "slug": "japan", "name": "Japan", "countryCode": "JP" },
+                "startDate": "2027-04-01", "endDate": "2027-04-21", "notes": "Blossom",
+                "createdAt": "2026-11-17T16:00:00.000Z", "updatedAt": "2026-11-17T16:00:00.000Z"
+            }]})),
+        )
+        .route(
+            Method::Post,
+            format!("{SERVER}/api/travel/trips"),
+            Ok(Response::new(201, serde_json::json!({ "trip": {} }).to_string())),
+        )
+        .route(Method::Delete, format!("{SERVER}/api/travel/trips/trip_1"), ok(serde_json::json!({ "ok": true })))
+}
+
+#[test]
+fn explore_loads_destinations_and_a_destination_with_our_esim_plans() {
+    let f = Fixture::new(travel_server());
+    let core = f.open();
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+
+    let home = block_on(core.load_destinations()).unwrap();
+    assert_eq!(home.destinations.len(), 1);
+    assert_eq!(home.destinations[0].slug, "japan");
+
+    let japan = block_on(core.destination("japan".into())).unwrap();
+    assert!(!japan.reviewed);
+    assert_eq!(japan.facts[0].value, "Japanese yen (JPY)");
+    assert!(japan
+        .facts
+        .iter()
+        .any(|f| f.label == "Plugs" && f.value == "Type A, B · 100 V"));
+    assert!(japan
+        .facts
+        .iter()
+        .any(|f| f.label == "Police" && f.value == "110"));
+    assert_eq!(japan.esim_plans[0].price, "£9.99");
+    assert_eq!(japan.esim_plans[0].allowance, "3 GB · 15 days");
+    assert_eq!(
+        japan.esim_plans_url,
+        "https://sim.example.com/pricing?country=JP"
+    );
+
+    // An unknown destination is the server's 404, shown as it wrote it.
+    assert!(matches!(
+        block_on(core.destination("atlantis".into())),
+        Err(AppError::Refused { .. })
+    ));
+}
+
+#[test]
+fn trips_are_saved_listed_and_deleted() {
+    let f = Fixture::new(travel_server());
+    let core = f.open();
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+
+    let home = block_on(core.save_trip(
+        "japan".into(),
+        Some("2027-04-01".into()),
+        Some("2027-04-21".into()),
+        Some("  Blossom ".into()),
+    ))
+    .unwrap();
+    assert_eq!(home.trips.len(), 1);
+    assert_eq!(home.trips[0].destination_name, "Japan");
+
+    let create = f
+        .sent()
+        .into_iter()
+        .find(|r| r.method == Method::Post && r.url.ends_with("/api/travel/trips"))
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&create.body).unwrap();
+    assert_eq!(
+        body,
+        serde_json::json!({ "destinationSlug": "japan", "startDate": "2027-04-01", "endDate": "2027-04-21", "notes": "Blossom" })
+    );
+
+    block_on(core.delete_trip("trip_1".into())).unwrap();
+    assert!(f
+        .sent()
+        .iter()
+        .any(|r| r.method == Method::Delete && r.url.ends_with("/api/travel/trips/trip_1")));
+}
+
+#[test]
+fn a_bad_trip_is_refused_before_any_request() {
+    let f = Fixture::new(travel_server());
+    let core = f.open();
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+    let before = f.sent().len();
+    assert!(matches!(
+        block_on(core.save_trip(
+            "japan".into(),
+            Some("2027-04-21".into()),
+            Some("2027-04-01".into()),
+            None
+        )),
+        Err(AppError::InvalidInput { .. })
+    ));
+    assert_eq!(f.sent().len(), before);
+}
+
+#[test]
+fn an_expired_session_on_trips_signs_out() {
+    let f = Fixture::new(travel_server().route(
+        Method::Get,
+        format!("{SERVER}/api/travel/trips"),
+        err(401, "Unauthorized"),
+    ));
+    let core = f.open();
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+    assert!(matches!(
+        block_on(core.load_trips()),
+        Err(AppError::SignedOut)
+    ));
+    assert!(core.home().account.is_none());
+    assert!(core.home().trips.is_empty());
+}

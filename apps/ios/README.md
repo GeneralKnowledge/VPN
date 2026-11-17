@@ -9,6 +9,7 @@ The native iPhone app for the VPN service in this repository, made with [Forge](
 3. Add this iPhone as a WireGuard device at a chosen location (the plan's device limit applies).
 4. Hand the device's WireGuard config to the official [WireGuard app](https://apps.apple.com/app/wireguard/id1441195209) through the share sheet. WireGuard imports it as a tunnel and connects.
 5. Send an existing device's config again, or remove a device.
+6. Travel Hub ([docs/TRAVEL-HUB.md](../../docs/TRAVEL-HUB.md)): an **Explore** tab with destinations, their essentials and our eSIM plans there (bought on the eSIM site), and a **Trips** tab with the trips saved here or on the Travel website.
 
 It takes no payments: plans are bought on the website.
 
@@ -33,9 +34,11 @@ The server address is typed on the sign-in screen and must be `https`. The API i
 |------|------------|
 | `rust/src/lib.rs` | The core: the session (in the Keychain), the plan, devices and locations, and the commands the screens call |
 | `rust/src/api.rs` | The VPN service's JSON API over Forge's HTTP client |
+| `rust/src/travel.rs` | Travel: destinations, eSIM plans at a destination, saved trips, and the checks on a trip before it is sent |
 | `rust/src/tests.rs` | Tests against a fake server |
 | `Sources/AppHost/AppModel.swift` | The view model: calls Rust, holds what the screens show, writes the config file for the share sheet and deletes it after |
 | `Sources/AppHost/ContentView.swift` | Sign-in, home and location picker screens |
+| `Sources/AppHost/TravelViews.swift` | The Explore, destination, save-a-trip and Trips screens |
 | `Sources/AppHost/ShareConfigSheet.swift` | The share sheet that hands the config to WireGuard |
 | `Sources/AppHost/AppHost.swift` | Opens the Rust core once per process and installs the Keychain |
 | `Generated/` | Swift bindings generated from `rust/`. Don't edit; `forge bindings generate --project apps/ios` rewrites them |

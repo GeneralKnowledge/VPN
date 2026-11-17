@@ -661,6 +661,32 @@ public protocol AppCoreProtocol: AnyObject, Sendable {
      */
     func signOut() async throws  -> Home
     
+    /**
+     * Deletes a saved trip.
+     */
+    func deleteTrip(tripId: String) async throws  -> Home
+    
+    /**
+     * One destination's essentials and our eSIM plans there.
+     */
+    func destination(slug: String) async throws  -> DestinationDetail
+    
+    /**
+     * Loads the destinations for the Explore tab.
+     */
+    func loadDestinations() async throws  -> Home
+    
+    /**
+     * Loads the customer's saved trips.
+     */
+    func loadTrips() async throws  -> Home
+    
+    /**
+     * Saves a trip to `destination_slug`. Dates are `YYYY-MM-DD`, each
+     * optional; empty notes are dropped.
+     */
+    func saveTrip(destinationSlug: String, startDate: String?, endDate: String?, notes: String?) async throws  -> Home
+    
 }
 /**
  * The app. ForgeKit's `ForgeHost` opens one per process and keeps it.
@@ -978,6 +1004,102 @@ open func signOut()async throws  -> Home  {
         )
 }
     
+    /**
+     * Deletes a saved trip.
+     */
+open func deleteTrip(tripId: String)async throws  -> Home  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_northstar_vpn_core_fn_method_appcore_delete_trip(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(tripId)
+                )
+            },
+            pollFunc: ffi_northstar_vpn_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_northstar_vpn_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_northstar_vpn_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeHome_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+    
+    /**
+     * One destination's essentials and our eSIM plans there.
+     */
+open func destination(slug: String)async throws  -> DestinationDetail  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_northstar_vpn_core_fn_method_appcore_destination(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(slug)
+                )
+            },
+            pollFunc: ffi_northstar_vpn_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_northstar_vpn_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_northstar_vpn_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeDestinationDetail_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+    
+    /**
+     * Loads the destinations for the Explore tab.
+     */
+open func loadDestinations()async throws  -> Home  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_northstar_vpn_core_fn_method_appcore_load_destinations(
+                        self.uniffiCloneHandle()
+                )
+            },
+            pollFunc: ffi_northstar_vpn_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_northstar_vpn_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_northstar_vpn_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeHome_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+    
+    /**
+     * Loads the customer's saved trips.
+     */
+open func loadTrips()async throws  -> Home  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_northstar_vpn_core_fn_method_appcore_load_trips(
+                        self.uniffiCloneHandle()
+                )
+            },
+            pollFunc: ffi_northstar_vpn_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_northstar_vpn_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_northstar_vpn_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeHome_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+    
+    /**
+     * Saves a trip to `destination_slug`. Dates are `YYYY-MM-DD`, each
+     * optional; empty notes are dropped.
+     */
+open func saveTrip(destinationSlug: String, startDate: String?, endDate: String?, notes: String?)async throws  -> Home  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_northstar_vpn_core_fn_method_appcore_save_trip(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(destinationSlug),FfiConverterOptionString.lower(startDate),FfiConverterOptionString.lower(endDate),FfiConverterOptionString.lower(notes)
+                )
+            },
+            pollFunc: ffi_northstar_vpn_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_northstar_vpn_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_northstar_vpn_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeHome_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+    
 
     
 }
@@ -1159,6 +1281,318 @@ public func FfiConverterTypeConnection_lower(_ value: Connection) -> RustBuffer 
 
 
 /**
+ * Everything a destination screen shows.
+ */
+public struct DestinationDetail: Equatable, Hashable {
+    public var slug: String
+    public var name: String
+    public var summary: String
+    /**
+     * Currency, language, plugs, driving side and emergency numbers.
+     */
+    public var facts: [Fact]
+    /**
+     * False until a person has checked the facts: the screen says so.
+     */
+    public var reviewed: Bool
+    public var entryRequirementsUrl: String
+    public var travelAdviceUrl: String
+    /**
+     * False when the eSIM catalogue didn't answer (not the same as no plans).
+     */
+    public var esimAvailable: Bool
+    public var esimPlans: [EsimPlan]
+    /**
+     * The eSIM site's plans page for this country.
+     */
+    public var esimPlansUrl: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(slug: String, name: String, summary: String, 
+        /**
+         * Currency, language, plugs, driving side and emergency numbers.
+         */facts: [Fact], 
+        /**
+         * False until a person has checked the facts: the screen says so.
+         */reviewed: Bool, entryRequirementsUrl: String, travelAdviceUrl: String, 
+        /**
+         * False when the eSIM catalogue didn't answer (not the same as no plans).
+         */esimAvailable: Bool, esimPlans: [EsimPlan], 
+        /**
+         * The eSIM site's plans page for this country.
+         */esimPlansUrl: String) {
+        self.slug = slug
+        self.name = name
+        self.summary = summary
+        self.facts = facts
+        self.reviewed = reviewed
+        self.entryRequirementsUrl = entryRequirementsUrl
+        self.travelAdviceUrl = travelAdviceUrl
+        self.esimAvailable = esimAvailable
+        self.esimPlans = esimPlans
+        self.esimPlansUrl = esimPlansUrl
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension DestinationDetail: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDestinationDetail: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DestinationDetail {
+        return
+            try DestinationDetail(
+                slug: FfiConverterString.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                summary: FfiConverterString.read(from: &buf), 
+                facts: FfiConverterSequenceTypeFact.read(from: &buf), 
+                reviewed: FfiConverterBool.read(from: &buf), 
+                entryRequirementsUrl: FfiConverterString.read(from: &buf), 
+                travelAdviceUrl: FfiConverterString.read(from: &buf), 
+                esimAvailable: FfiConverterBool.read(from: &buf), 
+                esimPlans: FfiConverterSequenceTypeEsimPlan.read(from: &buf), 
+                esimPlansUrl: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DestinationDetail, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.slug, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.summary, into: &buf)
+        FfiConverterSequenceTypeFact.write(value.facts, into: &buf)
+        FfiConverterBool.write(value.reviewed, into: &buf)
+        FfiConverterString.write(value.entryRequirementsUrl, into: &buf)
+        FfiConverterString.write(value.travelAdviceUrl, into: &buf)
+        FfiConverterBool.write(value.esimAvailable, into: &buf)
+        FfiConverterSequenceTypeEsimPlan.write(value.esimPlans, into: &buf)
+        FfiConverterString.write(value.esimPlansUrl, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDestinationDetail_lift(_ buf: RustBuffer) throws -> DestinationDetail {
+    return try FfiConverterTypeDestinationDetail.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDestinationDetail_lower(_ value: DestinationDetail) -> RustBuffer {
+    return FfiConverterTypeDestinationDetail.lower(value)
+}
+
+
+/**
+ * A destination in the Explore list.
+ */
+public struct DestinationSummary: Equatable, Hashable {
+    public var slug: String
+    public var name: String
+    public var countryCode: String
+    public var summary: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(slug: String, name: String, countryCode: String, summary: String) {
+        self.slug = slug
+        self.name = name
+        self.countryCode = countryCode
+        self.summary = summary
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension DestinationSummary: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDestinationSummary: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DestinationSummary {
+        return
+            try DestinationSummary(
+                slug: FfiConverterString.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                countryCode: FfiConverterString.read(from: &buf), 
+                summary: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DestinationSummary, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.slug, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.countryCode, into: &buf)
+        FfiConverterString.write(value.summary, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDestinationSummary_lift(_ buf: RustBuffer) throws -> DestinationSummary {
+    return try FfiConverterTypeDestinationSummary.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDestinationSummary_lower(_ value: DestinationSummary) -> RustBuffer {
+    return FfiConverterTypeDestinationSummary.lower(value)
+}
+
+
+/**
+ * One of our eSIM packages that works at a destination.
+ */
+public struct EsimPlan: Equatable, Hashable {
+    public var code: String
+    public var name: String
+    /**
+     * "3 GB · 15 days".
+     */
+    public var allowance: String
+    /**
+     * "£9.99".
+     */
+    public var price: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(code: String, name: String, 
+        /**
+         * "3 GB · 15 days".
+         */allowance: String, 
+        /**
+         * "£9.99".
+         */price: String) {
+        self.code = code
+        self.name = name
+        self.allowance = allowance
+        self.price = price
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EsimPlan: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEsimPlan: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EsimPlan {
+        return
+            try EsimPlan(
+                code: FfiConverterString.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                allowance: FfiConverterString.read(from: &buf), 
+                price: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EsimPlan, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.code, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.allowance, into: &buf)
+        FfiConverterString.write(value.price, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimPlan_lift(_ buf: RustBuffer) throws -> EsimPlan {
+    return try FfiConverterTypeEsimPlan.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimPlan_lower(_ value: EsimPlan) -> RustBuffer {
+    return FfiConverterTypeEsimPlan.lower(value)
+}
+
+
+/**
+ * A labelled fact for the "Before you go" list.
+ */
+public struct Fact: Equatable, Hashable {
+    public var label: String
+    public var value: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(label: String, value: String) {
+        self.label = label
+        self.value = value
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension Fact: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFact: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Fact {
+        return
+            try Fact(
+                label: FfiConverterString.read(from: &buf), 
+                value: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: Fact, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.label, into: &buf)
+        FfiConverterString.write(value.value, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFact_lift(_ buf: RustBuffer) throws -> Fact {
+    return try FfiConverterTypeFact.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFact_lower(_ value: Fact) -> RustBuffer {
+    return FfiConverterTypeFact.lower(value)
+}
+
+
+/**
  * Everything the screens show.
  */
 public struct Home: Equatable, Hashable {
@@ -1185,6 +1619,14 @@ public struct Home: Equatable, Hashable {
      * The server address used last, for the sign-in screen.
      */
     public var lastServer: String
+    /**
+     * Travel Hub destinations, filled by `load_destinations`.
+     */
+    public var destinations: [DestinationSummary]
+    /**
+     * Saved trips, newest first, filled by `load_trips`.
+     */
+    public var trips: [Trip]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -1203,7 +1645,13 @@ public struct Home: Equatable, Hashable {
          */locations: [Location], 
         /**
          * The server address used last, for the sign-in screen.
-         */lastServer: String) {
+         */lastServer: String, 
+        /**
+         * Travel Hub destinations, filled by `load_destinations`.
+         */destinations: [DestinationSummary], 
+        /**
+         * Saved trips, newest first, filled by `load_trips`.
+         */trips: [Trip]) {
         self.account = account
         self.plan = plan
         self.vpnReady = vpnReady
@@ -1212,6 +1660,8 @@ public struct Home: Equatable, Hashable {
         self.connections = connections
         self.locations = locations
         self.lastServer = lastServer
+        self.destinations = destinations
+        self.trips = trips
     }
 
     
@@ -1237,7 +1687,9 @@ public struct FfiConverterTypeHome: FfiConverterRustBuffer {
                 devicesLimit: FfiConverterUInt32.read(from: &buf), 
                 connections: FfiConverterSequenceTypeConnection.read(from: &buf), 
                 locations: FfiConverterSequenceTypeLocation.read(from: &buf), 
-                lastServer: FfiConverterString.read(from: &buf)
+                lastServer: FfiConverterString.read(from: &buf), 
+                destinations: FfiConverterSequenceTypeDestinationSummary.read(from: &buf), 
+                trips: FfiConverterSequenceTypeTrip.read(from: &buf)
         )
     }
 
@@ -1250,6 +1702,8 @@ public struct FfiConverterTypeHome: FfiConverterRustBuffer {
         FfiConverterSequenceTypeConnection.write(value.connections, into: &buf)
         FfiConverterSequenceTypeLocation.write(value.locations, into: &buf)
         FfiConverterString.write(value.lastServer, into: &buf)
+        FfiConverterSequenceTypeDestinationSummary.write(value.destinations, into: &buf)
+        FfiConverterSequenceTypeTrip.write(value.trips, into: &buf)
     }
 }
 
@@ -1418,6 +1872,85 @@ public func FfiConverterTypePlan_lift(_ buf: RustBuffer) throws -> Plan {
 #endif
 public func FfiConverterTypePlan_lower(_ value: Plan) -> RustBuffer {
     return FfiConverterTypePlan.lower(value)
+}
+
+
+/**
+ * A saved trip.
+ */
+public struct Trip: Equatable, Hashable {
+    public var id: String
+    public var destinationSlug: String
+    public var destinationName: String
+    /**
+     * `YYYY-MM-DD`.
+     */
+    public var startDate: String?
+    public var endDate: String?
+    public var notes: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, destinationSlug: String, destinationName: String, 
+        /**
+         * `YYYY-MM-DD`.
+         */startDate: String?, endDate: String?, notes: String?) {
+        self.id = id
+        self.destinationSlug = destinationSlug
+        self.destinationName = destinationName
+        self.startDate = startDate
+        self.endDate = endDate
+        self.notes = notes
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension Trip: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTrip: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Trip {
+        return
+            try Trip(
+                id: FfiConverterString.read(from: &buf), 
+                destinationSlug: FfiConverterString.read(from: &buf), 
+                destinationName: FfiConverterString.read(from: &buf), 
+                startDate: FfiConverterOptionString.read(from: &buf), 
+                endDate: FfiConverterOptionString.read(from: &buf), 
+                notes: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: Trip, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.destinationSlug, into: &buf)
+        FfiConverterString.write(value.destinationName, into: &buf)
+        FfiConverterOptionString.write(value.startDate, into: &buf)
+        FfiConverterOptionString.write(value.endDate, into: &buf)
+        FfiConverterOptionString.write(value.notes, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTrip_lift(_ buf: RustBuffer) throws -> Trip {
+    return try FfiConverterTypeTrip.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTrip_lower(_ value: Trip) -> RustBuffer {
+    return FfiConverterTypeTrip.lower(value)
 }
 
 
@@ -1754,6 +2287,81 @@ fileprivate struct FfiConverterSequenceTypeConnection: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeDestinationSummary: FfiConverterRustBuffer {
+    typealias SwiftType = [DestinationSummary]
+
+    public static func write(_ value: [DestinationSummary], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeDestinationSummary.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [DestinationSummary] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [DestinationSummary]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeDestinationSummary.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeEsimPlan: FfiConverterRustBuffer {
+    typealias SwiftType = [EsimPlan]
+
+    public static func write(_ value: [EsimPlan], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeEsimPlan.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [EsimPlan] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [EsimPlan]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeEsimPlan.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFact: FfiConverterRustBuffer {
+    typealias SwiftType = [Fact]
+
+    public static func write(_ value: [Fact], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFact.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Fact] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Fact]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFact.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeLocation: FfiConverterRustBuffer {
     typealias SwiftType = [Location]
 
@@ -1771,6 +2379,31 @@ fileprivate struct FfiConverterSequenceTypeLocation: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeLocation.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeTrip: FfiConverterRustBuffer {
+    typealias SwiftType = [Trip]
+
+    public static func write(_ value: [Trip], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTrip.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Trip] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Trip]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTrip.read(from: &buf))
         }
         return seq
     }
@@ -1899,6 +2532,21 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_northstar_vpn_core_checksum_method_appcore_sign_out() != 47452) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_northstar_vpn_core_checksum_method_appcore_delete_trip() != 36644) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_northstar_vpn_core_checksum_method_appcore_destination() != 348) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_northstar_vpn_core_checksum_method_appcore_load_destinations() != 33466) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_northstar_vpn_core_checksum_method_appcore_load_trips() != 15271) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_northstar_vpn_core_checksum_method_appcore_save_trip() != 3484) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_northstar_vpn_core_checksum_constructor_appcore_new() != 30691) {

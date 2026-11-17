@@ -67,6 +67,81 @@ public final class AppModel {
         _ = await share { core in try await core.configFor(connectionId: connection.id) }
     }
 
+    // MARK: Travel
+
+    public func loadDestinations() async {
+        await perform { core in try await core.loadDestinations() }
+    }
+
+    public func loadTrips() async {
+        guard signedIn else { return }
+        await perform { core in try await core.loadTrips() }
+    }
+
+    /// One destination's essentials and our eSIM plans there, or nil (with
+    /// `errorMessage` set) if it couldn't be loaded.
+    public func destination(slug: String) async -> DestinationDetail? {
+        busy = true
+        defer {
+            busy = false
+            home = core.home()
+        }
+        do {
+            return try await core.destination(slug: slug)
+        } catch {
+            errorMessage = Self.describe(error)
+            return nil
+        }
+    }
+
+    /// Saves a trip. Returns nil when it worked, or the message to show in
+    /// the sheet (which stays open so nothing typed is lost).
+    public func saveTrip(destinationSlug: String, start: Date?, end: Date?, notes: String) async -> String? {
+        busy = true
+        defer { busy = false }
+        do {
+            home = try await core.saveTrip(
+                destinationSlug: destinationSlug,
+                startDate: start.map(Self.isoDay),
+                endDate: end.map(Self.isoDay),
+                notes: notes
+            )
+            return nil
+        } catch {
+            home = core.home()
+            return Self.describe(error)
+        }
+    }
+
+    public func delete(_ trip: Trip) async {
+        await perform { core in try await core.deleteTrip(tripId: trip.id) }
+    }
+
+    /// `YYYY-MM-DD` for the day `date` falls on here.
+    public static func isoDay(_ date: Date) -> String {
+        let parts = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    /// "1 Apr 2027 – 21 Apr 2027", "From 1 Apr 2027", or "No dates yet".
+    public static func tripDates(_ trip: Trip) -> String {
+        func day(_ iso: String) -> String {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "UTC")!
+            let parts = iso.split(separator: "-").compactMap { Int($0) }
+            guard parts.count == 3,
+                let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+            else { return iso }
+            return date.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, timeZone: calendar.timeZone))
+        }
+        switch (trip.startDate, trip.endDate) {
+        case let (start?, end?): return "\(day(start)) – \(day(end))"
+        case let (start?, nil): return "From \(day(start))"
+        case let (nil, end?): return "Until \(day(end))"
+        default: return "No dates yet"
+        }
+    }
+
     /// Deletes the config file once the share sheet has closed: it holds the
     /// device's private key.
     public func finishSharing() {
@@ -115,9 +190,9 @@ public final class AppModel {
         switch error {
         case .InvalidInput(let reason): return "Check your input: \(reason)."
         case .SignedOut: return "You've been signed out. Sign in again."
-        case .Offline: return "The VPN service can't be reached. Check your connection and try again."
+        case .Offline: return "The Northstar service can't be reached. Check your connection and try again."
         case .Refused(let message): return message
-        case .Server: return "The VPN service had a problem. Try again in a moment."
+        case .Server: return "The Northstar service had a problem. Try again in a moment."
         case .Storage: return "This iPhone couldn't save your sign-in. Try again."
         case .InUse: return "The app is open in another copy."
         case .ShutDown: return "The app is closing."
