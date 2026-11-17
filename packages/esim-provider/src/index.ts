@@ -16,6 +16,7 @@ export function createEsimProvider(
     timeoutMs: options?.timeoutMs,
     fetchFn: options?.fetchFn,
     retailMarkup: options?.retailMarkup,
+    testMode: options?.testMode,
   });
 }
 

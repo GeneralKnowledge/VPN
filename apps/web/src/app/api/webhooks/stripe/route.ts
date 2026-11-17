@@ -1,8 +1,17 @@
 import { and, eq, isNull, lt, ne, or } from "drizzle-orm";
-import { BillingProviderError } from "@northstar/billing";
 import { getPlan } from "@northstar/config";
+import { BillingProviderError, parseCheckoutSession } from "@northstar/billing";
 import { webhookEvents } from "@northstar/db";
-import { getBillingProvider, getDb, getEmailProvider, getEnv, getVpnProvider } from "@/lib/providers";
+import { confirmEsimPayment, expireEsimCheckout, recordEsimRefundFromStripe } from "@/lib/esim-services";
+import {
+  getBillingProvider,
+  getDb,
+  getEmailProvider,
+  getEnv,
+  getEsimProvider,
+  getOneTimePayments,
+  getVpnProvider,
+} from "@/lib/providers";
 import {
   activateSubscription,
   handlePaymentFailed,
@@ -20,7 +29,8 @@ type StripeObject = {
   subscription?: string | null;
   amount_paid?: number;
   billing_reason?: string;
-  metadata?: { userId?: string; planId?: string };
+  metadata?: { userId?: string; planId?: string; kind?: string; orderId?: string };
+  payment_intent?: string | { id?: string } | null;
 };
 
 type EventData = {
@@ -109,7 +119,41 @@ export async function POST(req: Request) {
     const vpn = getVpnProvider();
     const subscriptionId = data.subscriptionId ?? obj?.subscription ?? obj?.id;
 
-    switch (event.type) {
+    // One-time eSIM payments are tagged metadata.kind=esim when the session is created. They are
+    // handled here and never reach the subscription handlers below.
+    const isEsim = obj?.metadata?.kind === "esim";
+    let handled = false;
+    if (isEsim) {
+      handled = true;
+      switch (event.type) {
+        case "checkout.session.completed":
+        case "checkout.session.async_payment_succeeded": {
+          const session = parseCheckoutSession(obj as Record<string, unknown>);
+          await confirmEsimPayment(db, getEsimProvider(), getEmailProvider(), getOneTimePayments(), {
+            checkoutSessionId: session.id,
+            paymentStatus: session.paymentStatus,
+            paymentIntentId: session.paymentIntentId,
+            amountTotal: session.amountTotal,
+            currency: session.currency,
+            correlationId: corr,
+          });
+          break;
+        }
+        case "checkout.session.expired":
+        case "checkout.session.async_payment_failed":
+          if (obj?.id) await expireEsimCheckout(db, obj.id);
+          break;
+        default:
+          break;
+      }
+    }
+    if (event.type === "charge.refunded") {
+      // Charges carry no session metadata copy we rely on; match by payment intent instead.
+      const pi = typeof obj?.payment_intent === "string" ? obj.payment_intent : obj?.payment_intent?.id;
+      if (pi && (await recordEsimRefundFromStripe(db, pi, corr))) handled = true;
+    }
+
+    if (!handled) switch (event.type) {
       case "checkout.session.completed":
       case "mock.checkout.completed": {
         const userId = data.userId ?? obj?.metadata?.userId;

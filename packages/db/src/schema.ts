@@ -443,7 +443,20 @@ export const esimOrders = sqliteTable(
     amount: integer("amount").notNull(),
     currency: text("currency").notNull().default("GBP"),
     status: text("status", {
-      enum: ["pending", "paid", "issuing", "issued", "failed", "refunded"],
+      // pending → paid → issuing → issued. failed = provider refused, safe to retry.
+      // needs_review = the provider may have issued (timeout), a person must check before retry.
+      // refund_due → refunded. expired = checkout never paid.
+      enum: [
+        "pending",
+        "paid",
+        "issuing",
+        "issued",
+        "failed",
+        "needs_review",
+        "refund_due",
+        "refunded",
+        "expired",
+      ],
     }).notNull(),
     billingProvider: text("billing_provider", { enum: ["mock", "stripe"] }).notNull(),
     providerCheckoutId: text("provider_checkout_id"),
@@ -460,6 +473,7 @@ export const esimOrders = sqliteTable(
     index("esim_orders_status_idx").on(t.status),
     uniqueIndex("esim_orders_checkout_uidx").on(t.providerCheckoutId),
     uniqueIndex("esim_orders_idempotency_uidx").on(t.idempotencyKey),
+    index("esim_orders_payment_idx").on(t.providerPaymentId),
   ],
 );
 

@@ -8,6 +8,7 @@ const base = {
   APP_ENV: "production",
   BILLING_PROVIDER: "stripe",
   STRIPE_WEBHOOK_SECRET: "whsec_x",
+  STRIPE_SECRET_KEY: "sk_test_x",
   CRYPTO_BILLING_PROVIDER: "crypto",
 };
 
@@ -20,6 +21,26 @@ describe("production env", () => {
   it("keeps an explicit APP_ENV", () => {
     const env = parseEnv({ ...base, APP_ENV: "development", NODE_ENV: "production" });
     expect(env.APP_ENV).toBe("development");
+  });
+
+  it("requires a Stripe secret key and refuses ResellPortal test mode in production", () => {
+    const problems = productionEnvProblems(
+      parseEnv({
+        ...base,
+        STRIPE_SECRET_KEY: "",
+        ESIM_PROVIDER: "resellportal",
+        RESELLPORTAL_API_KEY: "k",
+        RESELLPORTAL_API_SECRET: "s",
+        RESELLPORTAL_TEST_MODE: "true",
+      }),
+    ).join("\n");
+    expect(problems).toMatch(/STRIPE_SECRET_KEY/);
+    expect(problems).toMatch(/RESELLPORTAL_TEST_MODE/);
+  });
+
+  it("keeps live Stripe payments off unless explicitly allowed", () => {
+    expect(parseEnv(base).STRIPE_ALLOW_LIVE_PAYMENTS).toBe(false);
+    expect(parseEnv({ ...base, STRIPE_ALLOW_LIVE_PAYMENTS: "true" }).STRIPE_ALLOW_LIVE_PAYMENTS).toBe(true);
   });
 
   it("accepts a sound production config", () => {

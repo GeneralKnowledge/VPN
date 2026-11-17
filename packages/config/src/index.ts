@@ -212,6 +212,12 @@ export const envSchema = z.object({
   RESELLPORTAL_API_KEY: z.string().optional().default(""),
   RESELLPORTAL_API_SECRET: z.string().optional().default(""),
   RESELLPORTAL_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  /** Sends ResellPortal's X-RP-Test-Mode header: orders are validated but nothing is charged or issued. */
+  RESELLPORTAL_TEST_MODE: z
+    .enum(["true", "false"])
+    .optional()
+    .default("false")
+    .transform((v) => v === "true"),
   CRON_SECRET: z.string().optional().default(""),
   /** Where the public contact form delivers mail. Defaults to the brand support address. */
   SUPPORT_INBOX_EMAIL: z.string().email().optional(),
@@ -226,6 +232,15 @@ export const envSchema = z.object({
     .transform((v) => v === "true"),
   BILLING_PROVIDER: z.enum(["mock", "stripe"]).default("mock"),
   STRIPE_SECRET_KEY: z.string().optional().default(""),
+  /**
+   * Launch gate: live Stripe keys (sk_live_) are refused for one-time eSIM payments until this is
+   * true. Keep it false until the company exists and public orders are approved.
+   */
+  STRIPE_ALLOW_LIVE_PAYMENTS: z
+    .enum(["true", "false"])
+    .optional()
+    .default("false")
+    .transform((v) => v === "true"),
   /** Shared secret for /api/webhooks/stripe (required for valid signatures, mock or stripe). */
   STRIPE_WEBHOOK_SECRET: z.string().optional().default(""),
   /** Shared secret for /api/webhooks/vpnresellers; empty rejects every delivery (no CRON_SECRET fallback). */
@@ -329,6 +344,12 @@ export function productionEnvProblems(env: AppEnv): string[] {
   }
   if (env.BILLING_PROVIDER === "stripe" && !env.STRIPE_WEBHOOK_SECRET) {
     problems.push("BILLING_PROVIDER=stripe requires STRIPE_WEBHOOK_SECRET");
+  }
+  if (env.BILLING_PROVIDER === "stripe" && !env.STRIPE_SECRET_KEY) {
+    problems.push("BILLING_PROVIDER=stripe requires STRIPE_SECRET_KEY");
+  }
+  if (env.ESIM_PROVIDER === "resellportal" && env.RESELLPORTAL_TEST_MODE) {
+    problems.push("RESELLPORTAL_TEST_MODE=true issues sample eSIMs that do not work; turn it off in production");
   }
   return problems;
 }

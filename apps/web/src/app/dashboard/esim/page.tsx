@@ -49,9 +49,9 @@ export default async function DashboardEsimPage() {
                   tone={
                     order.status === "issued"
                       ? "success"
-                      : order.status === "failed"
+                      : order.status === "failed" || order.status === "needs_review"
                         ? "danger"
-                        : order.status === "paid" || order.status === "issuing"
+                        : order.status === "paid" || order.status === "issuing" || order.status === "refund_due"
                           ? "warning"
                           : "neutral"
                   }
@@ -64,6 +64,16 @@ export default async function DashboardEsimPage() {
                 <p className="mt-3 text-sm text-danger">
                   Payment recorded but issuing failed. We’ll retry automatically; contact support if this persists.
                 </p>
+              ) : order.status === "needs_review" ? (
+                <p className="mt-3 text-sm text-danger">
+                  Payment recorded. We’re checking this order by hand and will issue your eSIM or refund you.
+                </p>
+              ) : order.status === "refund_due" || order.status === "refunded" ? (
+                <p className="mt-3 text-sm text-muted">
+                  We couldn’t issue this eSIM, so your payment is {order.status === "refunded" ? "refunded" : "being refunded"} in full.
+                </p>
+              ) : order.status === "pending" ? (
+                <p className="mt-3 text-sm text-muted">Waiting for payment confirmation.</p>
               ) : null}
 
               {profile ? (

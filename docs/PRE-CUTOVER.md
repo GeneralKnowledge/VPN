@@ -50,7 +50,7 @@ Pick hostnames before signing up for anything else:
 Create in this order so nothing is blocked waiting on something else:
 
 1. **Hosting + Postgres** — deploy target, empty DB, apply `packages/db/src/postgres.migrate.sql`
-2. **Stripe** — one account for both products; VPN subscription prices first; eSIM one-time Checkout later (still stubbed in app)
+2. **Stripe** — one account for both products; VPN subscription prices first; eSIM one-time Checkout works in Stripe test mode (see [esim-resellportal.md](./esim-resellportal.md#payments)); live keys stay refused until `STRIPE_ALLOW_LIVE_PAYMENTS=true`
 3. **VPNresellers** — API token; keep `VPN_PROVIDER=mock` until a test provision works
 4. **ResellPortal** — API key/secret + wallet top-up; keep `ESIM_PROVIDER=mock` until a test issue works
 5. **SMTP / Resend / etc.** — only after signup emails matter; mock is fine until then
@@ -96,7 +96,7 @@ When cutting each vendor live, add only that vendor’s keys and switch its `*_P
 | --- | --- | --- |
 | A | `VPN_PROVIDER=vpnresellers` + token | Admin locations sync; one test account; config download |
 | B | `ESIM_PROVIDER=resellportal` + key/secret + wallet | One cheap test package; QR/ICCID in dashboard. Production refuses to boot with mock billing and a live eSIM provider, so run this test with `APP_ENV` other than production |
-| C | `BILLING_PROVIDER=stripe` + webhook secret + price IDs | VPN subscription checkout; then wire eSIM payment-mode Checkout |
+| C | `BILLING_PROVIDER=stripe` + webhook secret + price IDs | eSIM payment-mode Checkout in test mode (card 4242…), webhook issues the eSIM; VPN subscription checkout is not wired yet |
 | D | `EMAIL_PROVIDER=smtp` + transport | Welcome / eSIM-ready / reset mail deliver |
 | E | `ALLOW_MOCK_BILLING_IN_PRODUCTION=false` | No free grants in prod |
 
@@ -107,4 +107,4 @@ Full VPN launch items remain in [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md).
 - Cross-subdomain SSO
 - Bundled VPN + eSIM SKU
 - Native apps
-- Live Stripe eSIM Checkout (mock path is enough to validate product UX first)
+- Live Stripe eSIM Checkout: waits for the company (launch gate `STRIPE_ALLOW_LIVE_PAYMENTS`)

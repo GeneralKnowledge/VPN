@@ -1,4 +1,10 @@
-import { createBillingProvider, type BillingProvider } from "@northstar/billing";
+import {
+  MockOneTimePayments,
+  StripeOneTimePayments,
+  createBillingProvider,
+  type BillingProvider,
+  type OneTimePayments,
+} from "@northstar/billing";
 import {
   appUrlForProduct,
   isProductionEnv,
@@ -22,6 +28,7 @@ const globalStore = globalThis as unknown as {
   northstarEsim?: EsimProvider;
   northstarBilling?: BillingProvider;
   northstarBillingCrypto?: BillingProvider;
+  northstarOneTime?: OneTimePayments;
   northstarEmail?: EmailProvider;
 };
 
@@ -101,6 +108,7 @@ export function getEsimProvider() {
       apiKey: env.RESELLPORTAL_API_KEY,
       apiSecret: env.RESELLPORTAL_API_SECRET,
       timeoutMs: env.RESELLPORTAL_TIMEOUT_MS,
+      testMode: env.RESELLPORTAL_TEST_MODE,
     });
   }
   return globalStore.northstarEsim;
@@ -117,6 +125,21 @@ function stripePriceMap(env: AppEnv): Record<string, string> {
     "gold-monthly": env.STRIPE_PRICE_GOLD_MONTHLY,
     "gold-annual": env.STRIPE_PRICE_GOLD_ANNUAL,
   };
+}
+
+/** One-time payments (eSIM): Stripe Checkout in payment mode, or the in-app mock checkout. */
+export function getOneTimePayments(): OneTimePayments {
+  if (!globalStore.northstarOneTime) {
+    const env = getEnv();
+    globalStore.northstarOneTime =
+      env.BILLING_PROVIDER === "stripe"
+        ? new StripeOneTimePayments({
+            secretKey: env.STRIPE_SECRET_KEY,
+            allowLiveKeys: env.STRIPE_ALLOW_LIVE_PAYMENTS,
+          })
+        : new MockOneTimePayments();
+  }
+  return globalStore.northstarOneTime;
 }
 
 /** Stripe-rail billing (Platinum / Diamond / Gold). */

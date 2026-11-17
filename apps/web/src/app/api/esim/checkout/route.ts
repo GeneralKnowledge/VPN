@@ -2,7 +2,15 @@ import { z } from "zod";
 import { requireUser, writeAudit } from "@/lib/auth";
 import { createEsimCheckoutOrder } from "@/lib/esim-services";
 import { HttpError, handle, parseBody } from "@/lib/http";
-import { emailVerificationRequired, getDb, getEnv, getEsimProvider, track } from "@/lib/providers";
+import {
+  appUrl,
+  emailVerificationRequired,
+  getDb,
+  getEnv,
+  getEsimProvider,
+  getOneTimePayments,
+  track,
+} from "@/lib/providers";
 import { requireProduct } from "@/lib/product";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { correlationId } from "@/lib/utils";
@@ -20,26 +28,21 @@ export async function POST(req: Request) {
     enforceRateLimit("esim-checkout", [`user:${user.id}`], 20, 15 * 60_000);
 
     const env = getEnv();
-    // Mock: in-app checkout. Stripe one-time Checkout is not wired yet — fail clearly, before
-    // creating an order that could never be paid.
-    if (env.BILLING_PROVIDER !== "mock") {
-      throw new HttpError(
-        501,
-        "eSIM Stripe Checkout is not wired yet. Keep BILLING_PROVIDER=mock (see docs/PRE-CUTOVER.md) or wait for payment-mode Checkout.",
-      );
-    }
     const corr = correlationId();
+    const base = appUrl("esim");
+    // Stripe: hosted Checkout in payment mode; the signed webhook confirms payment and issues.
+    // Mock: the in-app mock checkout page. Relative mock URLs keep the browser on the same host.
     const created = await createEsimCheckoutOrder(getDb(), getEsimProvider(), {
       userId: user.id,
       packageCode: body.packageCode,
       billingProvider: env.BILLING_PROVIDER,
       esimProviderKind: env.ESIM_PROVIDER,
       correlationId: corr,
+      payments: env.BILLING_PROVIDER === "stripe" ? getOneTimePayments() : undefined,
+      successUrl: `${base}/dashboard/esim?checkout=success`,
+      cancelUrl: `${base}/pricing?checkout=cancelled`,
     });
-
-    // Relative URL keeps the browser on the same host (important for host-scoped cookies /
-    // Playwright on 127.0.0.1 vs APP_URL=localhost).
-    const url = `/billing/mock-esim-checkout?session_id=${encodeURIComponent(created.checkoutId)}`;
+    const url = created.url;
 
     await writeAudit(getDb(), {
       actorId: user.id,

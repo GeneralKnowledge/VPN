@@ -302,6 +302,7 @@ CREATE INDEX IF NOT EXISTS esim_orders_user_idx ON esim_orders(user_id);
 CREATE INDEX IF NOT EXISTS esim_orders_status_idx ON esim_orders(status);
 CREATE UNIQUE INDEX IF NOT EXISTS esim_orders_checkout_uidx ON esim_orders(provider_checkout_id);
 CREATE UNIQUE INDEX IF NOT EXISTS esim_orders_idempotency_uidx ON esim_orders(idempotency_key);
+CREATE INDEX IF NOT EXISTS esim_orders_payment_idx ON esim_orders(provider_payment_id);
 
 CREATE TABLE IF NOT EXISTS esim_profiles (
   id TEXT PRIMARY KEY,

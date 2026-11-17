@@ -7,6 +7,7 @@ import type {
   Invoice,
 } from "./types";
 import { BillingProviderError } from "./types";
+import { verifyStripeSignature } from "./stripe-payments";
 
 /**
  * Stripe adapter skeleton — compiles without Stripe credentials.
@@ -90,20 +91,22 @@ export class StripeBillingProvider implements BillingProvider {
     if (!signature) {
       throw new BillingProviderError("Missing Stripe-Signature header", "unauthorized");
     }
-    // Production: stripe.webhooks.constructEvent(payload, signature, secret).
-    // Until the Stripe SDK is wired, never treat a signature as valid — a "t="
-    // prefix check is forgeable and must not activate subscriptions.
+    // Same check as stripe.webhooks.constructEvent: HMAC over `${t}.${payload}`, constant-time
+    // compare, 5-minute timestamp tolerance.
+    if (!verifyStripeSignature(payload, signature, this.config.webhookSecret)) {
+      throw new BillingProviderError("Invalid Stripe signature", "unauthorized");
+    }
     let data: unknown;
     try {
       data = JSON.parse(payload);
     } catch {
       throw new BillingProviderError("Invalid JSON payload", "validation");
     }
-    return {
-      id: (data as { id?: string }).id ?? "evt_unknown",
-      type: (data as { type?: string }).type ?? "unknown",
-      data,
-      signatureValid: false,
-    };
+    const id = (data as { id?: unknown }).id;
+    const type = (data as { type?: unknown }).type;
+    if (typeof id !== "string" || typeof type !== "string") {
+      throw new BillingProviderError("Event is missing an id or type", "validation");
+    }
+    return { id, type, data, signatureValid: true };
   }
 }

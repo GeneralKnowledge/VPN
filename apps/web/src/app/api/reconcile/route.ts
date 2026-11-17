@@ -1,7 +1,14 @@
 import { requireAdmin } from "@/lib/auth";
 import { reconcileEsimOrders } from "@/lib/esim-services";
 import { HttpError, handle } from "@/lib/http";
-import { getDb, getEmailProvider, getEnv, getEsimProvider, getVpnProvider } from "@/lib/providers";
+import {
+  getDb,
+  getEmailProvider,
+  getEnv,
+  getEsimProvider,
+  getOneTimePayments,
+  getVpnProvider,
+} from "@/lib/providers";
 import { reconcileVpnProvisioning } from "@/lib/services";
 import { secretsMatch } from "@/lib/secrets";
 import { correlationId } from "@/lib/utils";
@@ -26,6 +33,7 @@ async function run(options: { userId?: string; syncLocations?: boolean }) {
   });
   const esim = await reconcileEsimOrders(getDb(), getEsimProvider(), getEmailProvider(), corr, {
     userId: options.userId,
+    payments: getOneTimePayments(),
   });
   return Response.json({ vpn, esim });
 }
