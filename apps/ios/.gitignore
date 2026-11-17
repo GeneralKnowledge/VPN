@@ -7,3 +7,5 @@
 # Logs of `forge ... --json` runs
 /.forge/
 *.xcuserstate
+# Editor index
+/.sourcekit-lsp/

@@ -64,7 +64,7 @@ public final class AppModel {
 
     /// Gets the config of a device that is already on the account.
     public func sendToWireGuard(_ connection: Connection) async {
-        await share { core in try await core.configFor(connectionId: connection.id) }
+        _ = await share { core in try await core.configFor(connectionId: connection.id) }
     }
 
     /// Deletes the config file once the share sheet has closed: it holds the
