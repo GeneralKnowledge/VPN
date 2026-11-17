@@ -1,0 +1,11 @@
+# Rust build output and staged native libraries
+/rust/target/
+/build/
+# SwiftPM / xtool
+/.build/
+/xtool/
+# Logs of `forge ... --json` runs
+/.forge/
+*.xcuserstate
+# Editor index
+/.sourcekit-lsp/

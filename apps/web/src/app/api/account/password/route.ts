@@ -1,8 +1,7 @@
 import { eq } from "drizzle-orm";
-import { cookies } from "next/headers";
 import { users } from "@northstar/db";
 import { z } from "zod";
-import { SESSION_COOKIE, destroyUserSessions, hashPassword, requireUser, verifyPassword, writeAudit } from "@/lib/auth";
+import { currentSessionToken, destroyUserSessions, hashPassword, requireUser, verifyPassword, writeAudit } from "@/lib/auth";
 import { handle, HttpError, parseBody } from "@/lib/http";
 import { sendEmailSafe } from "@/lib/notify";
 import { getDb, getEmailProvider } from "@/lib/providers";
@@ -31,7 +30,7 @@ export async function POST(req: Request) {
       .set({ passwordHash: await hashPassword(body.newPassword), updatedAt: new Date() })
       .where(eq(users.id, user.id));
     // Keep this device signed in; every other session must re-authenticate.
-    const currentToken = (await cookies()).get(SESSION_COOKIE)?.value;
+    const currentToken = (await currentSessionToken()) ?? undefined;
     await destroyUserSessions(db, user.id, currentToken);
 
     if (user.email) {

@@ -1,9 +1,8 @@
 import { and, eq, ne } from "drizzle-orm";
 import { sessions } from "@northstar/db";
-import { cookies } from "next/headers";
 import {
-  SESSION_COOKIE,
   currentSessionKey,
+  currentSessionToken,
   destroyUserSessions,
   listUserSessions,
   requireUser,
@@ -15,8 +14,7 @@ import { getDb } from "@/lib/providers";
 export async function GET() {
   return handle(async () => {
     const user = await requireUser();
-    const jar = await cookies();
-    const token = jar.get(SESSION_COOKIE)?.value;
+    const token = await currentSessionToken();
     const currentId = token ? currentSessionKey(token) : null;
     const rows = await listUserSessions(getDb(), user.id);
     return Response.json({
@@ -46,8 +44,7 @@ export async function DELETE(req: Request) {
     const id = url.searchParams.get("id");
     const others = url.searchParams.get("others") === "1" || url.searchParams.get("others") === "true";
 
-    const jar = await cookies();
-    const token = jar.get(SESSION_COOKIE)?.value;
+    const token = await currentSessionToken();
     if (!token) throw new HttpError(401, "Not authenticated");
     const db = getDb();
 

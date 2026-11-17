@@ -1,0 +1,30 @@
+# Launch signed out, check the sign-in button follows the fields.
+# Run with the phone plugged in:  forge ui run uitests/smoke.toml
+# Format: docs/forge-ui-testing.md in the Forge checkout.
+
+name = "Smoke: sign-in needs every field"
+app = "org.forgemobile.agentlab"
+
+[[step]]
+terminate = {}
+
+[[step]]
+launch = {}
+
+[[step]]
+expect = { id = "signin.submit", enabled = false }
+
+[[step]]
+type = { id = "signin.server", text = "vpn.example.com" }
+
+[[step]]
+type = { id = "signin.login", text = "alice" }
+
+[[step]]
+type = { id = "signin.password", text = "not-a-real-password" }
+
+[[step]]
+expect = { id = "signin.submit", enabled = true }
+
+[[step]]
+screenshot = "1-sign-in"

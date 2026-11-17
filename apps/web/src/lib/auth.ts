@@ -8,7 +8,7 @@ import {
   verificationTokens,
   type Db,
 } from "@northstar/db";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { getDb, getEnv, isProduction } from "./providers";
 import { newId } from "./utils";
 
@@ -53,6 +53,8 @@ export function generateReferralCode(): string {
 function sessionKey(token: string): string {
   return createHmac("sha256", getEnv().AUTH_SECRET).update(token).digest("hex");
 }
+
+export const SESSION_LIFETIME_MS = SESSION_DAYS * 24 * 60 * 60 * 1000;
 
 export async function createSession(
   db: Db,
@@ -115,9 +117,28 @@ export function setSessionCookie(jar: Awaited<ReturnType<typeof cookies>>, token
   });
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+/** Session tokens are 32 random bytes in hex. */
+const BEARER = /^Bearer ([0-9a-f]{64})$/i;
+
+/**
+ * The native app sends its session token as `Authorization: Bearer <token>` instead of a cookie.
+ * A bearer header is never attached by a browser on its own, so it carries no cross-site risk.
+ */
+export function bearerTokenFrom(authorization: string | null | undefined): string | null {
+  const match = authorization?.trim().match(BEARER);
+  return match ? match[1]!.toLowerCase() : null;
+}
+
+/** The caller's session token: the browser cookie, or the app's bearer header. */
+export async function currentSessionToken(): Promise<string | null> {
   const jar = await cookies();
-  const sessionId = jar.get(SESSION_COOKIE)?.value;
+  const cookie = jar.get(SESSION_COOKIE)?.value;
+  if (cookie) return cookie;
+  return bearerTokenFrom((await headers()).get("authorization"));
+}
+
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const sessionId = await currentSessionToken();
   if (!sessionId) return null;
   const db = getDb();
   const row = await db

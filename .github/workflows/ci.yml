@@ -57,3 +57,25 @@ jobs:
         run: pnpm test:e2e
         env:
           CI: true
+
+  ios-core:
+    name: iPhone app Rust core
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/ios/rust
+    steps:
+      - uses: actions/checkout@v4
+      # rust-toolchain.toml in apps/ios/rust picks the toolchain.
+      - name: Install toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/ios/rust
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test
