@@ -6,6 +6,7 @@ import { formatDateTime, formatMoney } from "@/lib/format";
 import { getDb } from "@/lib/providers";
 import { DataTable } from "@/components/data-table";
 import { Badge, PageHeader } from "@/components/ui";
+import { EsimOrderActions } from "./order-actions";
 
 export default async function AdminEsimOrdersPage() {
   await requireAdmin();
@@ -17,6 +18,7 @@ export default async function AdminEsimOrdersPage() {
       amount: esimOrders.amount,
       currency: esimOrders.currency,
       status: esimOrders.status,
+      lastError: esimOrders.lastError,
       issueAttempts: esimOrders.issueAttempts,
       createdAt: esimOrders.createdAt,
       userId: users.id,
@@ -29,7 +31,7 @@ export default async function AdminEsimOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="eSIM orders" description="One-time eSIM purchases and issue status." />
+      <PageHeader title="eSIM orders" description="One-time eSIM purchases and issue status. needs_review: the provider may have issued it, so check the ResellPortal panel before Retry." />
       <DataTable
         caption="eSIM orders"
         emptyTitle="No eSIM orders yet"
@@ -69,9 +71,9 @@ export default async function AdminEsimOrdersPage() {
                 tone={
                   r.status === "issued"
                     ? "success"
-                    : r.status === "failed"
+                    : r.status === "failed" || r.status === "needs_review"
                       ? "danger"
-                      : r.status === "paid"
+                      : r.status === "paid" || r.status === "refund_due"
                         ? "warning"
                         : "neutral"
                 }
@@ -79,6 +81,12 @@ export default async function AdminEsimOrdersPage() {
                 {r.status}
               </Badge>
             ),
+          },
+          {
+            key: "error",
+            header: "Last error",
+            className: "max-w-xs text-sm text-muted",
+            cell: (r) => r.lastError ?? "",
           },
           {
             key: "attempts",
@@ -90,6 +98,11 @@ export default async function AdminEsimOrdersPage() {
             header: "Created",
             className: "whitespace-nowrap text-muted",
             cell: (r) => formatDateTime(r.createdAt),
+          },
+          {
+            key: "actions",
+            header: "Actions",
+            cell: (r) => <EsimOrderActions orderId={r.id} status={r.status} />,
           },
         ]}
       />

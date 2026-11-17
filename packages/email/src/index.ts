@@ -9,6 +9,7 @@ export type EmailTemplate =
   | "subscription_cancelled"
   | "vpn_provisioned"
   | "esim_ready"
+  | "esim_refunded"
   | "security_notification"
   | "support_response";
 
@@ -75,6 +76,10 @@ export function renderTemplate(
     esim_ready: {
       subject: `Your eSIM is ready — ${app}`,
       text: `Hi ${name},\n\nYour ${vars.packageName ?? "eSIM"} is ready. Open your dashboard to view the QR code and install steps: ${link}\n\n— ${app}`,
+    },
+    esim_refunded: {
+      subject: `Your eSIM order was refunded — ${app}`,
+      text: `Hi ${name},\n\nWe couldn't issue your ${vars.packageName ?? "eSIM"}, so we have refunded your payment in full. It can take 5 to 10 days to reach your account. Details: ${link}\n\n— ${app}`,
     },
     security_notification: {
       subject: `Security notice — ${app}`,

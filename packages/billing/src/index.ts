@@ -33,3 +33,4 @@ export * from "./types";
 export { MockBillingProvider } from "./mock";
 export { StripeBillingProvider } from "./stripe";
 export { CryptoBillingProvider } from "./crypto";
+export * from "./stripe-payments";

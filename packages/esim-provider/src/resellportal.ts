@@ -13,6 +13,8 @@ export interface ResellPortalConfig {
   apiSecret: string;
   timeoutMs?: number;
   fetchFn?: typeof fetch;
+  /** Sends X-RP-Test-Mode: requests are validated, nothing is charged, and sample data comes back. */
+  testMode?: boolean;
   /** Markup multiplier from wholesale USD-ish amounts into GBP pence display (mock retail). */
   retailMarkup?: number;
 }
@@ -25,6 +27,7 @@ type RawPackage = {
   country_code?: string;
   data_volume?: string;
   validity?: string;
+  duration?: string | number;
   price?: number | string;
   amount?: number | string;
 };
@@ -93,19 +96,22 @@ export class ResellPortalEsimProvider implements EsimProvider {
   }
 
   private async ensureClient(input: CreateEsimOrderInput): Promise<number | string> {
-    // Prefer creating a lightweight client; if the API rejects, fall back to clientRef hash.
-    try {
-      const raw = await this.request<Record<string, unknown>>("POST", "/clients", {
-        email: input.email,
-        first_name: input.firstName ?? "Customer",
-        last_name: input.lastName ?? input.clientRef.slice(0, 8),
-      });
-      const id = (raw as { client_id?: number; id?: number }).client_id ?? (raw as { id?: number }).id;
-      if (id != null) return id;
-    } catch {
-      // Some accounts reuse clients by email via list — ignore and use synthetic id.
+    // POST /clients documents `name` and `email` and returns a numeric client_id. A failure here
+    // means no order was placed, so it is safe to retry; never invent a client id.
+    const name = [input.firstName, input.lastName].filter(Boolean).join(" ") || "Customer";
+    const raw = await this.request<Record<string, unknown>>("POST", "/clients", {
+      name,
+      email: input.email,
+      send_setup_email: false,
+    });
+    const id =
+      (raw as { client_id?: number | string }).client_id ??
+      (raw as { id?: number | string }).id ??
+      (raw as { data?: { client_id?: number | string } }).data?.client_id;
+    if (id == null) {
+      throw new EsimProviderError("ResellPortal returned no client_id", "validation", false, undefined, undefined, "/clients");
     }
-    return input.clientRef;
+    return id;
   }
 
   private mapPackage(p: RawPackage): EsimPackage | null {
@@ -123,7 +129,7 @@ export class ResellPortalEsimProvider implements EsimProvider {
       countryCode,
       countryName: countryCode,
       dataVolume: p.data_volume ?? "",
-      validity: p.validity ?? "",
+      validity: p.validity ?? (p.duration != null ? String(p.duration) : ""),
       price: pricePence,
       currency: "GBP",
     };
@@ -134,7 +140,8 @@ export class ResellPortalEsimProvider implements EsimProvider {
     const pkg = (raw.package ?? {}) as Record<string, unknown>;
     const statusRaw = String(details.esim_status ?? details.status ?? "AVAILABLE").toLowerCase();
     let status: EsimProfileStatus = "unknown";
-    if (statusRaw.includes("avail")) status = "available";
+    // ResellPortal's own docs show both AVAILABLE and GOT_RESOURCE for a freshly issued eSIM.
+    if (statusRaw.includes("avail") || statusRaw.includes("got_resource")) status = "available";
     else if (statusRaw.includes("install")) status = "installed";
     else if (statusRaw.includes("expir")) status = "expired";
 
@@ -174,6 +181,7 @@ export class ResellPortalEsimProvider implements EsimProvider {
           "Content-Type": "application/json",
           "X-API-Key": this.config.apiKey,
           "X-API-Secret": this.config.apiSecret,
+          ...(this.config.testMode ? { "X-RP-Test-Mode": "1" } : {}),
         },
         body: body != null ? JSON.stringify(body) : undefined,
         signal: controller.signal,

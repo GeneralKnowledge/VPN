@@ -10,6 +10,7 @@ import {
   nextLifecycleAfterPaymentFailed,
   nextLifecycleAfterVpnProvisioned,
   periodEndFrom,
+  signStripePayload,
 } from "./index";
 
 describe("subscription lifecycle", () => {
@@ -146,18 +147,18 @@ describe("MockBillingProvider", () => {
   });
 });
 
-describe("StripeBillingProvider webhook stub", () => {
-  it("never marks forgeable t= signatures as valid before SDK wiring", async () => {
-    const stripe = new StripeBillingProvider({
-      secretKey: "sk_test",
-      webhookSecret: "whsec_test",
-      priceMap: {},
-    });
-    const event = await stripe.verifyWebhook(
-      JSON.stringify({ id: "evt_1", type: "checkout.session.completed" }),
-      "t=123,v1=abcdef",
-    );
-    expect(event.signatureValid).toBe(false);
+describe("StripeBillingProvider webhooks", () => {
+  const stripe = new StripeBillingProvider({ secretKey: "sk_test", webhookSecret: "whsec_test", priceMap: {} });
+  const payload = JSON.stringify({ id: "evt_1", type: "checkout.session.completed" });
+
+  it("rejects forged or unsigned deliveries", async () => {
+    await expect(stripe.verifyWebhook(payload, "t=123,v1=abcdef")).rejects.toThrow(/signature/i);
+    await expect(stripe.verifyWebhook(payload, null)).rejects.toThrow(/Stripe-Signature/);
+  });
+
+  it("accepts a correctly signed delivery", async () => {
+    const event = await stripe.verifyWebhook(payload, signStripePayload(payload, "whsec_test"));
+    expect(event).toMatchObject({ id: "evt_1", type: "checkout.session.completed", signatureValid: true });
   });
 });
 

@@ -72,6 +72,32 @@ export interface EsimProvider {
   getOrder(providerOrderId: string): Promise<EsimIssueResult | null>;
 }
 
+/**
+ * What a failed createOrder tells us about the wholesale side. ResellPortal has no idempotency
+ * key, so a call that may have reached it (timeout, dropped connection, 5xx) must never be retried
+ * blindly: a retry can issue and pay for a second eSIM.
+ * - `not_created`: the provider refused before ordering; retrying later is safe.
+ * - `rejected`: refused for a reason a retry will not fix (bad package, bad request).
+ * - `unknown`: the order may exist; a person must check the ResellPortal panel.
+ */
+export type EsimIssueOutcome = "not_created" | "rejected" | "unknown";
+
+export function classifyIssueError(err: unknown): EsimIssueOutcome {
+  if (!(err instanceof EsimProviderError)) return "unknown";
+  switch (err.code) {
+    case "unauthorized":
+    case "insufficient_balance":
+    case "rate_limited":
+      return "not_created";
+    case "validation":
+    case "not_found":
+      // A failure before the order call (for example creating the client) is also a refusal.
+      return "rejected";
+    default:
+      return "unknown";
+  }
+}
+
 export type EsimProviderKind = "mock" | "resellportal";
 
 export const CUSTOMER_ESIM_ERROR =
