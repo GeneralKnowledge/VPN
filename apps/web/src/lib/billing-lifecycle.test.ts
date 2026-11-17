@@ -28,9 +28,12 @@ import {
   handlePaymentFailed,
   handleRenewal,
   handleSubscriptionEnded,
+  providerExpiryFor,
+  reconcileVpnProvisioning,
   resetVpnCredentials,
   resumeSubscriptionForUser,
   retryDeletedAccountCleanup,
+  syncProviderExpiry,
 } from "./services";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -347,5 +350,92 @@ describe("billing lifecycle", () => {
     const creds = await resetVpnCredentials(db, vpn, "u1", "c");
     expect(creds.username).toBe((await account("u1")).username);
     expect(creds.password.length).toBeGreaterThanOrEqual(24);
+  });
+
+  describe("provider-side expiry backstop", () => {
+    async function providerExpiry(userId: string) {
+      const acct = await account(userId);
+      return (await vpn.getAccount(acct.providerAccountId)).expiresAt;
+    }
+
+    it("provisioning sets the provider expiry to period end plus grace and a day of slack", async () => {
+      await addUser("u1");
+      const sub = await subscribe("u1");
+      const expected = providerExpiryFor(sub)!;
+      expect(expected.getTime()).toBe(sub.currentPeriodEnd!.getTime() + 4 * DAY);
+      expect(await providerExpiry("u1")).toBe(expected.toISOString());
+    });
+
+    it("a cancelling subscription gets no grace window", () => {
+      const end = new Date("2026-05-01T00:00:00.000Z");
+      expect(providerExpiryFor({ currentPeriodEnd: end, cancelAtPeriodEnd: true, status: "cancelling" })).toEqual(
+        new Date(end.getTime() + DAY),
+      );
+      expect(providerExpiryFor({ currentPeriodEnd: null, cancelAtPeriodEnd: false, status: "active" })).toBeNull();
+    });
+
+    it("a renewal moves the provider expiry forward", async () => {
+      await addUser("u1");
+      const sub = await subscribe("u1", "ms_1");
+      const before = await providerExpiry("u1");
+      await handleRenewal(
+        db,
+        vpn,
+        { providerSubscriptionId: "ms_1", providerPaymentId: "in_r1", amount: 499, provider: "mock" },
+        "c",
+      );
+      const after = await providerExpiry("u1");
+      expect(new Date(after!).getTime()).toBeGreaterThan(new Date(before!).getTime());
+      expect(sub.id).toBeTruthy();
+    });
+
+    it("a returning customer's existing account gets the new period", async () => {
+      await addUser("u1");
+      await subscribe("u1", "ms_1");
+      await handleSubscriptionEnded(db, vpn, { providerSubscriptionId: "ms_1" }, "c");
+      const acct = await account("u1");
+      await vpn.setAccountExpiry(acct.providerAccountId, "2000-01-01T00:00:00.000Z");
+      const second = await subscribe("u1", "ms_2");
+      expect(await providerExpiry("u1")).toBe(providerExpiryFor(second)!.toISOString());
+    });
+
+    it("a provider failure is recorded but never throws", async () => {
+      await addUser("u1");
+      await subscribe("u1");
+      const failing = Object.assign(Object.create(vpn) as MockVPNProvider, {
+        setAccountExpiry: async () => {
+          throw new Error("provider down");
+        },
+      });
+      await expect(syncProviderExpiry(db, failing, "u1", "c")).resolves.toBeNull();
+    });
+  });
+
+  it("reconcile re-suspends an account we cut off that the provider still has running", async () => {
+    await addUser("u1");
+    await subscribe("u1", "ms_1");
+    await handleSubscriptionEnded(db, vpn, { providerSubscriptionId: "ms_1" }, "c");
+    const acct = await account("u1");
+    expect(acct.status).toBe("disabled");
+    // Simulate the earlier suspend call having failed at the provider.
+    await vpn.reactivateAccount(acct.providerAccountId);
+
+    const result = await reconcileVpnProvisioning(db, vpn, email, "c");
+    expect(result.resuspended).toEqual(["u1"]);
+    expect((await vpn.getAccount(acct.providerAccountId)).status).toBe("disabled");
+    expect((await account("u1")).status).toBe("disabled");
+  });
+
+  it("reconcile leaves an admin-restored account alone", async () => {
+    await addUser("u1");
+    await subscribe("u1", "ms_1");
+    await handleSubscriptionEnded(db, vpn, { providerSubscriptionId: "ms_1" }, "c");
+    const acct = await account("u1");
+    await vpn.reactivateAccount(acct.providerAccountId);
+    await db.update(vpnAccounts).set({ status: "active" }).where(eq(vpnAccounts.id, acct.id));
+
+    const result = await reconcileVpnProvisioning(db, vpn, email, "c");
+    expect(result.resuspended).toEqual([]);
+    expect((await vpn.getAccount(acct.providerAccountId)).status).toBe("active");
   });
 });

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, lt, ne, or } from "drizzle-orm";
 import { BillingProviderError } from "@northstar/billing";
 import { getPlan } from "@northstar/config";
 import { webhookEvents } from "@northstar/db";
@@ -10,6 +10,10 @@ import {
   handleSubscriptionEnded,
 } from "@/lib/services";
 import { correlationId, newId } from "@/lib/utils";
+
+/** A delivery that started processing but never finished (crash, timeout) may be retried after this. */
+const PROCESSING_LEASE_MS = 5 * 60_000;
+const PROCESSING_MARK = "processing";
 
 type StripeObject = {
   id?: string;
@@ -71,6 +75,31 @@ export async function POST(req: Request) {
   }
   const rowId = existing!.id;
 
+  // Claim the event atomically so two concurrent deliveries (Stripe retries, replays) cannot both
+  // run the handlers. A stale claim from a crashed attempt expires after the lease.
+  const now = new Date();
+  const claimed = await db
+    .update(webhookEvents)
+    .set({ processingError: PROCESSING_MARK, updatedAt: now })
+    .where(
+      and(
+        eq(webhookEvents.id, rowId),
+        isNull(webhookEvents.processedAt),
+        or(
+          isNull(webhookEvents.processingError),
+          ne(webhookEvents.processingError, PROCESSING_MARK),
+          lt(webhookEvents.updatedAt, new Date(now.getTime() - PROCESSING_LEASE_MS)),
+        ),
+      ),
+    )
+    .returning({ id: webhookEvents.id });
+  if (claimed.length === 0) {
+    const [current] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, rowId)).limit(1);
+    if (current?.processedAt) return Response.json({ ok: true, deduped: true });
+    // Another delivery is mid-flight; ask the sender to retry later rather than run twice.
+    return Response.json({ error: "Event is already being processed" }, { status: 409 });
+  }
+
   const corr = correlationId();
   try {
     const data = event.data as EventData;
@@ -107,8 +136,9 @@ export async function POST(req: Request) {
         }
         break;
       }
+      // Only invoice.paid: Stripe also sends invoice.payment_succeeded for the same invoice, and
+      // handling both would race to record one payment twice.
       case "invoice.paid":
-      case "invoice.payment_succeeded":
       case "mock.invoice.paid": {
         // The first invoice of a subscription is recorded by the checkout event itself.
         if (obj?.billing_reason === "subscription_create") break;

@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS payments (
   updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
 );
 CREATE INDEX IF NOT EXISTS payments_user_idx ON payments(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS payments_provider_payment_uidx ON payments(provider, provider_payment_id);
 
 CREATE TABLE IF NOT EXISTS invoices (
   id TEXT PRIMARY KEY,

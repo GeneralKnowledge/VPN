@@ -20,7 +20,10 @@ External APIs
 3. Set `APP_ENV=production` (also implied by `NODE_ENV=production`), strong `AUTH_SECRET` (32+ chars, not the dev default), `APP_URL=https://your.domain`.
    The app **refuses to start** in production if: `AUTH_SECRET` is weak/default, `APP_URL` is not https or is localhost,
    `VPN_PROVIDER=vpnresellers` has no token, `BILLING_PROVIDER=mock` (free subscriptions; override only for staging with
-   `ALLOW_MOCK_BILLING_IN_PRODUCTION=true`), or `BILLING_PROVIDER=stripe` has no `STRIPE_WEBHOOK_SECRET`.
+   `ALLOW_MOCK_BILLING_IN_PRODUCTION=true`), `CRYPTO_BILLING_PROVIDER=mock` (free Bronze/Iron; same override, otherwise
+   set `CRYPTO_BILLING_PROVIDER=crypto`, which keeps crypto checkout closed until a processor is wired),
+   `BILLING_PROVIDER=mock` with a live `ESIM_PROVIDER` (free eSIMs from the reseller wallet; no override), or
+   `BILLING_PROVIDER=stripe` has no `STRIPE_WEBHOOK_SECRET`.
 4. Activate VPN:
    ```
    VPN_PROVIDER=vpnresellers

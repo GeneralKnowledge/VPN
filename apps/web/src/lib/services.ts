@@ -119,6 +119,8 @@ export async function provisionVpnForUser(
 ) {
   const existing = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, userId)).limit(1);
   if (existing[0]?.status === "active" && isRealProviderId(existing[0].providerAccountId)) {
+    // Already provisioned (e.g. a returning customer): the new period still needs to reach the provider.
+    await syncProviderExpiry(db, vpn, userId, correlationId);
     return existing[0];
   }
 
@@ -231,6 +233,7 @@ export async function provisionVpnForUser(
       correlationId,
       metadata: { providerAccountId: account.providerAccountId },
     });
+    await syncProviderExpiry(db, vpn, userId, correlationId);
 
     await writeAudit(db, {
       actorId: "system",
@@ -293,17 +296,28 @@ async function recordPaymentAndInvoice(
     providerPaymentId: string;
     amount: number;
   },
-) {
-  await db.insert(payments).values({
-    id: newId("pay"),
-    userId: input.userId,
-    subscriptionId: input.subscriptionId,
-    provider: input.provider,
-    providerPaymentId: input.providerPaymentId,
-    amount: input.amount,
-    currency: "GBP",
-    status: "succeeded",
-  });
+): Promise<boolean> {
+  try {
+    await db.insert(payments).values({
+      id: newId("pay"),
+      userId: input.userId,
+      subscriptionId: input.subscriptionId,
+      provider: input.provider,
+      providerPaymentId: input.providerPaymentId,
+      amount: input.amount,
+      currency: "GBP",
+      status: "succeeded",
+    });
+  } catch (err) {
+    // The unique (provider, payment id) index: a concurrent delivery already recorded this payment.
+    const [already] = await db
+      .select({ id: payments.id })
+      .from(payments)
+      .where(and(eq(payments.provider, input.provider), eq(payments.providerPaymentId, input.providerPaymentId)))
+      .limit(1);
+    if (already) return false;
+    throw err;
+  }
   await db.insert(invoices).values({
     id: newId("inv"),
     userId: input.userId,
@@ -313,11 +327,57 @@ async function recordPaymentAndInvoice(
     currency: "GBP",
     status: "paid",
   });
+  return true;
 }
 
 async function findLiveSubscription(db: Db, userId: string) {
   const rows = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
   return rows.find((s) => isLiveSubscriptionStatus(s.status));
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * When the provider should stop an account on its own: the paid period end, plus the renewal grace
+ * window for subscriptions that are still meant to renew, plus a day of slack (the provider works in
+ * whole dates). Our own expiry job still ends access on time; this only bounds the damage if it does not run.
+ */
+export function providerExpiryFor(sub: { currentPeriodEnd: Date | null; cancelAtPeriodEnd: boolean; status: string }): Date | null {
+  if (!sub.currentPeriodEnd) return null;
+  const graceMs = sub.cancelAtPeriodEnd || sub.status === "cancelling" ? 0 : RENEWAL_GRACE_DAYS * DAY_MS;
+  return new Date(sub.currentPeriodEnd.getTime() + graceMs + DAY_MS);
+}
+
+/**
+ * Push the live subscription's end date to the provider account. Best-effort: a failure is recorded
+ * for reconciliation and never blocks the billing or provisioning step that called it.
+ */
+export async function syncProviderExpiry(db: Db, vpn: VPNProvider, userId: string, correlationId: string) {
+  const [account] = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, userId)).limit(1);
+  if (!account || !isRealProviderId(account.providerAccountId)) return null;
+  const live = await findLiveSubscription(db, userId);
+  const expiresAt = live ? providerExpiryFor(live) : null;
+  if (!expiresAt) return null;
+  try {
+    await vpn.setAccountExpiry(account.providerAccountId, expiresAt.toISOString());
+    await recordProviderEvent(db, {
+      action: "account.set_expiry",
+      status: "success",
+      targetId: account.id,
+      correlationId,
+      metadata: { expiresAt: expiresAt.toISOString() },
+    });
+    return expiresAt;
+  } catch (err) {
+    await recordProviderEvent(db, {
+      action: "account.set_expiry",
+      status: "error",
+      targetId: account.id,
+      correlationId,
+      metadata: { diagnostic: JSON.parse(formatProviderError(err, "account.set_expiry")) as Record<string, unknown> },
+    });
+    return null;
+  }
 }
 
 /**
@@ -510,6 +570,17 @@ export async function handleRenewal(
     }
   }
 
+  // Record the payment first: the unique index makes this the claim, so two concurrent deliveries
+  // for one invoice cannot both extend the period.
+  const recorded = await recordPaymentAndInvoice(db, {
+    userId: sub.userId,
+    subscriptionId: sub.id,
+    provider: input.provider,
+    providerPaymentId: input.providerPaymentId,
+    amount: input.amount,
+  });
+  if (!recorded) return sub;
+
   const periodStart = sub.currentPeriodEnd && sub.currentPeriodEnd > new Date() ? sub.currentPeriodEnd : new Date();
   await db
     .update(subscriptions)
@@ -519,16 +590,10 @@ export async function handleRenewal(
       updatedAt: new Date(),
     })
     .where(eq(subscriptions.id, sub.id));
-  await recordPaymentAndInvoice(db, {
-    userId: sub.userId,
-    subscriptionId: sub.id,
-    provider: input.provider,
-    providerPaymentId: input.providerPaymentId,
-    amount: input.amount,
-  });
   if (!sub.cancelAtPeriodEnd) {
     await restoreAccessAfterPayment(db, vpn, sub.userId, user.lifecycle as CustomerLifecycle, correlationId);
   }
+  await syncProviderExpiry(db, vpn, sub.userId, correlationId);
   await writeAudit(db, {
     actorType: "webhook",
     action: "billing.renewed",
@@ -1016,6 +1081,7 @@ export async function reconcileVpnProvisioning(
   const repaired: string[] = [];
   const synced: string[] = [];
   const failed: Array<{ userId: string; error: string }> = [];
+  const resuspended: string[] = [];
 
   if (options?.syncLocations) {
     try {
@@ -1097,11 +1163,35 @@ export async function reconcileVpnProvisioning(
     }
     const result = await syncVpnAccountWithProvider(db, vpn, account.userId, correlationId);
     if (result.synced && !synced.includes(account.userId)) synced.push(account.userId);
+    // We cut this account off (lapsed, cancelled, unpaid) but the provider still has it running,
+    // e.g. because the earlier suspend call failed. Retry, so unpaid access does not linger.
+    if (
+      result.synced &&
+      result.to === "active" &&
+      (account.status === "disabled" || account.status === "expired")
+    ) {
+      try {
+        await vpn.suspendAccount(account.providerAccountId);
+        await db
+          .update(vpnAccounts)
+          .set({ status: account.status, updatedAt: new Date(), lastReconciledAt: new Date() })
+          .where(eq(vpnAccounts.id, account.id));
+        await recordProviderEvent(db, {
+          action: "account.suspend",
+          status: "retry",
+          targetId: account.id,
+          correlationId,
+        });
+        resuspended.push(account.userId);
+      } catch (err) {
+        failed.push({ userId: account.userId, error: formatProviderError(err, "reconcile.suspend") });
+      }
+    }
   }
 
   await purgeExpiredSessions(db);
 
-  return { repaired, synced, failed, expired, cleaned };
+  return { repaired, synced, failed, expired, cleaned, resuspended };
 }
 
 export async function suspendVpnForUser(
@@ -1157,6 +1247,8 @@ export async function reactivateVpnForUser(
 ) {
   const [account] = await db.select().from(vpnAccounts).where(eq(vpnAccounts.userId, userId)).limit(1);
   if (account && isRealProviderId(account.providerAccountId)) {
+    // A provider account past its expiry date would stop again straight away; move the date first.
+    await syncProviderExpiry(db, vpn, userId, correlationId);
     try {
       await vpn.reactivateAccount(account.providerAccountId);
       await db

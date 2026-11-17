@@ -187,6 +187,16 @@ export class MockVPNProvider implements VPNProvider {
     this.accounts.delete(providerAccountId);
   }
 
+  async setAccountExpiry(providerAccountId: string, expiresAt: string): Promise<VpnAccount> {
+    const account = await this.getAccount(providerAccountId);
+    if (Number.isNaN(new Date(expiresAt).getTime())) {
+      throw new VpnProviderError("Invalid expiresAt", "validation");
+    }
+    account.expiresAt = expiresAt;
+    this.accounts.set(providerAccountId, account);
+    return { ...account };
+  }
+
   async changePassword(providerAccountId: string, password: string): Promise<void> {
     if (!password || password.length < 8) {
       throw new VpnProviderError("Password too short", "validation");

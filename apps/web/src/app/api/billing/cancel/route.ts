@@ -7,7 +7,7 @@ import { requireUser, writeAudit } from "@/lib/auth";
 import { HttpError, handle, readJson } from "@/lib/http";
 import { sendEmailSafe } from "@/lib/notify";
 import { getBillingProvider, getBillingProviderForPlan, getDb, getEmailProvider, getVpnProvider } from "@/lib/providers";
-import { endSubscription } from "@/lib/services";
+import { endSubscription, syncProviderExpiry } from "@/lib/services";
 import { correlationId } from "@/lib/utils";
 
 const schema = z.object({ immediate: z.boolean().optional() });
@@ -47,6 +47,8 @@ export async function POST(req: Request) {
           updatedAt: new Date(),
         })
         .where(eq(users.id, user.id));
+      // No renewal is coming, so the provider-side backstop drops the grace window.
+      await syncProviderExpiry(db, getVpnProvider(), user.id, cid);
     } else {
       await endSubscription(db, getVpnProvider(), sub, "cancelled", cid);
     }

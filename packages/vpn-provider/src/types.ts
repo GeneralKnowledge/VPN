@@ -115,6 +115,11 @@ export interface VPNProvider {
   suspendAccount(providerAccountId: string): Promise<VpnAccount>;
   reactivateAccount(providerAccountId: string): Promise<VpnAccount>;
   deleteAccount(providerAccountId: string): Promise<void>;
+  /**
+   * Set the date the provider itself stops the account. A backstop so paid access ends even if our
+   * own expiry job never runs or a suspend call fails.
+   */
+  setAccountExpiry(providerAccountId: string, expiresAt: string): Promise<VpnAccount>;
   /** Set a new password for the account's VPN credentials (used by OpenVPN username/password auth). */
   changePassword(providerAccountId: string, password: string): Promise<void>;
   /** Generate downloadable connection configuration for a location/protocol */

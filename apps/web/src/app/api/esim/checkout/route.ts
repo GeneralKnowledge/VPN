@@ -20,6 +20,14 @@ export async function POST(req: Request) {
     enforceRateLimit("esim-checkout", [`user:${user.id}`], 20, 15 * 60_000);
 
     const env = getEnv();
+    // Mock: in-app checkout. Stripe one-time Checkout is not wired yet — fail clearly, before
+    // creating an order that could never be paid.
+    if (env.BILLING_PROVIDER !== "mock") {
+      throw new HttpError(
+        501,
+        "eSIM Stripe Checkout is not wired yet. Keep BILLING_PROVIDER=mock (see docs/PRE-CUTOVER.md) or wait for payment-mode Checkout.",
+      );
+    }
     const corr = correlationId();
     const created = await createEsimCheckoutOrder(getDb(), getEsimProvider(), {
       userId: user.id,
@@ -29,13 +37,6 @@ export async function POST(req: Request) {
       correlationId: corr,
     });
 
-    // Mock: in-app checkout. Stripe one-time Checkout is not wired yet — fail clearly.
-    if (env.BILLING_PROVIDER !== "mock") {
-      throw new HttpError(
-        501,
-        "eSIM Stripe Checkout is not wired yet. Keep BILLING_PROVIDER=mock (see docs/PRE-CUTOVER.md) or wait for payment-mode Checkout.",
-      );
-    }
     // Relative URL keeps the browser on the same host (important for host-scoped cookies /
     // Playwright on 127.0.0.1 vs APP_URL=localhost).
     const url = `/billing/mock-esim-checkout?session_id=${encodeURIComponent(created.checkoutId)}`;
