@@ -67,4 +67,4 @@ Reconcile
 
 ## Mock billing
 
-Mock checkout/cancel is sufficient to exercise the matrix. Stripe production integration is out of scope for this stage.
+Mock checkout/cancel is sufficient to exercise the matrix. Real Stripe checkout (test mode) is described in [stripe-subscriptions.md](./stripe-subscriptions.md).

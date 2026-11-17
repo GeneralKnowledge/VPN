@@ -111,29 +111,33 @@ export function toStripeForm(value: Record<string, unknown>): URLSearchParams {
   return params;
 }
 
+export interface StripeClientConfig {
+  secretKey: string;
+  /** Launch gate: live keys (`sk_live_`, `rk_live_`) are refused unless this is set. */
+  allowLiveKeys?: boolean;
+  fetchFn?: typeof fetch;
+  apiBase?: string;
+}
+
 /**
- * Stripe REST calls for one-time payments, with no SDK dependency. Test-mode keys (`sk_test_`)
- * work against the same endpoints; live keys are refused unless `allowLiveKeys` is set, so a
- * live key pasted early cannot take real money before launch.
+ * Minimal Stripe REST client with no SDK dependency, shared by one-time payments and
+ * subscriptions. Test-mode keys (`sk_test_`) work against the same endpoints; live keys are
+ * refused unless `allowLiveKeys` is set, so a live key pasted early cannot take real money.
  */
-export class StripeOneTimePayments implements OneTimePayments {
-  readonly provider = "stripe" as const;
+export class StripeRestClient {
   private readonly fetchFn: typeof fetch;
   private readonly apiBase: string;
 
-  constructor(
-    private readonly config: {
-      secretKey: string;
-      allowLiveKeys?: boolean;
-      fetchFn?: typeof fetch;
-      apiBase?: string;
-    },
-  ) {
+  constructor(private readonly config: StripeClientConfig) {
     this.fetchFn = config.fetchFn ?? fetch;
     this.apiBase = (config.apiBase ?? "https://api.stripe.com/v1").replace(/\/$/, "");
   }
 
-  private ensureUsable() {
+  get configured(): boolean {
+    return Boolean(this.config.secretKey);
+  }
+
+  ensureUsable() {
     const key = this.config.secretKey;
     if (!key) throw new BillingProviderError("Missing STRIPE_SECRET_KEY", "unauthorized");
     if (/^(sk|rk)_live_/.test(key) && !this.config.allowLiveKeys) {
@@ -144,68 +148,8 @@ export class StripeOneTimePayments implements OneTimePayments {
     }
   }
 
-  async createOneTimeCheckout(input: OneTimeCheckoutInput): Promise<OneTimeCheckoutSession> {
-    if (!Number.isInteger(input.amount) || input.amount <= 0) {
-      throw new BillingProviderError("Amount must be a positive integer in minor units", "validation");
-    }
-    const expiresIn = Math.min(Math.max(input.expiresInSeconds ?? 3600, 1800), 86400);
-    const body = toStripeForm({
-      mode: "payment",
-      client_reference_id: input.orderId,
-      customer_email: input.customerEmail ?? undefined,
-      success_url: input.successUrl,
-      cancel_url: input.cancelUrl,
-      expires_at: Math.floor(Date.now() / 1000) + expiresIn,
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: input.currency.toLowerCase(),
-            unit_amount: input.amount,
-            product_data: { name: input.productName },
-          },
-        },
-      ],
-      metadata: { kind: input.kind, orderId: input.orderId },
-      payment_intent_data: { metadata: { kind: input.kind, orderId: input.orderId } },
-    });
-    const session = await this.request<{ id?: string; url?: string }>(
-      "POST",
-      "/checkout/sessions",
-      body,
-      input.idempotencyKey,
-    );
-    if (!session.id || !session.url) {
-      throw new BillingProviderError("Stripe returned a session without an id or url", "unknown", true);
-    }
-    return { id: session.id, url: session.url };
-  }
-
-  async getCheckoutSession(sessionId: string): Promise<CheckoutSessionState | null> {
-    try {
-      const s = await this.request<Record<string, unknown>>(
-        "GET",
-        `/checkout/sessions/${encodeURIComponent(sessionId)}`,
-      );
-      return parseCheckoutSession(s);
-    } catch (err) {
-      if (err instanceof BillingProviderError && err.code === "not_found") return null;
-      throw err;
-    }
-  }
-
-  async refund(paymentIntentId: string, idempotencyKey: string): Promise<RefundResult> {
-    const r = await this.request<{ id?: string; status?: string }>(
-      "POST",
-      "/refunds",
-      toStripeForm({ payment_intent: paymentIntentId }),
-      idempotencyKey,
-    );
-    return { id: r.id ?? "unknown", status: r.status ?? "unknown" };
-  }
-
-  private async request<T>(
-    method: "GET" | "POST",
+  async request<T>(
+    method: "GET" | "POST" | "DELETE",
     path: string,
     body?: URLSearchParams,
     idempotencyKey?: string,
@@ -235,6 +179,76 @@ export class StripeOneTimePayments implements OneTimePayments {
       throw new BillingProviderError(message, "unavailable", res.status >= 500 || res.status === 429);
     }
     return json;
+  }
+}
+
+/** One-time payments: Checkout in payment mode plus refunds. */
+export class StripeOneTimePayments implements OneTimePayments {
+  readonly provider = "stripe" as const;
+  private readonly client: StripeRestClient;
+
+  constructor(config: StripeClientConfig) {
+    this.client = new StripeRestClient(config);
+  }
+
+  async createOneTimeCheckout(input: OneTimeCheckoutInput): Promise<OneTimeCheckoutSession> {
+    if (!Number.isInteger(input.amount) || input.amount <= 0) {
+      throw new BillingProviderError("Amount must be a positive integer in minor units", "validation");
+    }
+    const expiresIn = Math.min(Math.max(input.expiresInSeconds ?? 3600, 1800), 86400);
+    const body = toStripeForm({
+      mode: "payment",
+      client_reference_id: input.orderId,
+      customer_email: input.customerEmail ?? undefined,
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: input.currency.toLowerCase(),
+            unit_amount: input.amount,
+            product_data: { name: input.productName },
+          },
+        },
+      ],
+      metadata: { kind: input.kind, orderId: input.orderId },
+      payment_intent_data: { metadata: { kind: input.kind, orderId: input.orderId } },
+    });
+    const session = await this.client.request<{ id?: string; url?: string }>(
+      "POST",
+      "/checkout/sessions",
+      body,
+      input.idempotencyKey,
+    );
+    if (!session.id || !session.url) {
+      throw new BillingProviderError("Stripe returned a session without an id or url", "unknown", true);
+    }
+    return { id: session.id, url: session.url };
+  }
+
+  async getCheckoutSession(sessionId: string): Promise<CheckoutSessionState | null> {
+    try {
+      const s = await this.client.request<Record<string, unknown>>(
+        "GET",
+        `/checkout/sessions/${encodeURIComponent(sessionId)}`,
+      );
+      return parseCheckoutSession(s);
+    } catch (err) {
+      if (err instanceof BillingProviderError && err.code === "not_found") return null;
+      throw err;
+    }
+  }
+
+  async refund(paymentIntentId: string, idempotencyKey: string): Promise<RefundResult> {
+    const r = await this.client.request<{ id?: string; status?: string }>(
+      "POST",
+      "/refunds",
+      toStripeForm({ payment_intent: paymentIntentId }),
+      idempotencyKey,
+    );
+    return { id: r.id ?? "unknown", status: r.status ?? "unknown" };
   }
 }
 

@@ -150,6 +150,7 @@ export function getBillingProvider() {
       secretKey: env.STRIPE_SECRET_KEY,
       webhookSecret: env.STRIPE_WEBHOOK_SECRET,
       priceMap: stripePriceMap(env),
+      allowLiveKeys: env.STRIPE_ALLOW_LIVE_PAYMENTS,
       defaultRail: "stripe",
     });
   }

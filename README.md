@@ -28,7 +28,7 @@ packages/config          Brands, plans, product hosts, env
 packages/db              Drizzle schema, migrate, seed
 packages/vpn-provider    MockVPNProvider + VPNResellersProvider
 packages/esim-provider   MockEsimProvider + ResellPortalEsimProvider
-packages/billing         MockBillingProvider + Stripe stub
+packages/billing         MockBillingProvider + Stripe (REST, no SDK)
 packages/email           MockEmailProvider + SMTP stub
 ```
 
@@ -118,9 +118,8 @@ Also: [docs/MULTI-PRODUCT.md](./docs/MULTI-PRODUCT.md), [docs/esim-resellportal.
 
 ## Activating Stripe
 
-1. Set `BILLING_PROVIDER=stripe` and Stripe keys / price IDs in `.env`  
-2. Complete Stripe SDK wiring in `packages/billing` (stub guards missing credentials)  
-3. Point Stripe webhooks to `/api/webhooks/stripe`  
+Follow [docs/stripe-subscriptions.md](./docs/stripe-subscriptions.md): test-mode keys, price ids, and a webhook endpoint at
+`/api/webhooks/stripe`. Live keys are refused until `STRIPE_ALLOW_LIVE_PAYMENTS=true`.
 
 ## Activating email
 
@@ -148,7 +147,7 @@ works with `BILLING_PROVIDER=mock`, and each checkout session can be completed o
 
 ### Known gaps
 
-- The Stripe adapter and SMTP transport are still stubs (webhook verification fails closed until the Stripe SDK is wired).  
+- The SMTP transport is still a stub. Stripe works in test mode; plan changes and the customer portal are not offered yet.  
 - Rate limits are per process; use a shared store (e.g. Redis) when running several instances.  
 - No TOTP 2FA yet; account session list + “sign out other devices” is available.  
 - Referral codes track signups; reward payouts are not enabled.  

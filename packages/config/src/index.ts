@@ -233,8 +233,8 @@ export const envSchema = z.object({
   BILLING_PROVIDER: z.enum(["mock", "stripe"]).default("mock"),
   STRIPE_SECRET_KEY: z.string().optional().default(""),
   /**
-   * Launch gate: live Stripe keys (sk_live_) are refused for one-time eSIM payments until this is
-   * true. Keep it false until the company exists and public orders are approved.
+   * Launch gate: live Stripe keys (sk_live_) are refused for VPN subscriptions and one-time eSIM
+   * payments until this is true. Keep it false until the company exists and public orders are approved.
    */
   STRIPE_ALLOW_LIVE_PAYMENTS: z
     .enum(["true", "false"])

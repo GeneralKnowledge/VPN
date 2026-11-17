@@ -53,7 +53,7 @@ External APIs
 
 `/api/webhooks/stripe` handles checkout completion, `invoice.payment_failed` (grace period, then suspension on repeat failure),
 `invoice.paid` (renewal, extends the period and restores access), and `customer.subscription.deleted`. Events are de-duplicated
-by event id. The Stripe adapter itself is still a stub (see README), so until the SDK is wired, signature verification fails closed.
+by event id, and a VPN plan is granted only for a paid session that matches a checkout the site started. Setup and safeguards: [docs/stripe-subscriptions.md](./docs/stripe-subscriptions.md).
 
 ## Local vs production
 
