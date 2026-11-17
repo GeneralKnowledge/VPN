@@ -1,0 +1,48 @@
+# App API
+
+The native iPhone app uses the same JSON API as the website. The only difference is how it signs in: it gets a session token in the response body and sends it as `Authorization: Bearer <token>` on every call, instead of a cookie. Base URL is the VPN host (for example `https://vpn.example.com`).
+
+A bearer header is never added by a browser on its own, so these calls need no CSRF protection; the app sends no `Origin` header, which the cross-site check lets through to normal auth.
+
+## Sign in and out
+
+`POST /api/app/session` with `{"login": "<email or username>", "password": "..."}`
+
+```json
+{ "token": "<64 hex chars>", "expiresAt": "2026-12-01T12:00:00.000Z", "user": { "username": "alice", "email": "alice@example.com", "name": null } }
+```
+
+- Same rate limits and timing as the website login. Wrong details give `401`; admin accounts give `403` and use the website.
+- The session lasts 14 days and appears in the customer's session list on the website, where it can be signed out. Changing the password signs out every other session, including the app.
+- Store the token in the Keychain. On `401` from any call, sign in again.
+
+`DELETE /api/app/session` signs the app out; the token stops working at once.
+
+## Home screen
+
+`GET /api/app/summary`
+
+```json
+{
+  "user": { "username": "alice", "email": "alice@example.com", "name": null },
+  "subscription": { "planId": "platinum-monthly", "planName": "Platinum Monthly", "status": "active", "billingMode": "subscription", "renews": true, "currentPeriodEnd": "2026-12-17T11:00:00.000Z" },
+  "vpn": { "status": "active", "ready": true },
+  "devices": { "active": 1, "limit": 5 }
+}
+```
+
+`subscription` is `null` with no live plan. The app sends people to the website to buy or change a plan; it doesn't take payments.
+
+## Adding this iPhone and getting a WireGuard config
+
+These existing routes accept the bearer token as they are:
+
+| Call | Does |
+|---|---|
+| `GET /api/vpn/locations` | Server locations: `{ locations: [{ id, country, countryCode, city, ... }] }` |
+| `GET /api/vpn/connections` | This customer's saved connections |
+| `POST /api/vpn/connections` `{ name, locationId, protocol: "wireguard", platform: "ios" }` | Adds a connection and a device (checks the plan's device limit): `{ id }` |
+| `POST /api/vpn/config` `{ connectionId }` | The WireGuard config as a `.conf` file (`Cache-Control: no-store`) |
+| `DELETE /api/vpn/connections?id=...` | Removes a connection |
+
+Until the app has its own tunnel (that needs a paid Apple organisation team), it hands the `.conf` to the official WireGuard app. Don't keep the config after handing it over: it holds the device's private key.
