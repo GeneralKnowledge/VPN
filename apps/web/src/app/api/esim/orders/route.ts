@@ -2,11 +2,11 @@ import { requireUser } from "@/lib/auth";
 import { listUserEsimOrders } from "@/lib/esim-services";
 import { handle } from "@/lib/http";
 import { getDb } from "@/lib/providers";
-import { requireProduct } from "@/lib/product";
+import { requireProductOrApp } from "@/lib/product";
 
 export async function GET() {
   return handle(async () => {
-    await requireProduct("esim");
+    await requireProductOrApp("esim");
     const user = await requireUser();
     const rows = await listUserEsimOrders(getDb(), user.id);
     return Response.json({

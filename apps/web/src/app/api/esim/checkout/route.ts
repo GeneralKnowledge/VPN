@@ -11,7 +11,7 @@ import {
   getOneTimePayments,
   track,
 } from "@/lib/providers";
-import { requireProduct } from "@/lib/product";
+import { isAppRequest, requireProductOrApp } from "@/lib/product";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { correlationId } from "@/lib/utils";
 
@@ -19,7 +19,7 @@ const schema = z.object({ packageCode: z.string().min(1).max(100) });
 
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireProduct("esim");
+    await requireProductOrApp("esim");
     const user = await requireUser();
     const body = await parseBody(req, schema);
     if (emailVerificationRequired() && !user.emailVerifiedAt) {
@@ -42,7 +42,9 @@ export async function POST(req: Request) {
       successUrl: `${base}/dashboard/esim?checkout=success`,
       cancelUrl: `${base}/pricing?checkout=cancelled`,
     });
-    const url = created.url;
+    // The app opens this in a browser, so it needs an absolute URL; the website keeps relative mock
+    // URLs so the browser stays on the same host.
+    const url = created.url.startsWith("/") && (await isAppRequest()) ? `${base}${created.url}` : created.url;
 
     await writeAudit(getDb(), {
       actorId: user.id,

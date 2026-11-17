@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { completeEsimOrder } from "@/lib/esim-services";
 import { HttpError, handle, parseBody } from "@/lib/http";
 import { emailVerificationRequired, getDb, getEmailProvider, getEnv, getEsimProvider, track } from "@/lib/providers";
-import { requireProduct } from "@/lib/product";
+import { requireProductOrApp } from "@/lib/product";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { correlationId } from "@/lib/utils";
 
@@ -12,7 +12,7 @@ const schema = z.object({ sessionId: z.string().min(1).max(200) });
 /** Completes a one-time eSIM purchase for the mock payment flow only. */
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireProduct("esim");
+    await requireProductOrApp("esim");
     const user = await requireUser();
     const body = await parseBody(req, schema);
     if (getEnv().BILLING_PROVIDER !== "mock") {

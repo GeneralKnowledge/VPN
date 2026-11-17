@@ -46,3 +46,16 @@ These existing routes accept the bearer token as they are:
 | `DELETE /api/vpn/connections?id=...` | Removes a connection |
 
 Until the app has its own tunnel (that needs a paid Apple organisation team), it hands the `.conf` to the official WireGuard app. Don't keep the config after handing it over: it holds the device's private key.
+
+## eSIM
+
+The eSIM routes answer on the eSIM host for the website. A request with the app's bearer token may call them on any host, so the app keeps one server address. A bearer header that doesn't match a live session gets `401`, not a pass through the host check.
+
+| Call | Does |
+|---|---|
+| `GET /api/esim/packages?country=GB` | Packages for sale: `{ packages: [{ code, name, countryCode, dataVolume, validity, price, currency }] }` (price in pence) |
+| `POST /api/esim/checkout` `{ packageCode }` | Starts a purchase: `{ url, sessionId, orderId, amount, currency }`. Open `url` in a browser (Stripe Checkout); the price is set by the server |
+| `GET /api/esim/orders` | This customer's orders, newest first, each with `status` and, once issued, `profile: { iccid, qrCodeUrl, activationUrl, status }` |
+| `POST /api/esim/complete` `{ sessionId }` | Mock billing only (development): completes the mock payment. With Stripe, payment is confirmed by Stripe's webhook, so poll `GET /api/esim/orders` after the browser closes |
+
+Order statuses are described in [esim-resellportal.md](./esim-resellportal.md#order-states). Treat `qrCodeUrl`, `activationUrl` and `iccid` as secrets: don't log or cache them outside the Keychain.
