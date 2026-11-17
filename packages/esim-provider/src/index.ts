@@ -15,7 +15,7 @@ export function createEsimProvider(
     apiSecret: options?.apiSecret ?? "",
     timeoutMs: options?.timeoutMs,
     fetchFn: options?.fetchFn,
-    retailMarkup: options?.retailMarkup,
+    pricing: options?.pricing,
     testMode: options?.testMode,
   });
 }
@@ -27,6 +27,7 @@ export {
 } from "./types";
 
 export * from "./types";
+export * from "./pricing";
 export { MockEsimProvider, MOCK_ESIM_PACKAGES } from "./mock";
 export { ResellPortalEsimProvider } from "./resellportal";
 export type { ResellPortalConfig } from "./resellportal";

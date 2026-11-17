@@ -5,6 +5,9 @@ import {
   EsimProviderError,
   MOCK_ESIM_PACKAGES,
   ResellPortalEsimProvider,
+  retailPricePence,
+  validatePricing,
+  wholesaleCostPence,
 } from "./index";
 
 describe("MockEsimProvider", () => {
@@ -83,11 +86,13 @@ describe("ResellPortalEsimProvider", () => {
       apiKey: "k",
       apiSecret: "s",
       fetchFn,
+      pricing: { wholesaleCurrency: "USD", usdToGbp: 0.8, markup: 1.4, minPricePence: 99 },
     });
 
     const packages = await provider.listPackages({ country: "US" });
     expect(packages[0]?.code).toBe("CKH104");
-    expect(packages[0]?.price).toBeGreaterThan(0);
+    // $1.80 × 0.8 = £1.44 cost; × 1.4 = 201.6p, rounded up.
+    expect(packages[0]?.price).toBe(202);
 
     const issued = await provider.createOrder({
       clientRef: "user_x",
@@ -150,5 +155,40 @@ describe("ResellPortal order safety", () => {
     expect(issued.providerOrderId).toBe("test_svc_1");
     expect((calls[1]!.init!.headers as Record<string, string>)["X-RP-Test-Mode"]).toBe("1");
     expect(JSON.parse(String(calls[1]!.init!.body))).toMatchObject({ client_id: "test_cli_1", product_key: "esim" });
+  });
+});
+
+describe("eSIM retail pricing", () => {
+  const usd = { wholesaleCurrency: "USD" as const, usdToGbp: 0.79, markup: 1.4, minPricePence: 99 };
+
+  it("converts USD to GBP before the markup and rounds up", () => {
+    // $10 → £7.90 → × 1.4 = £11.06
+    expect(retailPricePence(10, usd)).toBe(1106);
+    // Never below cost × markup through rounding.
+    expect(retailPricePence(1.01, usd)! / 100).toBeGreaterThanOrEqual(1.01 * 0.79 * 1.4);
+  });
+
+  it("uses GBP prices as they are, and applies the floor", () => {
+    expect(retailPricePence(5, { ...usd, wholesaleCurrency: "GBP", usdToGbp: undefined })).toBe(700);
+    expect(retailPricePence(0.2, usd)).toBe(99);
+  });
+
+  it("refuses to price without a rate or a usable amount", () => {
+    expect(validatePricing({ ...usd, usdToGbp: undefined })).toHaveLength(1);
+    expect(validatePricing({ ...usd, markup: 0.9 })).toHaveLength(1);
+    expect(retailPricePence(Number.NaN, usd)).toBeNull();
+    expect(retailPricePence(0, usd)).toBeNull();
+    expect(wholesaleCostPence(10, usd)).toBeCloseTo(790);
+  });
+
+  it("hides packages without a price and refuses to list without a USD rate", async () => {
+    const fetchFn = (async () =>
+      new Response(JSON.stringify([{ package_code: "A", price: 2 }, { package_code: "B" }]), {
+        status: 200,
+      })) as unknown as typeof fetch;
+    const priced = new ResellPortalEsimProvider({ apiUrl: "https://rp.test", apiKey: "k", apiSecret: "s", fetchFn, pricing: usd });
+    expect((await priced.listPackages()).map((p) => p.code)).toEqual(["A"]);
+    const unpriced = new ResellPortalEsimProvider({ apiUrl: "https://rp.test", apiKey: "k", apiSecret: "s", fetchFn });
+    await expect(unpriced.listPackages()).rejects.toThrow(/ESIM_USD_TO_GBP/);
   });
 });

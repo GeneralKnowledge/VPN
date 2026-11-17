@@ -6,6 +6,7 @@ import type {
   EsimProfileStatus,
 } from "./types";
 import { EsimProviderError } from "./types";
+import { DEFAULT_PRICING, retailPricePence, validatePricing, type RetailPricing } from "./pricing";
 
 export interface ResellPortalConfig {
   apiUrl: string;
@@ -15,8 +16,8 @@ export interface ResellPortalConfig {
   fetchFn?: typeof fetch;
   /** Sends X-RP-Test-Mode: requests are validated, nothing is charged, and sample data comes back. */
   testMode?: boolean;
-  /** Markup multiplier from wholesale USD-ish amounts into GBP pence display (mock retail). */
-  retailMarkup?: number;
+  /** How supplier prices become GBP retail prices (currency, rate, markup, floor). */
+  pricing?: RetailPricing;
 }
 
 type RawPackage = {
@@ -56,6 +57,10 @@ export class ResellPortalEsimProvider implements EsimProvider {
   }
 
   async listPackages(filter?: { country?: string }): Promise<EsimPackage[]> {
+    const pricingProblems = validatePricing(this.config.pricing ?? { ...DEFAULT_PRICING });
+    if (pricingProblems.length > 0) {
+      throw new EsimProviderError(pricingProblems.join("; "), "validation", false, undefined, undefined, "pricing");
+    }
     const qs = filter?.country ? `?location=${encodeURIComponent(filter.country)}` : "";
     const raw = await this.request<unknown>("GET", `/esim-packages${qs}`);
     const list = Array.isArray(raw)
@@ -118,11 +123,11 @@ export class ResellPortalEsimProvider implements EsimProvider {
     const code = p.package_code ?? p.code;
     if (!code) return null;
     const countryCode = (p.country_code ?? p.location ?? "XX").toString().toUpperCase();
-    const wholesale = Number(p.price ?? p.amount ?? 0);
-    const markup = this.config.retailMarkup ?? 1.4;
-    const pricePence = Number.isFinite(wholesale)
-      ? Math.max(99, Math.round(wholesale * 100 * markup))
-      : 999;
+    const pricing = this.config.pricing ?? { ...DEFAULT_PRICING };
+    if (validatePricing(pricing).length > 0) return null;
+    const pricePence = retailPricePence(Number(p.price ?? p.amount ?? Number.NaN), pricing);
+    // No usable supplier price: don't offer the package rather than guess one.
+    if (pricePence == null) return null;
     return {
       code,
       name: p.name ?? code,
