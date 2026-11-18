@@ -179,17 +179,22 @@ function hostList(raw: string | undefined, fallback: string[]): string[] {
     .filter(Boolean);
 }
 
+/** An empty value (`KEY=` copied from .env.example) means "not set", not an invalid value. */
+function blankIsUnset<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), schema);
+}
+
 export const envSchema = z.object({
   APP_URL: z.string().url().default("http://localhost:3000"),
   /** Public URL for the eSIM host (emails / checkout returns). Defaults to APP_URL. */
-  ESIM_APP_URL: z.string().url().optional(),
+  ESIM_APP_URL: blankIsUnset(z.string().url().optional()),
   /** Public URL for the Travel host (canonical links, sitemap). Defaults to APP_URL. */
-  TRAVEL_APP_URL: z.string().url().optional(),
+  TRAVEL_APP_URL: blankIsUnset(z.string().url().optional()),
   APP_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_NAME: z.string().default(brand.name),
   DATABASE_URL: z.string().min(1),
   AUTH_SECRET: z.string().min(16),
-  AUTH_URL: z.string().url().optional(),
+  AUTH_URL: blankIsUnset(z.string().url().optional()),
   /** Comma-separated hosts that serve the VPN product. Empty → defaultProduct only. */
   PRODUCT_HOST_VPN: z.string().optional().default(""),
   /** Comma-separated hosts that serve the eSIM product (e.g. sim.localhost,sim.example.com). */
@@ -209,7 +214,7 @@ export const envSchema = z.object({
   VPNRESELLERS_API_URL: z.string().url().default("https://api.vpnresellers.com/v4_1"),
   VPNRESELLERS_API_TOKEN: z.string().optional().default(""),
   VPNRESELLERS_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
-  VPNRESELLERS_PROJECT_ID: z.coerce.number().int().positive().optional(),
+  VPNRESELLERS_PROJECT_ID: blankIsUnset(z.coerce.number().int().positive().optional()),
   ESIM_PROVIDER: z.enum(["mock", "resellportal"]).default("mock"),
   RESELLPORTAL_API_URL: z
     .string()
@@ -221,7 +226,7 @@ export const envSchema = z.object({
   /** Currency of ResellPortal's package prices (its balance endpoint reports USD). */
   ESIM_WHOLESALE_CURRENCY: z.enum(["USD", "GBP"]).default("USD"),
   /** GBP per 1 USD, used to convert USD wholesale prices. Set it slightly above the market rate as a buffer. */
-  ESIM_USD_TO_GBP: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().positive().max(10).optional()),
+  ESIM_USD_TO_GBP: blankIsUnset(z.coerce.number().positive().max(10).optional()),
   /** Retail = wholesale in GBP × this. 1.4 is 40% on cost, before card fees. */
   ESIM_MARKUP: z.coerce.number().min(1).max(10).default(1.4),
   /** No eSIM sells for less than this, in pence. */
@@ -234,7 +239,7 @@ export const envSchema = z.object({
     .transform((v) => v === "true"),
   CRON_SECRET: z.string().optional().default(""),
   /** Where the public contact form delivers mail. Defaults to the brand support address. */
-  SUPPORT_INBOX_EMAIL: z.string().email().optional(),
+  SUPPORT_INBOX_EMAIL: blankIsUnset(z.string().email().optional()),
   /**
    * Mock billing activates subscriptions without taking payment. It is refused in production
    * unless this is explicitly set (private beta / manual billing only).

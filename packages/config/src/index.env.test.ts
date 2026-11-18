@@ -115,3 +115,39 @@ describe("production env", () => {
     expect(productionEnvProblems(env)).toEqual([]);
   });
 });
+
+describe("blank values", () => {
+  it("treats KEY= copied from .env.example as unset", () => {
+    const env = parseEnv({
+      ...base,
+      APP_ENV: "development",
+      VPNRESELLERS_PROJECT_ID: "",
+      SUPPORT_INBOX_EMAIL: "",
+      ESIM_APP_URL: "",
+      TRAVEL_APP_URL: " ",
+      AUTH_URL: "",
+      ESIM_USD_TO_GBP: "",
+    });
+    expect(env.VPNRESELLERS_PROJECT_ID).toBeUndefined();
+    expect(env.SUPPORT_INBOX_EMAIL).toBeUndefined();
+    expect(env.ESIM_APP_URL).toBeUndefined();
+    expect(env.TRAVEL_APP_URL).toBeUndefined();
+    expect(env.AUTH_URL).toBeUndefined();
+    expect(env.ESIM_USD_TO_GBP).toBeUndefined();
+  });
+
+  it("still rejects a value that is set but wrong", () => {
+    expect(() => parseEnv({ ...base, APP_ENV: "development", SUPPORT_INBOX_EMAIL: "not-an-email" })).toThrow();
+  });
+
+  it("parses the whole .env.example", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const raw: Record<string, string> = {};
+    for (const line of readFileSync(resolve(__dirname, "../../../.env.example"), "utf8").split("\n")) {
+      const m = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim());
+      if (m?.[1] !== undefined) raw[m[1]] = m[2] ?? "";
+    }
+    expect(() => parseEnv(raw)).not.toThrow();
+  });
+});
