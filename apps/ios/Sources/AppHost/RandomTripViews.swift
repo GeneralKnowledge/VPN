@@ -118,6 +118,11 @@ struct RandomTripScreen: View {
                 if !trip.overBudget.isEmpty {
                     Text(trip.overBudget).foregroundStyle(.orange)
                 }
+                ForEach(trip.warnings, id: \.self) { warning in
+                    Label(warning, systemImage: "exclamationmark.triangle")
+                        .font(.subheadline)
+                        .foregroundStyle(.orange)
+                }
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("randomTrip.summary")

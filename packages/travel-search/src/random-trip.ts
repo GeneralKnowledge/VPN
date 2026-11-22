@@ -11,6 +11,7 @@ import {
   dayValue,
   daysBetween,
   estimateFlights,
+  isBusyPeriod,
   estimateStays,
   unit,
   type FlightOption,
@@ -111,6 +112,11 @@ export interface RandomTrip {
   totalMinor: number;
   /** How far over the budget the trip is (only when a lock or upgrade forced it), else 0. */
   overBudgetByMinor: number;
+  /**
+   * Plain-language warnings about the trip, such as "December is a busy period, so only hostels
+   * fit £500 per person on these dates." Empty when there's nothing to say.
+   */
+  warnings: string[];
   /** The trip's current values, for the app to lock any section. */
   current: Required<RandomTripLocks>;
   upgrades: TripUpgrade[];
@@ -209,6 +215,15 @@ function pounds(minor: number): string {
   return `£${Math.round(minor / 100).toLocaleString("en-GB")}`;
 }
 
+function monthName(iso: string): string {
+  return new Date(`${iso.slice(0, 7)}-01T00:00:00Z`).toLocaleString("en-GB", { month: "long", timeZone: "UTC" });
+}
+
+/** "December is a busy period" when the trip leaves in one, else null. */
+function busyNote(depart: string): string | null {
+  return isBusyPeriod(depart) ? `${monthName(depart)} is a busy period` : null;
+}
+
 /** Pick a whole trip. Throws EstimateError with a readable reason when nothing fits. */
 export function planRandomTrip(request: RandomTripRequest, today: string): RandomTrip {
   const { criteria: c, seed, rolls, locks } = request;
@@ -270,8 +285,9 @@ export function planRandomTrip(request: RandomTripRequest, today: string): Rando
   }
 
   if (budget !== null && cheapest !== null) {
+    const busy = c.month !== null ? busyNote(`${c.month}-01`) : null;
     throw new EstimateError(
-      `nothing fits ${pounds(budget)} per person; the cheapest trip we found for these choices is about ${pounds(cheapest)} per person est.`,
+      `nothing fits ${pounds(budget)} per person${busy ? ` (${busy})` : ""}; the cheapest trip we found for these choices is about ${pounds(cheapest)} per person est.`,
     );
   }
   throw new EstimateError("we couldn't put a trip together for these choices; try another month or region");
@@ -301,9 +317,34 @@ function finish(c: RandomTripCriteria, found: Candidate, flight: FlightOption, s
     perPersonMinor: cost,
     totalMinor: flight.totalMinor + stay.totalMinor,
     overBudgetByMinor: c.budgetPerPersonMinor === null ? 0 : Math.max(0, cost - c.budgetPerPersonMinor),
+    warnings: warnings(c, found, flight, stay),
     current,
     upgrades: upgrades(c, found, flight, stay, cost, today),
   };
+}
+
+/**
+ * What the person should know before trusting the pick: a busy period, and a budget so tight that
+ * only hostels fit.
+ */
+function warnings(c: RandomTripCriteria, found: Candidate, flight: FlightOption, stay: StayOption): string[] {
+  const busy = busyNote(found.depart);
+  const budget = c.budgetPerPersonMinor;
+  const cheapestFlight = Math.min(...found.flights.map((f) => f.pricePerPersonMinor), flight.pricePerPersonMinor);
+  const otherStays = found.stays.filter((s) => s.kind !== "hostel");
+  const hostelsOnly =
+    budget !== null &&
+    stay.kind === "hostel" &&
+    otherStays.length > 0 &&
+    otherStays.every((s) => cheapestFlight + stayShare(s, c.adults) > budget);
+  if (hostelsOnly) {
+    const cheapestOther = Math.min(...otherStays.map((s) => cheapestFlight + stayShare(s, c.adults)));
+    const why = busy ? `${busy}, so only hostels` : "Only hostels";
+    return [
+      `${why} fit ${pounds(budget)} per person on these dates. Anything else starts at about ${pounds(cheapestOther)} per person est.`,
+    ];
+  }
+  return busy ? [`${busy}, so prices are higher than usual.`] : [];
 }
 
 function totalMinutes(f: FlightOption): number {

@@ -593,6 +593,7 @@ fn a_random_trip_sends_criteria_rolls_and_locks_and_reads_the_trip() {
                 "stay": { "id": "s3", "kind": "hotel3", "label": "3-star hotel", "area": "City centre", "city": "Barcelona",
                     "nightlyMinor": 9800, "nights": 7, "rooms": 1, "totalMinor": 68600 },
                 "perPersonMinor": 49000, "totalMinor": 98000, "overBudgetByMinor": 0,
+                "warnings": ["December is a busy period, so prices are higher than usual."],
                 "current": { "where": "BCN", "when": "2026-12-04", "flight": "f1", "stay": "hotel3|City centre" },
                 "upgrades": [
                     { "kind": "nicer-stay", "title": "4-star hotel", "deltaPerPersonMinor": 18000,
@@ -635,6 +636,10 @@ fn a_random_trip_sends_criteria_rolls_and_locks_and_reads_the_trip() {
     assert_eq!(trip.per_person, "£490 per person est.");
     assert_eq!(trip.total, "£980 est.");
     assert_eq!(trip.over_budget, "");
+    assert_eq!(
+        trip.warnings,
+        vec!["December is a busy period, so prices are higher than usual.".to_string()]
+    );
     assert_eq!(trip.current.stay.as_deref(), Some("hotel3|City centre"));
     assert_eq!(trip.upgrades[0].change, "+£180 per person est.");
     assert_eq!(trip.upgrades[1].change, "Save £45 per person est.");

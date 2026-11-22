@@ -3230,6 +3230,10 @@ public struct RandomTrip: Equatable, Hashable {
      */
     public var overBudget: String
     /**
+     * "December is a busy period, so only hostels fit £500 per person…": shown under the price.
+     */
+    public var warnings: [String]
+    /**
      * The current pick for every section, to lock any of them.
      */
     public var current: TripLocks
@@ -3266,6 +3270,9 @@ public struct RandomTrip: Equatable, Hashable {
          * "£40 over your budget" when a lock or upgrade went over it, else empty.
          */overBudget: String, 
         /**
+         * "December is a busy period, so only hostels fit £500 per person…": shown under the price.
+         */warnings: [String], 
+        /**
          * The current pick for every section, to lock any of them.
          */current: TripLocks, upgrades: [TripUpgrade], 
         /**
@@ -3284,6 +3291,7 @@ public struct RandomTrip: Equatable, Hashable {
         self.perPerson = perPerson
         self.total = total
         self.overBudget = overBudget
+        self.warnings = warnings
         self.current = current
         self.upgrades = upgrades
         self.thingsToDoNotice = thingsToDoNotice
@@ -3320,6 +3328,7 @@ public struct FfiConverterTypeRandomTrip: FfiConverterRustBuffer {
                 perPerson: FfiConverterString.read(from: &buf), 
                 total: FfiConverterString.read(from: &buf), 
                 overBudget: FfiConverterString.read(from: &buf), 
+                warnings: FfiConverterSequenceString.read(from: &buf), 
                 current: FfiConverterTypeTripLocks.read(from: &buf), 
                 upgrades: FfiConverterSequenceTypeTripUpgrade.read(from: &buf), 
                 thingsToDoNotice: FfiConverterString.read(from: &buf), 
@@ -3342,6 +3351,7 @@ public struct FfiConverterTypeRandomTrip: FfiConverterRustBuffer {
         FfiConverterString.write(value.perPerson, into: &buf)
         FfiConverterString.write(value.total, into: &buf)
         FfiConverterString.write(value.overBudget, into: &buf)
+        FfiConverterSequenceString.write(value.warnings, into: &buf)
         FfiConverterTypeTripLocks.write(value.current, into: &buf)
         FfiConverterSequenceTypeTripUpgrade.write(value.upgrades, into: &buf)
         FfiConverterString.write(value.thingsToDoNotice, into: &buf)

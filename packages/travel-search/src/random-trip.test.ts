@@ -43,6 +43,23 @@ describe("random trip", () => {
     }
   });
 
+  it("warns when a busy period leaves only hostels in the budget", () => {
+    const hostelOnly = ["a", "b", "c", "d", "e", "f", "g", "h"]
+      .map((seed) => planRandomTrip(request({ seed }), today))
+      .filter((t) => t.stay.kind === "hostel" && t.warnings[0]?.includes("only hostels"));
+    expect(hostelOnly.length).toBeGreaterThan(0);
+    expect(hostelOnly[0]!.warnings[0]).toMatch(
+      /^December is a busy period, so only hostels fit £500 per person on these dates\. Anything else starts at about £[\d,]+ per person est\.$/,
+    );
+  });
+
+  it("says a month is busy without a budget, and says nothing in a quiet month", () => {
+    const busy = planRandomTrip(request({}, { budgetPerPersonMinor: null }), today);
+    expect(busy.warnings).toEqual(["December is a busy period, so prices are higher than usual."]);
+    const quiet = planRandomTrip(request({}, { month: "2027-02", budgetPerPersonMinor: null }), today);
+    expect(quiet.warnings).toEqual([]);
+  });
+
   it("finds different trips for different seeds", () => {
     const places = new Set(["a", "b", "c", "d", "e", "f", "g", "h"].map((seed) => planRandomTrip(request({ seed }), today).destination.code));
     expect(places.size).toBeGreaterThan(2);

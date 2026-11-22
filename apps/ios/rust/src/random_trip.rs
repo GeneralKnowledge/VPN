@@ -87,6 +87,8 @@ pub struct RandomTrip {
     pub total: String,
     /// "£40 over your budget" when a lock or upgrade went over it, else empty.
     pub over_budget: String,
+    /// "December is a busy period, so only hostels fit £500 per person…": shown under the price.
+    pub warnings: Vec<String>,
     /// The current pick for every section, to lock any of them.
     pub current: TripLocks,
     pub upgrades: Vec<TripUpgrade>,
@@ -137,6 +139,8 @@ pub struct ApiRandomTrip {
     pub per_person_minor: u64,
     pub total_minor: u64,
     pub over_budget_by_minor: u64,
+    #[serde(default)]
+    pub warnings: Vec<String>,
     pub current: ApiTripLocks,
     pub upgrades: Vec<ApiTripUpgrade>,
 }
@@ -277,6 +281,7 @@ pub(crate) fn random_trip(api: ApiRandomTripAnswer) -> RandomTrip {
         } else {
             String::new()
         },
+        warnings: t.warnings,
         current: locks(t.current),
         upgrades: t.upgrades.into_iter().map(upgrade).collect(),
         things_to_do_notice: if things_to_do.is_empty() {

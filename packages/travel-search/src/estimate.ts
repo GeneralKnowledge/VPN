@@ -167,6 +167,11 @@ function season(iso: string): number {
   return SEASON[month(iso) - 1] ?? 1;
 }
 
+/** A busy, dearer month (summer holidays, Christmas): prices run at least 15% above normal. */
+export function isBusyPeriod(iso: string): boolean {
+  return season(iso) >= 1.15;
+}
+
 /** Fares rise as the date gets close. */
 function notice(today: string, date: string): number {
   const ahead = daysBetween(today, date);
