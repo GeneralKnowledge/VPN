@@ -45,6 +45,19 @@ describe("partner links", () => {
     expect(await db.select().from(outboundLinks)).toHaveLength(3);
   });
 
+  it("shows no links, and doesn't fail, when the links can't be stored", async () => {
+    const broken = {
+      insert: () => {
+        throw new Error("database is locked");
+      },
+    } as unknown as Db;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await partnerLinksFor(broken, mock(), japan, "destination-page", BASE);
+    expect(result.groups).toEqual([]);
+    expect(quiet).toHaveBeenCalledOnce();
+    quiet.mockRestore();
+  });
+
   it("shows nothing when no partner is switched on", async () => {
     expect((await partnerLinksFor(db, [], japan, "destination-page", BASE)).groups).toEqual([]);
   });

@@ -45,9 +45,29 @@ export type DestinationPartnerLinks = {
 /**
  * The partner links for a destination, grouped by category. Each link is written to
  * `outbound_links` (same id for the same partner, category, destination and placement), so
- * `/go/<id>` can redirect only to a URL an adapter built.
+ * `/go/<id>` can redirect only to a URL an adapter built. If those writes fail, there are no
+ * links: the rest of the page still loads, and no link is shown that `/go/<id>` couldn't follow.
  */
 export async function partnerLinksFor(
+  db: Db,
+  adapters: readonly PartnerAdapter[],
+  destination: Pick<Destination, "slug" | "name" | "countryCode">,
+  placement: string,
+  travelBaseUrl: string,
+  categories: readonly PartnerCategory[] = DESTINATION_CATEGORIES,
+): Promise<DestinationPartnerLinks> {
+  try {
+    return await buildPartnerLinks(db, adapters, destination, placement, travelBaseUrl, categories);
+  } catch (error) {
+    console.error("[partner-links] couldn't store referral links", {
+      placement,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { notice: COMMISSION_NOTICE, groups: [] };
+  }
+}
+
+async function buildPartnerLinks(
   db: Db,
   adapters: readonly PartnerAdapter[],
   destination: Pick<Destination, "slug" | "name" | "countryCode">,
