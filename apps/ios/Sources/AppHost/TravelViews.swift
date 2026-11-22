@@ -224,13 +224,14 @@ struct SaveTripSheet: View {
     @State private var notes = ""
     @State private var error: String?
 
-    /// `initialStart` and `initialEnd` fill in the dates, from a search.
+    /// `initialStart` and `initialEnd` fill in the dates, from a search; `initialNotes` the notes.
     init(
         model: AppModel,
         destinationSlug: String,
         destinationName: String,
         initialStart: Date? = nil,
         initialEnd: Date? = nil,
+        initialNotes: String = "",
         isPresented: Binding<Bool>,
         onSaved: @escaping () -> Void
     ) {
@@ -244,6 +245,7 @@ struct SaveTripSheet: View {
         _hasEnd = State(initialValue: initialStart == nil || initialEnd != nil)
         _start = State(initialValue: start)
         _end = State(initialValue: initialEnd ?? start.addingTimeInterval(7 * 24 * 3600))
+        _notes = State(initialValue: initialNotes)
     }
 
     var body: some View {

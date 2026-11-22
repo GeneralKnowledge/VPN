@@ -6,6 +6,7 @@ import { z } from "zod";
 
 export * from "./airports";
 export * from "./estimate";
+export * from "./random-trip";
 
 /** Shown with every set of results. */
 export const ESTIMATE_NOTE = "Estimates, not live prices. Nothing here can be booked yet.";
@@ -59,3 +60,34 @@ export const priceMapQuerySchema = z.object({
 export function todayInUk(now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(now);
 }
+
+const optionalCount = (min: number, max: number) => z.coerce.number().int().min(min).max(max);
+
+/**
+ * The random trip planner's query string. Every criterion is optional; `seed` is picked once per
+ * "Surprise me", the `roll*` counters re-roll a section, and the `lock*` values keep one.
+ */
+export const randomTripQuerySchema = z.object({
+  from: code,
+  region: z.enum(["europe", "asia", "americas", "middle-east"]).optional(),
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, "the month is YYYY-MM")
+    .optional(),
+  /** Whole pounds per person, for flights and the stay together. */
+  budget: z.coerce.number().int().min(1).max(100_000).optional(),
+  nights: optionalCount(2, 14).default(7),
+  adults: count.default(1),
+  seed: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, "the seed is letters and digits"),
+  rollWhere: optionalCount(0, 10_000).default(0),
+  rollWhen: optionalCount(0, 10_000).default(0),
+  rollFlight: optionalCount(0, 10_000).default(0),
+  rollStay: optionalCount(0, 10_000).default(0),
+  lockWhere: code.optional(),
+  lockWhen: isoDate.optional(),
+  lockFlight: z
+    .string()
+    .regex(/^f\d{1,2}$/)
+    .optional(),
+  lockStay: z.string().max(80).optional(),
+});

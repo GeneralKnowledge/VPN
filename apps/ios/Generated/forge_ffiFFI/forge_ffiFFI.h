@@ -338,6 +338,11 @@ uint64_t uniffi_northstar_vpn_core_fn_method_appcore_sign_in(uint64_t ptr, RustB
 uint64_t uniffi_northstar_vpn_core_fn_method_appcore_sign_out(uint64_t ptr
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NORTHSTAR_VPN_CORE_FN_METHOD_APPCORE_RANDOM_TRIP
+#define UNIFFI_FFIDEF_UNIFFI_NORTHSTAR_VPN_CORE_FN_METHOD_APPCORE_RANDOM_TRIP
+uint64_t uniffi_northstar_vpn_core_fn_method_appcore_random_trip(uint64_t ptr, RustBuffer criteria, RustBuffer seed, RustBuffer rolls, RustBuffer locks
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NORTHSTAR_VPN_CORE_FN_METHOD_APPCORE_DELETE_TRIP
 #define UNIFFI_FFIDEF_UNIFFI_NORTHSTAR_VPN_CORE_FN_METHOD_APPCORE_DELETE_TRIP
 uint64_t uniffi_northstar_vpn_core_fn_method_appcore_delete_trip(uint64_t ptr, RustBuffer trip_id
@@ -762,6 +767,12 @@ uint16_t uniffi_northstar_vpn_core_checksum_method_appcore_sign_in(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NORTHSTAR_VPN_CORE_CHECKSUM_METHOD_APPCORE_SIGN_OUT
 #define UNIFFI_FFIDEF_UNIFFI_NORTHSTAR_VPN_CORE_CHECKSUM_METHOD_APPCORE_SIGN_OUT
 uint16_t uniffi_northstar_vpn_core_checksum_method_appcore_sign_out(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NORTHSTAR_VPN_CORE_CHECKSUM_METHOD_APPCORE_RANDOM_TRIP
+#define UNIFFI_FFIDEF_UNIFFI_NORTHSTAR_VPN_CORE_CHECKSUM_METHOD_APPCORE_RANDOM_TRIP
+uint16_t uniffi_northstar_vpn_core_checksum_method_appcore_random_trip(void
     
 );
 #endif

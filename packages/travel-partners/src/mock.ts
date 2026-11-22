@@ -4,7 +4,7 @@ export const MOCK_PARTNER: TravelPartner = {
   id: "mock",
   displayName: "Test Partner",
   network: "test",
-  categories: ["flights", "stays", "cars"],
+  categories: ["flights", "stays", "cars", "activities"],
   markets: "*",
   integration: "link",
   disclosure: "Test Partner is not a real company. Its links open a page on this site so the referral flow can be tried end to end.",

@@ -278,7 +278,7 @@ pub(crate) fn flight(api: ApiFlight) -> FlightResult {
     }
 }
 
-fn stay(api: ApiStay) -> StayResult {
+pub(crate) fn stay(api: ApiStay) -> StayResult {
     StayResult {
         id: api.id,
         label: api.label,

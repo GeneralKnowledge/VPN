@@ -34,6 +34,9 @@ pub use travel_search::{
 };
 // Travel partner links (phase 2).
 pub use travel::{PartnerGroup, PartnerLink};
+// The random trip planner (phase 1c).
+mod random_trip;
+pub use random_trip::{RandomTrip, TripCriteria, TripLocks, TripRegion, TripRolls, TripUpgrade};
 
 // Keychain, directories, notifications, permissions and deep links, as
 // `crate::native`; the Swift side is ForgeKit's ForgeNative.

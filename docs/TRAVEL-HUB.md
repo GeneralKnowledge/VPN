@@ -138,6 +138,7 @@ Each phase is one or a few PRs, with its own tests, and ends with a working stat
 | 0 | This plan | Merged | Review the open questions |
 | 1 | Travel host on the web, destination pages for the first ten countries from curated data, saved trips (web + API), Explore and Trips tabs in the iPhone app. Mock partner only | A signed-in person can open Japan, see our eSIM packages, save the trip on the web and see it on the phone | Nothing (destinations decided) |
 | 1b | Search in the iPhone app with simulated estimates: flights, stays, cars, flight + hotel, and a map of estimated prices from your home airport ([below](#phase-1b-search-with-simulated-estimates)) | A signed-in person searches Edinburgh to Barcelona for December, sees estimated options sorted by price or duration, opens the price map, and saves the search as a trip | Nothing |
+| 1c | Random trip planner on the same estimates ([below](#phase-1c-random-trip-planner)) | A signed-in person asks for "Europe in December under £500", gets a whole trip, re-rolls the stay, locks the flight, takes an upgrade and saves it as a trip | Nothing |
 | 2 | `travel-partners` package, `/go/` redirect and click records, disclosure component, consent and policy page updates, first `link` partners (flights, hotels) | A real partner link works end to end in test, with a recorded click and visible disclosure | Programme sign-ups (he applies, or says go) |
 | 3 | eSIM in journeys: trip-aware package suggestions, "connectivity" item on a trip, activation guidance; reads the eSIM product, changes nothing in its checkout | Starting from a trip, a person reaches eSIM checkout in one tap | eSIM launch stream finished first |
 | 4 | Travel essentials: parking, transfers, car hire, activities as `link` partners | Two essentials categories live | Partner approvals |
@@ -179,6 +180,30 @@ Reuben asked (2026-11-22) for the search experience of a travel app in our iPhon
 Web search pages on the Travel host can follow on the same API; this phase is the app.
 
 **Later.** When a live adapter exists (phase 6), a route returns its results with `source` and `fetchedAt`, and the app shows those instead of the estimate for that search. Estimates stay as the fallback, still labelled.
+
+### Phase 1c: random trip planner
+
+Reuben's idea (2026-11-22): "You pick a criteria (or none) then hit give me a random trip ... a user could random each section or shortlist it and build a holiday. Sometimes people [aren't] sure where or when they exactly want to go." Comparison sites start from a fixed place and date; this starts from a budget and a mood.
+
+**Criteria, all optional:** home airport (from the app's settings), region (Europe, Asia, the Americas, the Middle East, or anywhere), month (or any of the next twelve), budget per person for flights and the stay together, nights (2 to 14, default 7) and travellers. "Europe in December under £500" is region + month + budget.
+
+**What comes back:** one trip, in sections:
+
+| Section | From | Re-roll | Lock |
+|---|---|---|---|
+| Where | a destination airport in the region, picked at random | another destination | keeps the city |
+| When | a departure date in the month, picked at random | another date | keeps the dates |
+| Flight | one of the estimated return flights that fits the budget | another flight that fits | keeps this flight (and so where and when) |
+| Stay | one of the estimated stays that fits what's left of the budget | another stay that fits | keeps this kind and area |
+| Things to do | partner links for the destination (phase 2), no prices | | |
+
+Each section has its own re-roll counter and its own lock, so the server stays stateless: the app sends the criteria, a random seed, the counters and the locks, and gets the same trip back for the same request. Locking the flight also locks where and when, since a flight belongs to one route and date.
+
+**Upgrades:** alongside the trip, up to three offers, each a change the app can apply as a lock, with its cost or saving per person: a nicer stay (the next kind up), a quicker flight (if the current one isn't the fastest), and cheaper dates (moving departure up to a week either way, kept only if it saves at least £10 per person). Upgrades may go over the budget; the screen says by how much.
+
+**Rules:** every figure is our estimate and reads "est."; there is no booking, and nothing here is a partner's price. "Things to do" are referral links only, with the commission notice. When nothing fits the budget, the answer says the cheapest trip we can estimate for those criteria, so the person can raise the budget or widen the criteria. "Save as a trip" saves where and when, with the flight and stay in the notes as estimates.
+
+**Where it lives:** `planRandomTrip` in `packages/travel-search` (pure, tested), `GET /api/travel/random-trip` (docs/app-api.md), and a "Surprise Me" screen in the iPhone app's Explore tab (`RandomTripViews.swift`, Rust `random_trip.rs`). Re-rolling a part keeps the parts before it (re-rolling the stay keeps the place, dates and flight); "Keep" holds a part through later re-rolls. "Things to do" uses the test partner's `activities` links until a real partner is approved.
 
 ### Phase 2 as built
 

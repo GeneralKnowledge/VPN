@@ -53,9 +53,10 @@ export async function partnerLinksFor(
   destination: Pick<Destination, "slug" | "name" | "countryCode">,
   placement: string,
   travelBaseUrl: string,
+  categories: readonly PartnerCategory[] = DESTINATION_CATEGORIES,
 ): Promise<DestinationPartnerLinks> {
   const groups: PartnerLinkGroup[] = [];
-  for (const category of DESTINATION_CATEGORIES) {
+  for (const category of categories) {
     const links: PartnerLink[] = [];
     for (const adapter of partnersFor(adapters, category, destination.countryCode)) {
       const request: LinkRequest = {
