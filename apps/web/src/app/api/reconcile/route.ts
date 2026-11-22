@@ -9,6 +9,7 @@ import {
   getOneTimePayments,
   getVpnProvider,
 } from "@/lib/providers";
+import { purgeOldPartnerClicks } from "@/lib/partner-links";
 import { reconcileVpnProvisioning } from "@/lib/services";
 import { secretsMatch } from "@/lib/secrets";
 import { correlationId } from "@/lib/utils";
@@ -35,7 +36,8 @@ async function run(options: { userId?: string; syncLocations?: boolean }) {
     userId: options.userId,
     payments: getOneTimePayments(),
   });
-  return Response.json({ vpn, esim });
+  const partnerClicksPurged = await purgeOldPartnerClicks(getDb());
+  return Response.json({ vpn, esim, partnerClicksPurged });
 }
 
 /** Admin or cron-triggered reconciliation: expire lapsed subscriptions, repair VPN accounts, sync status. */

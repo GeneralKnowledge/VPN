@@ -18,6 +18,7 @@ import { createDb, type Db } from "@northstar/db";
 import { createPostgresDb } from "@northstar/db/postgres";
 import { createEmailProvider, type EmailProvider } from "@northstar/email";
 import { createEsimProvider, type EsimProvider } from "@northstar/esim-provider";
+import { createPartnerAdapters, type PartnerAdapter } from "@northstar/travel-partners";
 import { createVPNProvider, type VPNProvider } from "@northstar/vpn-provider";
 import path from "node:path";
 
@@ -71,6 +72,11 @@ export function emailVerificationRequired(): boolean {
 /** Public base URL for links in emails and checkout redirects (VPN / default). */
 export function appUrl(product: Product = "vpn"): string {
   return appUrlForProduct(getEnv(), product);
+}
+
+/** Travel partners switched on in config (`TRAVEL_PARTNERS`); links go out through `/go/<id>`. */
+export function getTravelPartners(): PartnerAdapter[] {
+  return createPartnerAdapters(getEnv().TRAVEL_PARTNERS, { travelBaseUrl: appUrl("travel") });
 }
 
 export function getDb() {

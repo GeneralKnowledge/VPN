@@ -1,6 +1,6 @@
 # Travel Hub plan
 
-Status: phase 1 in progress (the Travel host, destination pages and saved trips on the web are built; the iPhone tabs are next). No affiliate programme has been applied to or contacted. Agreed direction from Reuben, 2026-11-17; names are provisional.
+Status: phases 1 and 1b are done. Phase 2 is being built against a test partner only ([Phase 2 as built](#phase-2-as-built)); no affiliate programme has been applied to or contacted. Agreed direction from Reuben, 2026-11-17; names are provisional.
 
 ## In one paragraph
 
@@ -179,6 +179,20 @@ Reuben asked (2026-11-22) for the search experience of a travel app in our iPhon
 Web search pages on the Travel host can follow on the same API; this phase is the app.
 
 **Later.** When a live adapter exists (phase 6), a route returns its results with `source` and `fetchedAt`, and the app shows those instead of the estimate for that search. Estimates stay as the fallback, still labelled.
+
+### Phase 2 as built
+
+Reuben said go on 2026-11-22 ("Do whatever you can do now") for the parts that need no sign-up. So phase 2 runs end to end with a **test partner** and no real company:
+
+- **`packages/travel-partners`:** the `TravelPartner` type, a `PartnerAdapter` interface (it alone builds partner URLs and adds our click id), and `MockTravelPartner`, whose links open `/partner-preview` on our own Travel site. Partners are listed by name, never by commission. Partners live in code and config rather than a `travel_partners` table: there are none to manage yet, and `TRAVEL_PARTNERS` switches each one on or off (`none` for all). The test partner is the default outside production; production shows none unless `TRAVEL_PARTNERS` asks, and refuses `mock` without `ALLOW_MOCK_BILLING_IN_PRODUCTION=true`.
+- **Tables:** `outbound_links` (one row per partner, category, destination and placement, with the URL the adapter built; its id is a hash of those public facts, so a page view doesn't add rows) and `partner_events` (`outbound_click` with a random click id; no user, IP address, user agent or trip).
+- **`/go/<id>` on the Travel host:** records the click and redirects to the stored URL with the click id added. It reads nothing else from the request, so it isn't an open redirect. An unknown link, or a partner that is paused or switched off, gets a plain "This link isn't available" page.
+- **Retention:** the reconcile job (`/api/reconcile`, which cron already calls) deletes click records older than 90 days.
+- **Disclosure:** each destination page's "Flights, stays and getting around" section lists the links with the commission notice right above them and each partner's own disclosure below. The test partner is badged "Test partner". The destination API returns the same links for the app.
+- **Consent, per mechanism:** our own click record is first-party, server-side and sets no cookie, so it needs no consent under PECR (stated on the cookies page). We load no partner scripts or pixels. A partner's cookies are set on the partner's own site under its own notice. Before each real partner goes live, check its programme for anything that would run on our pages; that would need a consent choice first.
+- **Policy pages:** the draft privacy and cookie pages say what a click record holds and for how long. They're still drafts for review before launch.
+
+Still to do before a real partner: the programme sign-ups (Travelpayouts first), one adapter per network, reading each programme's terms, a person reviewing the privacy and cookie wording, and partner links in the iPhone app's destination screen.
 
 ### Longer term: trip-aware recommendations
 

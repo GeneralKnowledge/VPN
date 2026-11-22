@@ -216,6 +216,21 @@ export const envSchema = z.object({
   VPNRESELLERS_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   VPNRESELLERS_PROJECT_ID: blankIsUnset(z.coerce.number().int().positive().optional()),
   ESIM_PROVIDER: z.enum(["mock", "resellportal"]).default("mock"),
+  /**
+   * Travel partners whose referral links are shown (docs/TRAVEL-HUB.md, phase 2), comma-separated.
+   * "mock" is a test partner whose links open a page on our own site, and the default outside
+   * production (production defaults to none, in parseEnv). "none" or blank turns them all off. Real partners are added only after their programme has accepted us.
+   */
+  TRAVEL_PARTNERS: z
+    .string()
+    .optional()
+    .default("mock")
+    .transform((v) =>
+      v
+        .split(",")
+        .map((id) => id.trim().toLowerCase())
+        .filter((id) => id !== "" && id !== "none"),
+    ),
   RESELLPORTAL_API_URL: z
     .string()
     .url()
@@ -302,7 +317,9 @@ export function parseEnv(raw: Record<string, string | undefined> = process.env):
   // Fail closed: a production runtime (`next start`) with APP_ENV unset must not behave like
   // development (non-Secure cookies, reset links in API responses, auto-verified emails).
   const appEnv = raw.APP_ENV ?? (raw.NODE_ENV === "production" ? "production" : undefined);
-  return envSchema.parse({ ...raw, APP_ENV: appEnv });
+  // The test partner is the default everywhere except production, which shows none unless asked.
+  const travelPartners = raw.TRAVEL_PARTNERS ?? (appEnv === "production" ? "none" : undefined);
+  return envSchema.parse({ ...raw, APP_ENV: appEnv, TRAVEL_PARTNERS: travelPartners });
 }
 
 export function productHostConfig(
@@ -390,6 +407,11 @@ export function productionEnvProblems(env: AppEnv): string[] {
   }
   if (env.ESIM_PROVIDER === "resellportal" && env.ESIM_WHOLESALE_CURRENCY === "USD" && !env.ESIM_USD_TO_GBP) {
     problems.push("ESIM_PROVIDER=resellportal prices in USD: set ESIM_USD_TO_GBP (GBP per 1 USD) so retail prices are converted");
+  }
+  if (env.TRAVEL_PARTNERS.includes("mock") && !env.ALLOW_MOCK_BILLING_IN_PRODUCTION) {
+    problems.push(
+      "TRAVEL_PARTNERS includes mock, a test partner that isn't a real company. Set TRAVEL_PARTNERS=none (or real partners), or ALLOW_MOCK_BILLING_IN_PRODUCTION=true for a private beta",
+    );
   }
   if (env.ESIM_PROVIDER === "resellportal" && env.RESELLPORTAL_TEST_MODE) {
     problems.push("RESELLPORTAL_TEST_MODE=true issues sample eSIMs that do not work; turn it off in production");

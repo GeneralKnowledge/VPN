@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDb, migrate, users } from "@northstar/db";
 import { MockEsimProvider } from "@northstar/esim-provider";
+import { createPartnerAdapters } from "@northstar/travel-partners";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -15,6 +16,7 @@ vi.mock("@/lib/providers", () => ({
   getEnv: () => ({ AUTH_SECRET: "test-secret-test-secret-test-secret" }),
   isProduction: () => false,
   getEsimProvider: () => new MockEsimProvider(),
+  getTravelPartners: () => createPartnerAdapters(["mock"], { travelBaseUrl: "https://travel.example.com" }),
   appUrl: (p: string) => `https://${p}.example.com`,
   track: () => undefined,
 }));
@@ -94,11 +96,18 @@ describe("Travel API from the native app", () => {
     const japan = (await (await destination(new Request("http://x"), params({ slug: "japan" }))).json()) as {
       destination: { countryCode: string; entryRequirementsUrl: string; reviewed: boolean };
       esim: { available: boolean; packages: unknown[]; plansUrl: string };
+      partners: { notice: string; groups: Array<{ category: string; links: Array<{ url: string; label: string; test: boolean }> }> };
     };
     expect(japan.destination.countryCode).toBe("JP");
     expect(japan.destination.reviewed).toBe(false);
     expect(japan.esim.packages.length).toBeGreaterThan(0);
     expect(japan.esim.plansUrl).toBe("https://esim.example.com/pricing?country=JP");
+    expect(japan.partners.notice).toMatch(/commission/);
+    expect(japan.partners.groups.map((g) => g.category)).toEqual(["flights", "stays", "cars"]);
+    const flight = japan.partners.groups[0]!.links[0]!;
+    expect(flight.url).toMatch(/^https:\/\/travel\.example\.com\/go\/lnk_[0-9a-f]{24}$/);
+    expect(flight.label).toBe("Search flights to Japan on Test Partner");
+    expect(flight.test).toBe(true);
 
     expect((await destination(new Request("http://x"), params({ slug: "atlantis" }))).status).toBe(404);
   });

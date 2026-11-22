@@ -33,7 +33,7 @@ const ESIM_MARKETING = new Set([
  */
 function travelRewrite(pathname: string): string | null {
   if (pathname === "/") return "/travel";
-  for (const prefix of ["/destinations", "/trips"]) {
+  for (const prefix of ["/destinations", "/trips", "/go", "/partner-preview"]) {
     if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return `/travel${pathname}`;
   }
   return null;
