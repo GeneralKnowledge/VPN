@@ -335,6 +335,7 @@ function warnings(c: RandomTripCriteria, found: Candidate, flight: FlightOption,
   const hostelsOnly =
     budget !== null &&
     stay.kind === "hostel" &&
+    perPerson(flight, stay, c.adults) <= budget &&
     otherStays.length > 0 &&
     otherStays.every((s) => cheapestFlight + stayShare(s, c.adults) > budget);
   if (hostelsOnly) {

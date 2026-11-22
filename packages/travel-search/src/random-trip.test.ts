@@ -53,6 +53,15 @@ describe("random trip", () => {
     );
   });
 
+  it("doesn't say hostels fit when a kept hostel trip is over the budget", () => {
+    const hostel = ["a", "b", "c", "d", "e", "f", "g", "h"]
+      .map((seed) => planRandomTrip(request({ seed }), today))
+      .find((t) => t.stay.kind === "hostel")!;
+    const kept = planRandomTrip(request({ locks: hostel.current }, { budgetPerPersonMinor: 1_00 }), today);
+    expect(kept.overBudgetByMinor).toBe(kept.perPersonMinor - 1_00);
+    expect(kept.warnings.join(" ")).not.toContain("only hostels");
+  });
+
   it("says a month is busy without a budget, and says nothing in a quiet month", () => {
     const busy = planRandomTrip(request({}, { budgetPerPersonMinor: null }), today);
     expect(busy.warnings).toEqual(["December is a busy period, so prices are higher than usual."]);
