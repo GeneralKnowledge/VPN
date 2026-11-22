@@ -1,6 +1,6 @@
 # Travel Hub plan
 
-Status: phases 1, 1b and 1c are done. Phase 2 runs against a test partner only ([Phase 2 as built](#phase-2-as-built)); no affiliate programme has been applied to or contacted. Phase 3's trip-aware eSIM suggestion is built ([Phase 3 as built](#phase-3-as-built)). Agreed direction from Reuben, 2026-11-17; names are provisional.
+Status: phases 1, 1b and 1c are done. Phase 2 runs against a test partner only ([Phase 2 as built](#phase-2-as-built)); no affiliate programme has been applied to or contacted. Phase 3's trip-aware eSIM suggestion is built ([Phase 3 as built](#phase-3-as-built)), and phase 4's essentials run on the test partner ([Phase 4 as built](#phase-4-as-built)). Agreed direction from Reuben, 2026-11-17; names are provisional.
 
 ## In one paragraph
 
@@ -215,7 +215,7 @@ Reuben said go on 2026-11-22 ("Do whatever you can do now") for the parts that n
 - **Tables:** `outbound_links` (one row per partner, category, destination and placement, with the URL the adapter built; its id is a hash of those public facts, so a page view doesn't add rows) and `partner_events` (`outbound_click` with a random click id; no user, IP address, user agent or trip).
 - **`/go/<id>` on the Travel host:** records the click and redirects to the stored URL with the click id added. It reads nothing else from the request, so it isn't an open redirect. An unknown link, or a partner that is paused or switched off, gets a plain "This link isn't available" page.
 - **Retention:** the reconcile job (`/api/reconcile`, which cron already calls) deletes click records older than 90 days.
-- **Disclosure:** each destination page's "Flights, stays and getting around" section lists the links with the commission notice right above them and each partner's own disclosure below. The test partner is badged "Test partner". The destination API returns the same links for the app, which lists them under "Book with partners" on each destination screen and opens them in Safari.
+- **Disclosure:** each destination page's "Flights, stays and travel essentials" section lists the links with the commission notice right above them and each partner's own disclosure below. The test partner is badged "Test partner". The destination API returns the same links for the app, which lists them under "Book with partners" on each destination screen and opens them in Safari.
 - **Consent, per mechanism:** our own click record is first-party, server-side and sets no cookie, so it needs no consent under PECR (stated on the cookies page). We load no partner scripts or pixels. A partner's cookies are set on the partner's own site under its own notice. Before each real partner goes live, check its programme for anything that would run on our pages; that would need a consent choice first.
 - **Policy pages:** the draft privacy and cookie pages say what a click record holds and for how long. They're still drafts for review before launch.
 
@@ -230,6 +230,10 @@ Reuben asked on 2026-11-22 for bigger strides through the plans where nothing ou
 - **Web:** each trip on My trips has a "Stay connected" box (badged as our product) with the suggested plan, why, a link to that country's plans on the eSIM site, and the setup steps.
 - **App:** a trip now opens its own screen: dates, notes, the destination's essentials, the suggested plan with a Buy button, the other plans, and the setup steps. Buy uses the eSIM tab's own confirmation and checkout (the same `POST /api/esim/checkout`), so a trip reaches eSIM checkout in one tap plus the confirmation.
 - **API:** `GET /api/travel/trips/:id/connectivity` ([app-api.md](./app-api.md#travel)).
+
+### Phase 4 as built
+
+The essentials categories run end to end on the test partner, like phase 2: **airport transfers**, **things to do** and **UK airport parking** sit after flights, stays and car hire on every destination page (web) and destination screen (app), with the same commission notice, `/go/<id>` click records and disclosure. Parking is searched from the UK side, so its link reads "Search UK airport parking". "Done when two essentials categories are live" still needs real partners approved for them; until then these are test links only.
 
 ### Longer term: trip-aware recommendations
 

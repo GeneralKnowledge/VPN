@@ -46,7 +46,7 @@ describe("partners", () => {
 
   it("shows only approved partners, in their categories and markets", () => {
     expect(partnerServes(MOCK_PARTNER, "flights", "JP")).toBe(true);
-    expect(partnerServes(MOCK_PARTNER, "parking", "JP")).toBe(false);
+    expect(partnerServes({ ...MOCK_PARTNER, categories: ["flights"] }, "parking", "JP")).toBe(false);
     expect(partnerServes({ ...MOCK_PARTNER, status: "paused" }, "flights", "JP")).toBe(false);
     expect(partnerServes({ ...MOCK_PARTNER, status: "draft" }, "flights", "JP")).toBe(false);
     expect(partnerServes({ ...MOCK_PARTNER, markets: ["ES"] }, "flights", "JP")).toBe(false);

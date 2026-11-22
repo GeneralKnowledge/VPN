@@ -35,14 +35,21 @@ describe("partner links", () => {
 
   it("offers each category once per partner, and writes each link once", async () => {
     const first = await partnerLinksFor(db, mock(), japan, "destination-page", BASE);
-    expect(first.groups.map((g) => g.title)).toEqual(["Flights", "Places to stay", "Car hire"]);
+    expect(first.groups.map((g) => g.title)).toEqual([
+      "Flights",
+      "Places to stay",
+      "Car hire",
+      "Transfers",
+      "Things to do",
+      "Airport parking",
+    ]);
     const link = first.groups[0]!.links[0]!;
     expect(link.path).toBe(`/go/${link.id}`);
     expect(link.url).toBe(`${BASE}/go/${link.id}`);
 
     const again = await partnerLinksFor(db, mock(), japan, "destination-page", BASE);
     expect(again.groups[0]!.links[0]!.id).toBe(link.id);
-    expect(await db.select().from(outboundLinks)).toHaveLength(3);
+    expect(await db.select().from(outboundLinks)).toHaveLength(6);
   });
 
   it("shows no links, and doesn't fail, when the links can't be stored", async () => {

@@ -105,7 +105,14 @@ describe("Travel API from the native app", () => {
     expect(japan.esim.packages.length).toBeGreaterThan(0);
     expect(japan.esim.plansUrl).toBe("https://esim.example.com/pricing?country=JP");
     expect(japan.partners.notice).toMatch(/commission/);
-    expect(japan.partners.groups.map((g) => g.category)).toEqual(["flights", "stays", "cars"]);
+    expect(japan.partners.groups.map((g) => g.category)).toEqual([
+      "flights",
+      "stays",
+      "cars",
+      "transfers",
+      "activities",
+      "parking",
+    ]);
     const flight = japan.partners.groups[0]!.links[0]!;
     expect(flight.url).toMatch(/^https:\/\/travel\.example\.com\/go\/lnk_[0-9a-f]{24}$/);
     expect(flight.label).toBe("Search flights to Japan on Test Partner");
