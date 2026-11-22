@@ -121,6 +121,7 @@ pub struct ApiDestination {
 pub struct ApiEsimPackage {
     pub code: String,
     pub name: String,
+    pub country_code: String,
     pub country_name: String,
     pub data_volume: String,
     pub validity: String,
@@ -455,7 +456,7 @@ impl Api<'_> {
         self.send(Method::Delete, &path, None).map(|_| ())
     }
 
-    fn json<T: DeserializeOwned>(
+    pub(crate) fn json<T: DeserializeOwned>(
         &self,
         method: Method,
         path: &str,
@@ -518,7 +519,7 @@ fn net_error(err: NetError) -> AppError {
 }
 
 /// Percent-encodes a query value (ids are plain ASCII, but never trust that).
-fn encode(value: &str) -> String {
+pub(crate) fn encode(value: &str) -> String {
     value
         .bytes()
         .map(|b| match b {

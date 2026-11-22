@@ -53,7 +53,7 @@ The eSIM routes answer on the eSIM host for the website. A request with the app'
 
 | Call | Does |
 |---|---|
-| `GET /api/esim/packages?country=GB` | Packages for sale: `{ packages: [{ code, name, countryCode, dataVolume, validity, price, currency }] }` (price in pence) |
+| `GET /api/esim/packages?country=GB` | Packages for sale: `{ packages: [{ code, name, countryCode, countryName, dataVolume, validity, price, currency }] }` (price in pence) |
 | `POST /api/esim/checkout` `{ packageCode }` | Starts a purchase: `{ url, sessionId, orderId, amount, currency }`. Open `url` in a browser (Stripe Checkout); the price is set by the server |
 | `GET /api/esim/orders` | This customer's orders, newest first, each with `status` and, once issued, `profile: { iccid, qrCodeUrl, activationUrl, status }` |
 | `POST /api/esim/complete` `{ sessionId }` | Mock billing only (development): completes the mock payment. With Stripe, payment is confirmed by Stripe's webhook, so poll `GET /api/esim/orders` after the browser closes |

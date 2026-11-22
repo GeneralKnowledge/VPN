@@ -57,8 +57,9 @@ private struct AppScreens: View {
     }
 }
 
-/// The signed-in app: the VPN, and Travel's Explore and Trips. eSIM and VPN
-/// stay separate products with their own purchasing; Travel sells nothing.
+/// The signed-in app: the VPN, eSIM, and Travel's Explore and Trips. eSIM
+/// and VPN stay separate products with their own purchasing; Travel sells
+/// nothing.
 private struct MainTabs: View {
     let model: AppModel
 
@@ -67,6 +68,9 @@ private struct MainTabs: View {
             HomeScreen(model: model)
                 .tabItem { Label("VPN", systemImage: "lock.shield") }
                 .accessibilityIdentifier("tab.vpn")
+            EsimScreen(model: model)
+                .tabItem { Label("eSIM", systemImage: "simcard") }
+                .accessibilityIdentifier("tab.esim")
             ExploreScreen(model: model)
                 .tabItem { Label("Explore", systemImage: "globe.europe.africa") }
                 .accessibilityIdentifier("tab.explore")

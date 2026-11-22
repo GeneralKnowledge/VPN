@@ -678,6 +678,29 @@ public protocol AppCoreProtocol: AnyObject, Sendable {
     func signOut() async throws  -> Home
     
     /**
+     * Starts buying `package_code`. The server sets the price and makes
+     * the order; open the returned `url` in the browser to pay.
+     */
+    func buyEsim(packageCode: String) async throws  -> EsimCheckout
+    
+    /**
+     * Development only (mock billing): completes the test payment the
+     * browser can't, and reloads the orders. The server refuses it with
+     * real payments, which Stripe confirms instead.
+     */
+    func completeTestPayment(sessionId: String) async throws  -> Home
+    
+    /**
+     * Loads the customer's eSIM orders, newest first.
+     */
+    func loadEsimOrders() async throws  -> Home
+    
+    /**
+     * Loads the eSIM packages for sale, and the countries they cover.
+     */
+    func loadEsimPackages() async throws  -> Home
+    
+    /**
      * Deletes a saved trip.
      */
     func deleteTrip(tripId: String) async throws  -> Home
@@ -1045,6 +1068,85 @@ open func signOut()async throws  -> Home  {
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_northstar_vpn_core_fn_method_appcore_sign_out(
+                        self.uniffiCloneHandle()
+                )
+            },
+            pollFunc: ffi_northstar_vpn_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_northstar_vpn_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_northstar_vpn_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeHome_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+    
+    /**
+     * Starts buying `package_code`. The server sets the price and makes
+     * the order; open the returned `url` in the browser to pay.
+     */
+open func buyEsim(packageCode: String)async throws  -> EsimCheckout  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_northstar_vpn_core_fn_method_appcore_buy_esim(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(packageCode)
+                )
+            },
+            pollFunc: ffi_northstar_vpn_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_northstar_vpn_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_northstar_vpn_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeEsimCheckout_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+    
+    /**
+     * Development only (mock billing): completes the test payment the
+     * browser can't, and reloads the orders. The server refuses it with
+     * real payments, which Stripe confirms instead.
+     */
+open func completeTestPayment(sessionId: String)async throws  -> Home  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_northstar_vpn_core_fn_method_appcore_complete_test_payment(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(sessionId)
+                )
+            },
+            pollFunc: ffi_northstar_vpn_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_northstar_vpn_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_northstar_vpn_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeHome_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+    
+    /**
+     * Loads the customer's eSIM orders, newest first.
+     */
+open func loadEsimOrders()async throws  -> Home  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_northstar_vpn_core_fn_method_appcore_load_esim_orders(
+                        self.uniffiCloneHandle()
+                )
+            },
+            pollFunc: ffi_northstar_vpn_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_northstar_vpn_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_northstar_vpn_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeHome_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+    
+    /**
+     * Loads the eSIM packages for sale, and the countries they cover.
+     */
+open func loadEsimPackages()async throws  -> Home  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_northstar_vpn_core_fn_method_appcore_load_esim_packages(
                         self.uniffiCloneHandle()
                 )
             },
@@ -1945,6 +2047,450 @@ public func FfiConverterTypeDestinationSummary_lower(_ value: DestinationSummary
 
 
 /**
+ * A started purchase: open `url` in the browser.
+ */
+public struct EsimCheckout: Equatable, Hashable {
+    public var url: String
+    public var orderId: String
+    public var sessionId: String
+    /**
+     * "£9.99", the price the server set.
+     */
+    public var price: String
+    /**
+     * True for the server's development checkout (mock billing), which
+     * the app completes itself with `complete_test_payment`: the browser
+     * isn't signed in. Never true with Stripe.
+     */
+    public var isTest: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(url: String, orderId: String, sessionId: String, 
+        /**
+         * "£9.99", the price the server set.
+         */price: String, 
+        /**
+         * True for the server's development checkout (mock billing), which
+         * the app completes itself with `complete_test_payment`: the browser
+         * isn't signed in. Never true with Stripe.
+         */isTest: Bool) {
+        self.url = url
+        self.orderId = orderId
+        self.sessionId = sessionId
+        self.price = price
+        self.isTest = isTest
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EsimCheckout: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEsimCheckout: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EsimCheckout {
+        return
+            try EsimCheckout(
+                url: FfiConverterString.read(from: &buf), 
+                orderId: FfiConverterString.read(from: &buf), 
+                sessionId: FfiConverterString.read(from: &buf), 
+                price: FfiConverterString.read(from: &buf), 
+                isTest: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EsimCheckout, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.url, into: &buf)
+        FfiConverterString.write(value.orderId, into: &buf)
+        FfiConverterString.write(value.sessionId, into: &buf)
+        FfiConverterString.write(value.price, into: &buf)
+        FfiConverterBool.write(value.isTest, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimCheckout_lift(_ buf: RustBuffer) throws -> EsimCheckout {
+    return try FfiConverterTypeEsimCheckout.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimCheckout_lower(_ value: EsimCheckout) -> RustBuffer {
+    return FfiConverterTypeEsimCheckout.lower(value)
+}
+
+
+public struct EsimCompatibility: Equatable, Hashable {
+    public var verdict: EsimVerdict
+    public var title: String
+    public var detail: String
+    /**
+     * Things worth checking whatever the verdict (unlocked, EID).
+     */
+    public var tips: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(verdict: EsimVerdict, title: String, detail: String, 
+        /**
+         * Things worth checking whatever the verdict (unlocked, EID).
+         */tips: [String]) {
+        self.verdict = verdict
+        self.title = title
+        self.detail = detail
+        self.tips = tips
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EsimCompatibility: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEsimCompatibility: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EsimCompatibility {
+        return
+            try EsimCompatibility(
+                verdict: FfiConverterTypeEsimVerdict.read(from: &buf), 
+                title: FfiConverterString.read(from: &buf), 
+                detail: FfiConverterString.read(from: &buf), 
+                tips: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EsimCompatibility, into buf: inout [UInt8]) {
+        FfiConverterTypeEsimVerdict.write(value.verdict, into: &buf)
+        FfiConverterString.write(value.title, into: &buf)
+        FfiConverterString.write(value.detail, into: &buf)
+        FfiConverterSequenceString.write(value.tips, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimCompatibility_lift(_ buf: RustBuffer) throws -> EsimCompatibility {
+    return try FfiConverterTypeEsimCompatibility.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimCompatibility_lower(_ value: EsimCompatibility) -> RustBuffer {
+    return FfiConverterTypeEsimCompatibility.lower(value)
+}
+
+
+/**
+ * A country with packages, for the eSIM tab's list.
+ */
+public struct EsimCountry: Equatable, Hashable {
+    public var code: String
+    public var name: String
+    public var packageCount: UInt32
+    /**
+     * "From £4.99".
+     */
+    public var fromPrice: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(code: String, name: String, packageCount: UInt32, 
+        /**
+         * "From £4.99".
+         */fromPrice: String) {
+        self.code = code
+        self.name = name
+        self.packageCount = packageCount
+        self.fromPrice = fromPrice
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EsimCountry: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEsimCountry: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EsimCountry {
+        return
+            try EsimCountry(
+                code: FfiConverterString.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                packageCount: FfiConverterUInt32.read(from: &buf), 
+                fromPrice: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EsimCountry, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.code, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterUInt32.write(value.packageCount, into: &buf)
+        FfiConverterString.write(value.fromPrice, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimCountry_lift(_ buf: RustBuffer) throws -> EsimCountry {
+    return try FfiConverterTypeEsimCountry.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimCountry_lower(_ value: EsimCountry) -> RustBuffer {
+    return FfiConverterTypeEsimCountry.lower(value)
+}
+
+
+/**
+ * One of the customer's eSIM orders.
+ */
+public struct EsimOrder: Equatable, Hashable {
+    public var id: String
+    public var packageName: String
+    public var countryCode: String
+    /**
+     * "3 GB · 15 days".
+     */
+    public var allowance: String
+    public var price: String
+    public var status: EsimOrderStatus
+    /**
+     * A short label for the status ("Ready to install").
+     */
+    public var statusLabel: String
+    /**
+     * A sentence for the customer about what happens next, or empty.
+     */
+    public var statusDetail: String
+    /**
+     * True while the server is still working on it, so the screen checks
+     * again shortly.
+     */
+    public var inProgress: Bool
+    /**
+     * ISO 8601.
+     */
+    public var createdAt: String
+    public var profile: EsimProfile?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, packageName: String, countryCode: String, 
+        /**
+         * "3 GB · 15 days".
+         */allowance: String, price: String, status: EsimOrderStatus, 
+        /**
+         * A short label for the status ("Ready to install").
+         */statusLabel: String, 
+        /**
+         * A sentence for the customer about what happens next, or empty.
+         */statusDetail: String, 
+        /**
+         * True while the server is still working on it, so the screen checks
+         * again shortly.
+         */inProgress: Bool, 
+        /**
+         * ISO 8601.
+         */createdAt: String, profile: EsimProfile?) {
+        self.id = id
+        self.packageName = packageName
+        self.countryCode = countryCode
+        self.allowance = allowance
+        self.price = price
+        self.status = status
+        self.statusLabel = statusLabel
+        self.statusDetail = statusDetail
+        self.inProgress = inProgress
+        self.createdAt = createdAt
+        self.profile = profile
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EsimOrder: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEsimOrder: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EsimOrder {
+        return
+            try EsimOrder(
+                id: FfiConverterString.read(from: &buf), 
+                packageName: FfiConverterString.read(from: &buf), 
+                countryCode: FfiConverterString.read(from: &buf), 
+                allowance: FfiConverterString.read(from: &buf), 
+                price: FfiConverterString.read(from: &buf), 
+                status: FfiConverterTypeEsimOrderStatus.read(from: &buf), 
+                statusLabel: FfiConverterString.read(from: &buf), 
+                statusDetail: FfiConverterString.read(from: &buf), 
+                inProgress: FfiConverterBool.read(from: &buf), 
+                createdAt: FfiConverterString.read(from: &buf), 
+                profile: FfiConverterOptionTypeEsimProfile.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EsimOrder, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.packageName, into: &buf)
+        FfiConverterString.write(value.countryCode, into: &buf)
+        FfiConverterString.write(value.allowance, into: &buf)
+        FfiConverterString.write(value.price, into: &buf)
+        FfiConverterTypeEsimOrderStatus.write(value.status, into: &buf)
+        FfiConverterString.write(value.statusLabel, into: &buf)
+        FfiConverterString.write(value.statusDetail, into: &buf)
+        FfiConverterBool.write(value.inProgress, into: &buf)
+        FfiConverterString.write(value.createdAt, into: &buf)
+        FfiConverterOptionTypeEsimProfile.write(value.profile, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimOrder_lift(_ buf: RustBuffer) throws -> EsimOrder {
+    return try FfiConverterTypeEsimOrder.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimOrder_lower(_ value: EsimOrder) -> RustBuffer {
+    return FfiConverterTypeEsimOrder.lower(value)
+}
+
+
+/**
+ * One of our eSIM packages for sale.
+ */
+public struct EsimPackage: Equatable, Hashable {
+    public var code: String
+    public var name: String
+    public var countryCode: String
+    public var countryName: String
+    /**
+     * "3 GB · 15 days".
+     */
+    public var allowance: String
+    /**
+     * "£9.99", set by the server.
+     */
+    public var price: String
+    /**
+     * The same price in pence, for sorting.
+     */
+    public var priceMinor: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(code: String, name: String, countryCode: String, countryName: String, 
+        /**
+         * "3 GB · 15 days".
+         */allowance: String, 
+        /**
+         * "£9.99", set by the server.
+         */price: String, 
+        /**
+         * The same price in pence, for sorting.
+         */priceMinor: UInt64) {
+        self.code = code
+        self.name = name
+        self.countryCode = countryCode
+        self.countryName = countryName
+        self.allowance = allowance
+        self.price = price
+        self.priceMinor = priceMinor
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EsimPackage: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEsimPackage: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EsimPackage {
+        return
+            try EsimPackage(
+                code: FfiConverterString.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                countryCode: FfiConverterString.read(from: &buf), 
+                countryName: FfiConverterString.read(from: &buf), 
+                allowance: FfiConverterString.read(from: &buf), 
+                price: FfiConverterString.read(from: &buf), 
+                priceMinor: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EsimPackage, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.code, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.countryCode, into: &buf)
+        FfiConverterString.write(value.countryName, into: &buf)
+        FfiConverterString.write(value.allowance, into: &buf)
+        FfiConverterString.write(value.price, into: &buf)
+        FfiConverterUInt64.write(value.priceMinor, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimPackage_lift(_ buf: RustBuffer) throws -> EsimPackage {
+    return try FfiConverterTypeEsimPackage.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimPackage_lower(_ value: EsimPackage) -> RustBuffer {
+    return FfiConverterTypeEsimPackage.lower(value)
+}
+
+
+/**
  * One of our eSIM packages that works at a destination.
  */
 public struct EsimPlan: Equatable, Hashable {
@@ -2018,6 +2564,103 @@ public func FfiConverterTypeEsimPlan_lift(_ buf: RustBuffer) throws -> EsimPlan 
 #endif
 public func FfiConverterTypeEsimPlan_lower(_ value: EsimPlan) -> RustBuffer {
     return FfiConverterTypeEsimPlan.lower(value)
+}
+
+
+/**
+ * What an issued order needs to be installed. Secrets: show, never keep.
+ */
+public struct EsimProfile: Equatable, Hashable {
+    public var iccid: String?
+    /**
+     * The activation code as the provider sent it (often `LPA:1$…`).
+     */
+    public var activationCode: String?
+    /**
+     * What the QR code should hold: the `LPA:` code when there is one.
+     * `None` means show `qr_image_url` instead.
+     */
+    public var qrPayload: String?
+    /**
+     * The provider's QR image (a web or `data:` URL), as a fallback.
+     */
+    public var qrImageUrl: String?
+    /**
+     * Opens iOS's own eSIM setup with the plan filled in (iOS 17.4 and
+     * later), or `None` when the activation code can't be turned into one.
+     */
+    public var installUrl: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(iccid: String?, 
+        /**
+         * The activation code as the provider sent it (often `LPA:1$…`).
+         */activationCode: String?, 
+        /**
+         * What the QR code should hold: the `LPA:` code when there is one.
+         * `None` means show `qr_image_url` instead.
+         */qrPayload: String?, 
+        /**
+         * The provider's QR image (a web or `data:` URL), as a fallback.
+         */qrImageUrl: String?, 
+        /**
+         * Opens iOS's own eSIM setup with the plan filled in (iOS 17.4 and
+         * later), or `None` when the activation code can't be turned into one.
+         */installUrl: String?) {
+        self.iccid = iccid
+        self.activationCode = activationCode
+        self.qrPayload = qrPayload
+        self.qrImageUrl = qrImageUrl
+        self.installUrl = installUrl
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EsimProfile: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEsimProfile: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EsimProfile {
+        return
+            try EsimProfile(
+                iccid: FfiConverterOptionString.read(from: &buf), 
+                activationCode: FfiConverterOptionString.read(from: &buf), 
+                qrPayload: FfiConverterOptionString.read(from: &buf), 
+                qrImageUrl: FfiConverterOptionString.read(from: &buf), 
+                installUrl: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EsimProfile, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.iccid, into: &buf)
+        FfiConverterOptionString.write(value.activationCode, into: &buf)
+        FfiConverterOptionString.write(value.qrPayload, into: &buf)
+        FfiConverterOptionString.write(value.qrImageUrl, into: &buf)
+        FfiConverterOptionString.write(value.installUrl, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimProfile_lift(_ buf: RustBuffer) throws -> EsimProfile {
+    return try FfiConverterTypeEsimProfile.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimProfile_lower(_ value: EsimProfile) -> RustBuffer {
+    return FfiConverterTypeEsimProfile.lower(value)
 }
 
 
@@ -2460,6 +3103,20 @@ public struct Home: Equatable, Hashable {
      * this iPhone, across sign-outs.
      */
     public var homeAirport: String
+    /**
+     * eSIM packages for sale, by country then price, filled by
+     * `load_esim_packages`.
+     */
+    public var esimPackages: [EsimPackage]
+    /**
+     * The countries those packages cover, by name.
+     */
+    public var esimCountries: [EsimCountry]
+    /**
+     * The customer's eSIM orders, newest first, filled by
+     * `load_esim_orders`. Held in memory only: issued ones carry secrets.
+     */
+    public var esimOrders: [EsimOrder]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -2489,7 +3146,18 @@ public struct Home: Equatable, Hashable {
          * Travel Hub: the airport searches and the price map start from
          * (an IATA code), or empty until the customer picks one. Kept on
          * this iPhone, across sign-outs.
-         */homeAirport: String) {
+         */homeAirport: String, 
+        /**
+         * eSIM packages for sale, by country then price, filled by
+         * `load_esim_packages`.
+         */esimPackages: [EsimPackage], 
+        /**
+         * The countries those packages cover, by name.
+         */esimCountries: [EsimCountry], 
+        /**
+         * The customer's eSIM orders, newest first, filled by
+         * `load_esim_orders`. Held in memory only: issued ones carry secrets.
+         */esimOrders: [EsimOrder]) {
         self.account = account
         self.plan = plan
         self.vpnReady = vpnReady
@@ -2501,6 +3169,9 @@ public struct Home: Equatable, Hashable {
         self.destinations = destinations
         self.trips = trips
         self.homeAirport = homeAirport
+        self.esimPackages = esimPackages
+        self.esimCountries = esimCountries
+        self.esimOrders = esimOrders
     }
 
     
@@ -2529,7 +3200,10 @@ public struct FfiConverterTypeHome: FfiConverterRustBuffer {
                 lastServer: FfiConverterString.read(from: &buf), 
                 destinations: FfiConverterSequenceTypeDestinationSummary.read(from: &buf), 
                 trips: FfiConverterSequenceTypeTrip.read(from: &buf), 
-                homeAirport: FfiConverterString.read(from: &buf)
+                homeAirport: FfiConverterString.read(from: &buf), 
+                esimPackages: FfiConverterSequenceTypeEsimPackage.read(from: &buf), 
+                esimCountries: FfiConverterSequenceTypeEsimCountry.read(from: &buf), 
+                esimOrders: FfiConverterSequenceTypeEsimOrder.read(from: &buf)
         )
     }
 
@@ -2545,6 +3219,9 @@ public struct FfiConverterTypeHome: FfiConverterRustBuffer {
         FfiConverterSequenceTypeDestinationSummary.write(value.destinations, into: &buf)
         FfiConverterSequenceTypeTrip.write(value.trips, into: &buf)
         FfiConverterString.write(value.homeAirport, into: &buf)
+        FfiConverterSequenceTypeEsimPackage.write(value.esimPackages, into: &buf)
+        FfiConverterSequenceTypeEsimCountry.write(value.esimCountries, into: &buf)
+        FfiConverterSequenceTypeEsimOrder.write(value.esimOrders, into: &buf)
     }
 }
 
@@ -3526,6 +4203,224 @@ public func FfiConverterTypeCabin_lower(_ value: Cabin) -> RustBuffer {
 
 
 /**
+ * Where an order is. The server's states, as in docs/esim-resellportal.md.
+ */
+
+public enum EsimOrderStatus: Equatable, Hashable {
+    
+    /**
+     * Waiting for the payment to be confirmed.
+     */
+    case pending
+    /**
+     * Paid; the eSIM is being made.
+     */
+    case issuing
+    /**
+     * Ready to install.
+     */
+    case issued
+    /**
+     * Paid, but the provider refused for now; the server retries.
+     */
+    case retrying
+    /**
+     * Paid, and being checked by hand.
+     */
+    case needsReview
+    /**
+     * Couldn't be issued; the payment is being or has been refunded.
+     */
+    case refunding
+    case refunded
+    /**
+     * The checkout was never paid and has closed.
+     */
+    case expired
+    /**
+     * A state this version of the app doesn't know.
+     */
+    case unknown
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension EsimOrderStatus: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEsimOrderStatus: FfiConverterRustBuffer {
+    typealias SwiftType = EsimOrderStatus
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EsimOrderStatus {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .pending
+        
+        case 2: return .issuing
+        
+        case 3: return .issued
+        
+        case 4: return .retrying
+        
+        case 5: return .needsReview
+        
+        case 6: return .refunding
+        
+        case 7: return .refunded
+        
+        case 8: return .expired
+        
+        case 9: return .unknown
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: EsimOrderStatus, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .pending:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .issuing:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .issued:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .retrying:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .needsReview:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .refunding:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .refunded:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .expired:
+            writeInt(&buf, Int32(8))
+        
+        
+        case .unknown:
+            writeInt(&buf, Int32(9))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimOrderStatus_lift(_ buf: RustBuffer) throws -> EsimOrderStatus {
+    return try FfiConverterTypeEsimOrderStatus.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimOrderStatus_lower(_ value: EsimOrderStatus) -> RustBuffer {
+    return FfiConverterTypeEsimOrderStatus.lower(value)
+}
+
+
+
+/**
+ * The answer to "Will this phone work?".
+ */
+
+public enum EsimVerdict: Equatable, Hashable {
+    
+    case yes
+    case no
+    case unsure
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension EsimVerdict: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEsimVerdict: FfiConverterRustBuffer {
+    typealias SwiftType = EsimVerdict
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EsimVerdict {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .yes
+        
+        case 2: return .no
+        
+        case 3: return .unsure
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: EsimVerdict, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .yes:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .no:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .unsure:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimVerdict_lift(_ buf: RustBuffer) throws -> EsimVerdict {
+    return try FfiConverterTypeEsimVerdict.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEsimVerdict_lower(_ value: EsimVerdict) -> RustBuffer {
+    return FfiConverterTypeEsimVerdict.lower(value)
+}
+
+
+
+/**
  * How flights are ordered. "Best" mixes price and duration; nothing else
  * (such as commission) ever ranks results.
  */
@@ -3673,6 +4568,30 @@ public func FfiConverterTypeStaySort_lower(_ value: StaySort) -> RustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionBool: FfiConverterRustBuffer {
+    typealias SwiftType = Bool?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterBool.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterBool.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
     typealias SwiftType = String?
 
@@ -3737,6 +4656,30 @@ fileprivate struct FfiConverterOptionTypeAccount: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeAccount.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeEsimProfile: FfiConverterRustBuffer {
+    typealias SwiftType = EsimProfile?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeEsimProfile.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeEsimProfile.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -3910,6 +4853,81 @@ fileprivate struct FfiConverterSequenceTypeDestinationSummary: FfiConverterRustB
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeDestinationSummary.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeEsimCountry: FfiConverterRustBuffer {
+    typealias SwiftType = [EsimCountry]
+
+    public static func write(_ value: [EsimCountry], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeEsimCountry.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [EsimCountry] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [EsimCountry]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeEsimCountry.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeEsimOrder: FfiConverterRustBuffer {
+    typealias SwiftType = [EsimOrder]
+
+    public static func write(_ value: [EsimOrder], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeEsimOrder.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [EsimOrder] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [EsimOrder]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeEsimOrder.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeEsimPackage: FfiConverterRustBuffer {
+    typealias SwiftType = [EsimPackage]
+
+    public static func write(_ value: [EsimPackage], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeEsimPackage.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [EsimPackage] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [EsimPackage]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeEsimPackage.read(from: &buf))
         }
         return seq
     }
@@ -4173,6 +5191,23 @@ public func appErrorKind(error: AppError) -> ErrorKind  {
     )
 })
 }
+/**
+ * "Will this phone work?" from the model identifier (`iPhone16,2`) and,
+ * when iOS answered, CoreTelephony's `supportsEmbeddedSIM`.
+ *
+ * iOS's answer wins. Without it the model decides: every iPhone from the
+ * XS and XR (`iPhone11,*`) on has eSIM, except models sold in mainland
+ * China, Hong Kong and Macau, which the identifier can't tell apart.
+ */
+public func esimCompatibility(modelIdentifier: String, supportsEmbeddedSim: Bool?) -> EsimCompatibility  {
+    return try!  FfiConverterTypeEsimCompatibility_lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_northstar_vpn_core_fn_func_esim_compatibility(
+        FfiConverterString.lower(modelIdentifier),
+        FfiConverterOptionBool.lower(supportsEmbeddedSim),uniffiCallStatus
+    )
+})
+}
 
 private enum InitializationResult {
     case ok
@@ -4190,6 +5225,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.contractVersionMismatch
     }
     if (uniffi_northstar_vpn_core_checksum_func_app_error_kind() != 60798) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_northstar_vpn_core_checksum_func_esim_compatibility() != 42446) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_northstar_vpn_core_checksum_method_appcore_add_this_iphone() != 26853) {
@@ -4238,6 +5276,18 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_northstar_vpn_core_checksum_method_appcore_sign_out() != 47452) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_northstar_vpn_core_checksum_method_appcore_buy_esim() != 30264) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_northstar_vpn_core_checksum_method_appcore_complete_test_payment() != 61122) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_northstar_vpn_core_checksum_method_appcore_load_esim_orders() != 35448) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_northstar_vpn_core_checksum_method_appcore_load_esim_packages() != 3398) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_northstar_vpn_core_checksum_method_appcore_delete_trip() != 36644) {

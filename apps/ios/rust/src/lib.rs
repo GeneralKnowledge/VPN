@@ -2,7 +2,8 @@
 //!
 //! The app signs in to the VPN service, shows the customer's plan, adds this
 //! iPhone as a WireGuard device at a chosen location, and hands its config
-//! to the official WireGuard app. Its Travel tabs ([`travel`]) show
+//! to the official WireGuard app. Its eSIM tab ([`esim`]) sells our eSIM
+//! packages, a separate product with its own checkout. Its Travel tabs ([`travel`]) show
 //! destinations and the customer's saved trips. It has no tunnel of its own yet: that
 //! needs a Network Extension, which Apple only allows on a paid team
 //! enrolled as an organisation.
@@ -23,9 +24,14 @@ use forge_storage::{JsonFile, StorageError};
 use serde::{Deserialize, Serialize};
 
 mod api;
+mod esim;
 mod travel;
 mod travel_search;
 
+pub use esim::{
+    esim_compatibility, EsimCheckout, EsimCompatibility, EsimCountry, EsimOrder, EsimOrderStatus,
+    EsimPackage, EsimProfile, EsimVerdict,
+};
 pub use travel::{DestinationDetail, DestinationSummary, EsimPlan, Fact, Trip};
 pub use travel_search::{
     Airport, Airports, Cabin, CarResult, CarResults, FlightLeg, FlightResult, FlightResults,
@@ -118,6 +124,14 @@ pub struct Home {
     /// (an IATA code), or empty until the customer picks one. Kept on
     /// this iPhone, across sign-outs.
     pub home_airport: String,
+    /// eSIM packages for sale, by country then price, filled by
+    /// `load_esim_packages`.
+    pub esim_packages: Vec<EsimPackage>,
+    /// The countries those packages cover, by name.
+    pub esim_countries: Vec<EsimCountry>,
+    /// The customer's eSIM orders, newest first, filled by
+    /// `load_esim_orders`. Held in memory only: issued ones carry secrets.
+    pub esim_orders: Vec<EsimOrder>,
 }
 
 /// What can go wrong. Arrives in Swift as a thrown `AppError`.

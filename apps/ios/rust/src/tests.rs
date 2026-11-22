@@ -532,3 +532,146 @@ fn a_flight_search_sends_its_query_and_reads_estimates() {
     let sent = f.sent().into_iter().find(|r| r.url == url).unwrap();
     assert!(bearer(&sent).is_some());
 }
+
+// eSIM.
+
+fn esim_server(checkout_url: &str) -> StaticClient {
+    server()
+        .route(
+            Method::Get,
+            format!("{SERVER}/api/esim/packages"),
+            ok(serde_json::json!({ "packages": [
+                { "code": "MOCK-JP-3GB-15D", "name": "Japan 3GB 15 Days", "countryCode": "JP",
+                  "countryName": "Japan", "dataVolume": "3 GB", "validity": "15 days", "price": 999, "currency": "GBP" },
+                { "code": "MOCK-JP-1GB-7D", "name": "Japan 1GB 7 Days", "countryCode": "JP",
+                  "countryName": "Japan", "dataVolume": "1 GB", "validity": "7 days", "price": 499, "currency": "GBP" },
+                { "code": "MOCK-ES-1GB-7D", "name": "Spain 1GB 7 Days", "countryCode": "ES",
+                  "countryName": "Spain", "dataVolume": "1 GB", "validity": "7 days", "price": 399, "currency": "GBP" }
+            ]})),
+        )
+        .route(
+            Method::Post,
+            format!("{SERVER}/api/esim/checkout"),
+            ok(serde_json::json!({
+                "url": checkout_url, "sessionId": "esim_chk_o1", "orderId": "o1", "amount": 999, "currency": "GBP"
+            })),
+        )
+        .route(
+            Method::Get,
+            format!("{SERVER}/api/esim/orders"),
+            ok(serde_json::json!({ "orders": [
+                { "id": "o2", "packageCode": "MOCK-JP-3GB-15D", "packageName": "Japan 3GB 15 Days", "countryCode": "JP",
+                  "dataVolume": "3 GB", "validity": "15 days", "amount": 999, "currency": "GBP", "status": "issued",
+                  "createdAt": "2026-11-22T10:00:00.000Z",
+                  "profile": { "iccid": "8901000", "qrCodeUrl": "data:image/png;base64,AA==",
+                               "activationUrl": "LPA:1$rsp.example.com$CODE", "status": "available", "issuedAt": null } },
+                { "id": "o1", "packageCode": "MOCK-JP-3GB-15D", "packageName": "Japan 3GB 15 Days", "countryCode": "JP",
+                  "dataVolume": "3 GB", "validity": "15 days", "amount": 999, "currency": "GBP", "status": "pending",
+                  "createdAt": "2026-11-22T11:00:00.000Z", "profile": null }
+            ]})),
+        )
+        .route(
+            Method::Post,
+            format!("{SERVER}/api/esim/complete"),
+            ok(serde_json::json!({ "ok": true, "orderId": "o1" })),
+        )
+}
+
+#[test]
+fn esim_packages_are_grouped_by_country_cheapest_first() {
+    let f = Fixture::new(esim_server("https://checkout.stripe.com/c/pay/cs_test_1"));
+    let core = f.open();
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+
+    let home = block_on(core.load_esim_packages()).unwrap();
+    let names: Vec<_> = home
+        .esim_countries
+        .iter()
+        .map(|c| c.name.as_str())
+        .collect();
+    assert_eq!(names, ["Japan", "Spain"]);
+    assert_eq!(home.esim_countries[0].from_price, "From £4.99");
+    assert_eq!(home.esim_packages[0].code, "MOCK-JP-1GB-7D");
+    assert_eq!(home.esim_packages[0].allowance, "1 GB · 7 days");
+}
+
+#[test]
+fn buying_sends_only_the_package_and_opens_stripe() {
+    let f = Fixture::new(esim_server("https://checkout.stripe.com/c/pay/cs_test_1"));
+    let core = f.open();
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+
+    let checkout = block_on(core.buy_esim("MOCK-JP-3GB-15D".into())).unwrap();
+    assert_eq!(checkout.url, "https://checkout.stripe.com/c/pay/cs_test_1");
+    assert_eq!(checkout.price, "£9.99");
+    assert!(!checkout.is_test);
+
+    let sent = f.sent();
+    let buy = sent
+        .iter()
+        .find(|r| r.url.ends_with("/api/esim/checkout"))
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&buy.body).unwrap();
+    // The server prices the package; the app never sends an amount.
+    assert_eq!(
+        body,
+        serde_json::json!({ "packageCode": "MOCK-JP-3GB-15D" })
+    );
+    assert!(bearer(buy).is_some());
+
+    // The orders were reloaded: the new one waits for payment, the issued
+    // one can be installed.
+    let home = core.home();
+    assert_eq!(home.esim_orders.len(), 2);
+    let issued = &home.esim_orders[0];
+    assert_eq!(issued.status, EsimOrderStatus::Issued);
+    let profile = issued.profile.as_ref().unwrap();
+    assert_eq!(
+        profile.qr_payload.as_deref(),
+        Some("LPA:1$rsp.example.com$CODE")
+    );
+    assert!(profile
+        .install_url
+        .as_deref()
+        .unwrap()
+        .starts_with("https://esimsetup.apple.com/"));
+    let pending = &home.esim_orders[1];
+    assert_eq!(pending.status, EsimOrderStatus::Pending);
+    assert!(pending.in_progress);
+    assert!(pending.profile.is_none());
+
+    assert!(matches!(
+        block_on(core.buy_esim("  ".into())),
+        Err(AppError::InvalidInput { .. })
+    ));
+}
+
+#[test]
+fn the_development_checkout_is_completed_in_the_app() {
+    let f = Fixture::new(esim_server(
+        "https://vpn.example.com/billing/mock-esim-checkout?session_id=esim_chk_o1",
+    ));
+    let core = f.open();
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+
+    let checkout = block_on(core.buy_esim("MOCK-JP-3GB-15D".into())).unwrap();
+    assert!(checkout.is_test);
+    block_on(core.complete_test_payment(checkout.session_id)).unwrap();
+    assert!(f
+        .sent()
+        .iter()
+        .any(|r| r.url.ends_with("/api/esim/complete")));
+}
+
+#[test]
+fn esim_orders_are_forgotten_on_sign_out() {
+    let f = Fixture::new(esim_server("https://checkout.stripe.com/c/pay/cs_test_1"));
+    let core = f.open();
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+    assert_eq!(
+        block_on(core.load_esim_orders()).unwrap().esim_orders.len(),
+        2
+    );
+    let home = block_on(core.sign_out()).unwrap();
+    assert!(home.esim_orders.is_empty());
+}
