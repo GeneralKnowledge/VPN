@@ -733,6 +733,11 @@ public protocol AppCoreProtocol: AnyObject, Sendable {
     func saveTrip(destinationSlug: String, startDate: String?, endDate: String?, notes: String?) async throws  -> Home
     
     /**
+     * A saved trip's "Stay connected" item: the eSIM plan for its dates.
+     */
+    func tripConnectivity(tripId: String) async throws  -> TripConnectivity
+    
+    /**
      * Airports for the search forms.
      */
     func loadAirports() async throws  -> Airports
@@ -1276,6 +1281,25 @@ open func saveTrip(destinationSlug: String, startDate: String?, endDate: String?
             completeFunc: ffi_northstar_vpn_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_northstar_vpn_core_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeHome_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+    
+    /**
+     * A saved trip's "Stay connected" item: the eSIM plan for its dates.
+     */
+open func tripConnectivity(tripId: String)async throws  -> TripConnectivity  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_northstar_vpn_core_fn_method_appcore_trip_connectivity(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(tripId)
+                )
+            },
+            pollFunc: ffi_northstar_vpn_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_northstar_vpn_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_northstar_vpn_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeTripConnectivity_lift,
             errorHandler: FfiConverterTypeAppError_lift
         )
 }
@@ -4287,6 +4311,119 @@ public func FfiConverterTypeTrip_lower(_ value: Trip) -> RustBuffer {
 
 
 /**
+ * A saved trip's "Stay connected" item: the eSIM plan suggested for its
+ * dates (bought through the eSIM tab's own checkout), the other plans there,
+ * and how to set one up.
+ */
+public struct TripConnectivity: Equatable, Hashable {
+    /**
+     * False when the server couldn't load eSIM plans just now.
+     */
+    public var available: Bool
+    /**
+     * Days away, counting both ends; none without both dates.
+     */
+    public var tripDays: UInt32?
+    public var suggested: EsimPackage?
+    /**
+     * True when the suggested plan lasts the whole trip.
+     */
+    public var covers: Bool
+    /**
+     * Why this plan, or what's missing ("Add the trip's dates ...").
+     */
+    public var note: String
+    /**
+     * The other plans there, cheapest first.
+     */
+    public var others: [EsimPackage]
+    public var plansUrl: String
+    public var steps: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * False when the server couldn't load eSIM plans just now.
+         */available: Bool, 
+        /**
+         * Days away, counting both ends; none without both dates.
+         */tripDays: UInt32?, suggested: EsimPackage?, 
+        /**
+         * True when the suggested plan lasts the whole trip.
+         */covers: Bool, 
+        /**
+         * Why this plan, or what's missing ("Add the trip's dates ...").
+         */note: String, 
+        /**
+         * The other plans there, cheapest first.
+         */others: [EsimPackage], plansUrl: String, steps: [String]) {
+        self.available = available
+        self.tripDays = tripDays
+        self.suggested = suggested
+        self.covers = covers
+        self.note = note
+        self.others = others
+        self.plansUrl = plansUrl
+        self.steps = steps
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension TripConnectivity: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTripConnectivity: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TripConnectivity {
+        return
+            try TripConnectivity(
+                available: FfiConverterBool.read(from: &buf), 
+                tripDays: FfiConverterOptionUInt32.read(from: &buf), 
+                suggested: FfiConverterOptionTypeEsimPackage.read(from: &buf), 
+                covers: FfiConverterBool.read(from: &buf), 
+                note: FfiConverterString.read(from: &buf), 
+                others: FfiConverterSequenceTypeEsimPackage.read(from: &buf), 
+                plansUrl: FfiConverterString.read(from: &buf), 
+                steps: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TripConnectivity, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.available, into: &buf)
+        FfiConverterOptionUInt32.write(value.tripDays, into: &buf)
+        FfiConverterOptionTypeEsimPackage.write(value.suggested, into: &buf)
+        FfiConverterBool.write(value.covers, into: &buf)
+        FfiConverterString.write(value.note, into: &buf)
+        FfiConverterSequenceTypeEsimPackage.write(value.others, into: &buf)
+        FfiConverterString.write(value.plansUrl, into: &buf)
+        FfiConverterSequenceString.write(value.steps, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTripConnectivity_lift(_ buf: RustBuffer) throws -> TripConnectivity {
+    return try FfiConverterTypeTripConnectivity.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTripConnectivity_lower(_ value: TripConnectivity) -> RustBuffer {
+    return FfiConverterTypeTripConnectivity.lower(value)
+}
+
+
+/**
  * What the person asked for. Everything but the home airport is optional.
  */
 public struct TripCriteria: Equatable, Hashable {
@@ -5457,6 +5594,30 @@ fileprivate struct FfiConverterOptionTypeAccount: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeEsimPackage: FfiConverterRustBuffer {
+    typealias SwiftType = EsimPackage?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeEsimPackage.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeEsimPackage.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeEsimProfile: FfiConverterRustBuffer {
     typealias SwiftType = EsimProfile?
 
@@ -6176,6 +6337,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_northstar_vpn_core_checksum_method_appcore_save_trip() != 3484) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_northstar_vpn_core_checksum_method_appcore_trip_connectivity() != 31490) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_northstar_vpn_core_checksum_method_appcore_load_airports() != 65520) {

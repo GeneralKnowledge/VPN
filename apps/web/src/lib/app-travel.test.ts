@@ -33,6 +33,7 @@ import { GET as destinations } from "@/app/api/travel/destinations/route";
 import { GET as destination } from "@/app/api/travel/destinations/[slug]/route";
 import { GET as listTrips, POST as createTrip } from "@/app/api/travel/trips/route";
 import { DELETE as deleteTrip, GET as getTrip, PATCH as patchTrip } from "@/app/api/travel/trips/[id]/route";
+import { GET as tripConnectivity } from "@/app/api/travel/trips/[id]/connectivity/route";
 import { GET as airportsRoute } from "@/app/api/travel/airports/route";
 import { GET as flightsRoute } from "@/app/api/travel/search/flights/route";
 import { GET as staysRoute } from "@/app/api/travel/search/stays/route";
@@ -137,6 +138,35 @@ describe("Travel API from the native app", () => {
 
     expect((await deleteTrip(new Request("http://x"), params({ id: trip.id }))).status).toBe(200);
     expect((await getTrip(new Request("http://x"), params({ id: trip.id }))).status).toBe(404);
+  });
+
+  it("suggests an eSIM for a saved trip's dates, and only to its owner", async () => {
+    await signedInAs("alice");
+    const created = await createTrip(
+      body("http://x/api/travel/trips", "POST", { destinationSlug: "usa", startDate: "2027-05-01", endDate: "2027-05-06" }),
+    );
+    const { trip } = (await created.json()) as { trip: { id: string } };
+    const res = await tripConnectivity(new Request("http://x"), params({ id: trip.id }));
+    expect(res.status).toBe(200);
+    const { connectivity } = (await res.json()) as {
+      connectivity: {
+        available: boolean;
+        tripDays: number;
+        covers: boolean;
+        suggested: { code: string; price: number } | null;
+        others: Array<{ code: string }>;
+        plansUrl: string;
+        steps: string[];
+      };
+    };
+    expect(connectivity).toMatchObject({ available: true, tripDays: 6, covers: true });
+    expect(connectivity.suggested?.code).toBe("MOCK-US-1GB-7D");
+    expect(connectivity.others.map((p) => p.code)).toContain("MOCK-US-5GB-30D");
+    expect(connectivity.plansUrl).toBe("https://esim.example.com/pricing?country=US");
+    expect(connectivity.steps.length).toBeGreaterThan(0);
+
+    await signedInAs("bob");
+    expect((await tripConnectivity(new Request("http://x"), params({ id: trip.id }))).status).toBe(404);
   });
 
   it("refuses bad input", async () => {

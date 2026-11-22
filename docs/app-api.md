@@ -73,6 +73,7 @@ The Travel routes answer on the Travel host for the website, and, like eSIM, on 
 | `GET /api/travel/trips/:id` | `{ trip }`; `404` if it isn't this customer's |
 | `PATCH /api/travel/trips/:id` `{ startDate?, endDate?, notes? }` | Changes the fields sent (`null` clears one): `{ trip }` |
 | `DELETE /api/travel/trips/:id` | `{ ok: true }` |
+| `GET /api/travel/trips/:id/connectivity` | The trip's "Stay connected" item (phase 3): `{ connectivity: { available, tripDays, suggested, covers, note, others, plansUrl, steps } }`. `suggested` is the eSIM package we'd pick for the trip's dates (same shape as `GET /api/esim/packages` items), or `null` without both dates; `covers: false` means no single plan lasts the whole trip and `note` says so. `others` are the other packages there, cheapest first. Buy with `POST /api/esim/checkout`. `404` if it isn't this customer's trip |
 
 Trips are personal data: never log their contents.
 

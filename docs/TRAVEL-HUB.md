@@ -1,6 +1,6 @@
 # Travel Hub plan
 
-Status: phases 1 and 1b are done. Phase 2 is being built against a test partner only ([Phase 2 as built](#phase-2-as-built)); no affiliate programme has been applied to or contacted. Agreed direction from Reuben, 2026-11-17; names are provisional.
+Status: phases 1, 1b and 1c are done. Phase 2 runs against a test partner only ([Phase 2 as built](#phase-2-as-built)); no affiliate programme has been applied to or contacted. Phase 3's trip-aware eSIM suggestion is built ([Phase 3 as built](#phase-3-as-built)). Agreed direction from Reuben, 2026-11-17; names are provisional.
 
 ## In one paragraph
 
@@ -220,6 +220,16 @@ Reuben said go on 2026-11-22 ("Do whatever you can do now") for the parts that n
 - **Policy pages:** the draft privacy and cookie pages say what a click record holds and for how long. They're still drafts for review before launch.
 
 Still to do before a real partner: the programme sign-ups (Travelpayouts first), one adapter per network, reading each programme's terms, and a person reviewing the privacy and cookie wording.
+
+### Phase 3 as built
+
+Reuben asked on 2026-11-22 for bigger strides through the plans where nothing outside is needed. Phase 3 only reads the eSIM product, so it went ahead before the eSIM launch: it changes nothing in eSIM checkout, webhooks, payments or provisioning.
+
+- **The suggestion** (`apps/web/src/lib/trip-connectivity.ts`, pure and tested): a trip with both dates gets the cheapest of our plans for that destination that lasts the whole stay (both days counted), with the country's own plan ahead of a regional one at the same price. When no plan lasts that long, it suggests the longest one and says plainly that a second plan is needed. Without dates it asks for them and lists the plans. Commission plays no part.
+- **Activation guidance:** four general steps for an iPhone (check it's unlocked, install on Wi-Fi before leaving, switch the line on when you land with roaming on for that line only, leave roaming off on the home SIM). They're general guidance, not the provider's instructions.
+- **Web:** each trip on My trips has a "Stay connected" box (badged as our product) with the suggested plan, why, a link to that country's plans on the eSIM site, and the setup steps.
+- **App:** a trip now opens its own screen: dates, notes, the destination's essentials, the suggested plan with a Buy button, the other plans, and the setup steps. Buy uses the eSIM tab's own confirmation and checkout (the same `POST /api/esim/checkout`), so a trip reaches eSIM checkout in one tap plus the confirmation.
+- **API:** `GET /api/travel/trips/:id/connectivity` ([app-api.md](./app-api.md#travel)).
 
 ### Longer term: trip-aware recommendations
 

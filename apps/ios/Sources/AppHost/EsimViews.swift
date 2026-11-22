@@ -196,9 +196,7 @@ private struct CompatibilitySection: View {
 struct EsimCountryScreen: View {
     let model: AppModel
     let countryCode: String
-    @Environment(\.openURL) private var openURL
     @State private var confirming: EsimPackage?
-    @State private var testCheckout: EsimCheckout?
 
     var body: some View {
         let packages = model.esimPackages(country: countryCode)
@@ -223,34 +221,51 @@ struct EsimCountryScreen: View {
             }
         }
         .navigationTitle(packages.first?.countryName ?? countryCode)
-        .confirmationDialog(
-            confirming.map { "\($0.allowance) for \($0.price)" } ?? "",
-            isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
-            titleVisibility: .visible,
-            presenting: confirming
-        ) { plan in
-            Button("Continue to Payment") { Task { await buy(plan) } }
-                .accessibilityIdentifier("esim.confirmBuy")
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("Check the phone you'll use is unlocked and supports eSIM first. Your eSIM is ready to install as soon as payment is confirmed.")
-        }
-        .alert(
-            "Test Payment",
-            isPresented: Binding(get: { testCheckout != nil }, set: { if !$0 { testCheckout = nil } }),
-            presenting: testCheckout
-        ) { checkout in
-            Button("Complete Test Payment") {
-                Task {
-                    await model.completeTestPayment(checkout)
-                    await model.watchEsimOrders()
-                }
+        .esimPurchase(model: model, confirming: $confirming)
+    }
+}
+
+// MARK: - Buying a plan
+
+/// Confirms a plan, starts the eSIM checkout and opens it (or, on a test
+/// server, offers the test payment). Used by a country's plans and by a
+/// trip's "Stay connected" item: both buy through the same eSIM checkout.
+struct EsimPurchase: ViewModifier {
+    let model: AppModel
+    @Binding var confirming: EsimPackage?
+    @Environment(\.openURL) private var openURL
+    @State private var testCheckout: EsimCheckout?
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                confirming.map { "\($0.allowance) for \($0.price)" } ?? "",
+                isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
+                titleVisibility: .visible,
+                presenting: confirming
+            ) { plan in
+                Button("Continue to Payment") { Task { await buy(plan) } }
+                    .accessibilityIdentifier("esim.confirmBuy")
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text("Check the phone you'll use is unlocked and supports eSIM first. Your eSIM is ready to install as soon as payment is confirmed.")
             }
-            .accessibilityIdentifier("esim.completeTestPayment")
-            Button("Cancel", role: .cancel) {}
-        } message: { checkout in
-            Text("This server takes test payments only. No card is charged for \(checkout.price).")
-        }
+            .alert(
+                "Test Payment",
+                isPresented: Binding(get: { testCheckout != nil }, set: { if !$0 { testCheckout = nil } }),
+                presenting: testCheckout
+            ) { checkout in
+                Button("Complete Test Payment") {
+                    Task {
+                        await model.completeTestPayment(checkout)
+                        await model.watchEsimOrders()
+                    }
+                }
+                .accessibilityIdentifier("esim.completeTestPayment")
+                Button("Cancel", role: .cancel) {}
+            } message: { checkout in
+                Text("This server takes test payments only. No card is charged for \(checkout.price).")
+            }
     }
 
     private func buy(_ plan: EsimPackage) async {
@@ -260,6 +275,12 @@ struct EsimCountryScreen: View {
         } else if let url = URL(string: checkout.url) {
             openURL(url)
         }
+    }
+}
+
+extension View {
+    func esimPurchase(model: AppModel, confirming: Binding<EsimPackage?>) -> some View {
+        modifier(EsimPurchase(model: model, confirming: confirming))
     }
 }
 

@@ -324,7 +324,7 @@ struct TripsScreen: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(model.home.trips, id: \.id) { trip in
-                    NavigationLink(value: trip.destinationSlug) {
+                    NavigationLink(value: TripRoute(id: trip.id)) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(trip.destinationName).font(.headline)
                             Text(AppModel.tripDates(trip)).font(.subheadline).foregroundStyle(.secondary)
@@ -344,11 +344,123 @@ struct TripsScreen: View {
                 }
             }
             .navigationTitle("Trips")
+            .navigationDestination(for: TripRoute.self) { route in
+                if let trip = model.home.trips.first(where: { $0.id == route.id }) {
+                    TripScreen(model: model, trip: trip)
+                } else {
+                    Text("This trip has been deleted.").foregroundStyle(.secondary)
+                }
+            }
             .navigationDestination(for: String.self) { slug in
                 DestinationScreen(model: model, slug: slug)
             }
             .refreshable { await model.loadTrips() }
             .task { await model.loadTrips() }
         }
+    }
+}
+
+struct TripRoute: Hashable {
+    let id: String
+}
+
+// MARK: - One trip
+
+/// A saved trip: its dates and notes, the eSIM plan for those dates
+/// (Travel Hub phase 3, bought through the eSIM tab's own checkout), and the
+/// destination's essentials.
+struct TripScreen: View {
+    let model: AppModel
+    let trip: Trip
+    @State private var connectivity: TripConnectivity?
+    @State private var loaded = false
+    @State private var confirming: EsimPackage?
+
+    var body: some View {
+        List {
+            Section {
+                Text(AppModel.tripDates(trip))
+                if let notes = trip.notes {
+                    Text(notes)
+                }
+                NavigationLink(value: trip.destinationSlug) {
+                    Label("\(trip.destinationName) Essentials", systemImage: "info.circle")
+                }
+                .accessibilityIdentifier("trip.destination")
+            }
+
+            Section {
+                if let connectivity {
+                    if let plan = connectivity.suggested {
+                        planRow(plan, suggested: true)
+                    }
+                    Text(connectivity.note)
+                        .font(.subheadline)
+                        .foregroundStyle(connectivity.suggested != nil && !connectivity.covers ? .orange : .secondary)
+                    if !connectivity.others.isEmpty {
+                        DisclosureGroup("Other Plans (\(connectivity.others.count))") {
+                            ForEach(connectivity.others, id: \.code) { plan in
+                                planRow(plan, suggested: false)
+                            }
+                        }
+                        .accessibilityIdentifier("trip.esim.others")
+                    }
+                } else {
+                    HStack {
+                        Text(loaded ? "eSIM plans couldn't be loaded. Pull down to try again." : "Loading eSIM plans…")
+                        if !loaded {
+                            Spacer()
+                            ProgressView()
+                        }
+                    }
+                    .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Stay Connected")
+            } footer: {
+                Text("A Northstar SIM plan, our own product. You pay on the eSIM checkout, then install it from the eSIM tab.")
+            }
+
+            if let steps = connectivity?.steps, !steps.isEmpty {
+                Section("Setting Up an eSIM") {
+                    ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                        Label(step, systemImage: "\(index + 1).circle")
+                    }
+                }
+            }
+        }
+        .navigationTitle(trip.destinationName)
+        .refreshable { await load() }
+        .task { if connectivity == nil { await load() } }
+        .esimPurchase(model: model, confirming: $confirming)
+    }
+
+    private func planRow(_ plan: EsimPackage, suggested: Bool) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(plan.allowance).font(.headline)
+                Text(suggested ? "Suggested · \(plan.name)" : plan.name)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if suggested {
+                buyButton(plan).buttonStyle(.borderedProminent)
+            } else {
+                buyButton(plan).buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private func buyButton(_ plan: EsimPackage) -> some View {
+        Button(plan.price) { confirming = plan }
+            .disabled(model.busy)
+            .accessibilityLabel("Buy \(plan.allowance) for \(plan.price)")
+            .accessibilityIdentifier("trip.esim.buy.\(plan.code)")
+    }
+
+    private func load() async {
+        connectivity = await model.tripConnectivity(trip)
+        loaded = true
     }
 }

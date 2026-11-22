@@ -5,7 +5,8 @@
 //! catalogue; buying one happens in the eSIM tab ([`crate::esim`]) or on the eSIM site,
 //! with its own checkout. Trips are personal data: never log their contents.
 
-use crate::api::{ApiDestinationDetail, ApiEsimPackage, ApiTrip};
+use crate::api::{ApiDestinationDetail, ApiEsimPackage, ApiTrip, ApiTripConnectivity};
+use crate::esim::{package, EsimPackage};
 use crate::{AppCore, AppError, Home};
 
 /// Longest note the server accepts.
@@ -91,6 +92,39 @@ pub struct Trip {
     pub start_date: Option<String>,
     pub end_date: Option<String>,
     pub notes: Option<String>,
+}
+
+/// A saved trip's "Stay connected" item: the eSIM plan suggested for its
+/// dates (bought through the eSIM tab's own checkout), the other plans there,
+/// and how to set one up.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct TripConnectivity {
+    /// False when the server couldn't load eSIM plans just now.
+    pub available: bool,
+    /// Days away, counting both ends; none without both dates.
+    pub trip_days: Option<u32>,
+    pub suggested: Option<EsimPackage>,
+    /// True when the suggested plan lasts the whole trip.
+    pub covers: bool,
+    /// Why this plan, or what's missing ("Add the trip's dates ...").
+    pub note: String,
+    /// The other plans there, cheapest first.
+    pub others: Vec<EsimPackage>,
+    pub plans_url: String,
+    pub steps: Vec<String>,
+}
+
+pub(crate) fn connectivity(api: ApiTripConnectivity) -> TripConnectivity {
+    TripConnectivity {
+        available: api.available,
+        trip_days: api.trip_days,
+        suggested: api.suggested.map(package),
+        covers: api.covers,
+        note: api.note,
+        others: api.others.into_iter().map(package).collect(),
+        plans_url: api.plans_url,
+        steps: api.steps,
+    }
 }
 
 /// "£9.99" for pence in GBP; "9.99 EUR" otherwise.
@@ -336,6 +370,17 @@ impl AppCore {
             .await
     }
 
+    /// A saved trip's "Stay connected" item: the eSIM plan for its dates.
+    pub async fn trip_connectivity(&self, trip_id: String) -> Result<TripConnectivity, AppError> {
+        self.rt
+            .command("trip-connectivity", move |state| {
+                state
+                    .signed_in(|api| api.trip_connectivity(&trip_id))
+                    .map(connectivity)
+            })
+            .await
+    }
+
     /// Deletes a saved trip.
     pub async fn delete_trip(&self, trip_id: String) -> Result<Home, AppError> {
         self.rt
@@ -386,5 +431,39 @@ mod tests {
         assert!(check_trip(some("2027-04-21"), some("2027-04-01"), None).is_err());
         assert!(check_trip(some("next week"), None, None).is_err());
         assert!(check_trip(None, None, Some("x".repeat(2001))).is_err());
+    }
+
+    #[test]
+    fn a_trips_esim_suggestion_reads_the_server_answer() {
+        let answer: crate::api::ApiTripConnectivity = serde_json::from_value(serde_json::json!({
+            "available": true,
+            "tripDays": 6,
+            "suggested": {
+                "code": "MOCK-US-1GB-7D", "name": "United States 1GB 7 Days", "countryCode": "US",
+                "countryName": "United States", "dataVolume": "1 GB", "validity": "7 days",
+                "price": 449, "currency": "GBP"
+            },
+            "covers": true,
+            "note": "The cheapest plan that lasts your whole 6-day trip (it's valid for 7 days).",
+            "others": [],
+            "plansUrl": "https://esim.example.com/pricing?country=US",
+            "steps": ["Check your phone is unlocked and supports eSIM."]
+        }))
+        .unwrap();
+        let c = connectivity(answer);
+        assert_eq!(c.trip_days, Some(6));
+        let plan = c.suggested.unwrap();
+        assert_eq!(plan.price, "£4.49");
+        assert_eq!(plan.allowance, "1 GB · 7 days");
+        assert!(c.covers);
+
+        // No dates: no suggestion, and tripDays comes back null.
+        let undated: crate::api::ApiTripConnectivity = serde_json::from_value(serde_json::json!({
+            "available": true, "tripDays": null, "suggested": null, "covers": false,
+            "note": "Add the trip's dates and we'll suggest a plan that lasts the whole stay.",
+            "others": [], "plansUrl": "https://esim.example.com/pricing?country=JP", "steps": []
+        }))
+        .unwrap();
+        assert_eq!(connectivity(undated).suggested, None);
     }
 }
