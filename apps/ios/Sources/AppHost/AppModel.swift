@@ -117,6 +117,89 @@ public final class AppModel {
         await perform { core in try await core.deleteTrip(tripId: trip.id) }
     }
 
+    // MARK: Travel search (simulated estimates)
+
+    /// Airports for the search forms; nil until `loadAirports` answers.
+    public private(set) var airports: Airports?
+
+    public func loadAirports() async {
+        if let loaded = await fetch({ core in try await core.loadAirports() }) { airports = loaded }
+    }
+
+    public func setHomeAirport(_ code: String) async {
+        await perform { core in try await core.setHomeAirport(code: code) }
+    }
+
+    /// The destination airport `code`, if the airports have loaded.
+    public func airport(_ code: String) -> Airport? {
+        guard let airports else { return nil }
+        return (airports.origins + airports.destinations).first { $0.code == code }
+    }
+
+    /// "Barcelona, Spain" for a destination airport, "Edinburgh" for a UK one.
+    public func place(_ airport: Airport) -> String {
+        guard let slug = airport.destinationSlug,
+            let destination = home.destinations.first(where: { $0.slug == slug })
+        else { return airport.city }
+        return "\(airport.city), \(destination.name)"
+    }
+
+    public func searchFlights(_ search: FlightSearch) async -> FlightResults? {
+        await fetch { core in try await core.searchFlights(search: search) }
+    }
+
+    public func searchStays(city: String, checkIn: Date, checkOut: Date, guests: Int, sort: StaySort) async -> StayResults? {
+        let (from, to) = (Self.isoDay(checkIn), Self.isoDay(checkOut))
+        return await fetch { core in
+            try await core.searchStays(city: city, checkIn: from, checkOut: to, guests: UInt32(guests), sort: sort)
+        }
+    }
+
+    public func searchCars(city: String, pickUp: Date, dropOff: Date) async -> CarResults? {
+        let (from, to) = (Self.isoDay(pickUp), Self.isoDay(dropOff))
+        return await fetch { core in try await core.searchCars(city: city, pickUp: from, dropOff: to) }
+    }
+
+    public func searchPackages(from: String, to: String, depart: Date, returning: Date, adults: Int) async -> PackageResults? {
+        let (out, back) = (Self.isoDay(depart), Self.isoDay(returning))
+        return await fetch { core in
+            try await core.searchPackages(from: from, to: to, depart: out, returnDate: back, adults: UInt32(adults))
+        }
+    }
+
+    public func priceMap(from: String, month: Date) async -> PriceMap? {
+        let month = Self.isoMonth(month)
+        return await fetch { core in try await core.priceMap(from: from, month: month) }
+    }
+
+    /// `YYYY-MM` for the month `date` falls in here.
+    public static func isoMonth(_ date: Date) -> String {
+        String(Self.isoDay(date).prefix(7))
+    }
+
+    /// The date for a `YYYY-MM-DD` day, at midnight here.
+    public static func date(isoDay: String) -> Date? {
+        let parts = isoDay.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return Calendar(identifier: .gregorian).date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+    }
+
+    /// Runs a command that answers with something other than `Home`, or
+    /// returns nil with `errorMessage` set.
+    private func fetch<T: Sendable>(_ command: (AppCore) async throws -> T) async -> T? {
+        busy = true
+        defer {
+            busy = false
+            home = core.home()
+        }
+        do {
+            return try await command(core)
+        } catch {
+            errorMessage = Self.describe(error)
+            return nil
+        }
+    }
+
     /// `YYYY-MM-DD` for the day `date` falls on here.
     public static func isoDay(_ date: Date) -> String {
         let parts = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)

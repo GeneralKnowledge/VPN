@@ -24,8 +24,14 @@ use serde::{Deserialize, Serialize};
 
 mod api;
 mod travel;
+mod travel_search;
 
 pub use travel::{DestinationDetail, DestinationSummary, EsimPlan, Fact, Trip};
+pub use travel_search::{
+    Airport, Airports, Cabin, CarResult, CarResults, FlightLeg, FlightResult, FlightResults,
+    FlightSearch, FlightSort, PackageResult, PackageResults, PriceMap, PricePin, StayResult,
+    StayResults, StaySort,
+};
 
 // Keychain, directories, notifications, permissions and deep links, as
 // `crate::native`; the Swift side is ForgeKit's ForgeNative.
@@ -108,6 +114,10 @@ pub struct Home {
     pub destinations: Vec<DestinationSummary>,
     /// Saved trips, newest first, filled by `load_trips`.
     pub trips: Vec<Trip>,
+    /// Travel Hub: the airport searches and the price map start from
+    /// (an IATA code), or empty until the customer picks one. Kept on
+    /// this iPhone, across sign-outs.
+    pub home_airport: String,
 }
 
 /// What can go wrong. Arrives in Swift as a thrown `AppError`.
@@ -262,6 +272,9 @@ impl SessionStore for MemoryStore {
 #[derive(Serialize, Deserialize, Default, Clone)]
 struct Settings {
     last_server: String,
+    /// Travel Hub: where searches and the price map start from.
+    #[serde(default)]
+    home_airport: String,
 }
 
 /// What the command thread owns.
@@ -304,8 +317,10 @@ impl State {
     fn forget_session(&mut self) -> Result<(), AppError> {
         self.session = None;
         let last_server = std::mem::take(&mut self.home.last_server);
+        let home_airport = std::mem::take(&mut self.home.home_airport);
         self.home = Home {
             last_server,
+            home_airport,
             ..Home::default()
         };
         self.publish();
@@ -407,6 +422,7 @@ impl AppCore {
         let home = Home {
             account: session.as_ref().map(Session::account),
             last_server: saved.last_server,
+            home_airport: saved.home_airport,
             ..Home::default()
         };
         let published = Arc::new(Published::new(home.clone()));
@@ -489,10 +505,12 @@ impl AppCore {
                 state.store.save(&session)?;
                 state.settings.save(&Settings {
                     last_server: server.clone(),
+                    home_airport: state.home.home_airport.clone(),
                 })?;
                 state.home = Home {
                     account: Some(session.account()),
                     last_server: server,
+                    home_airport: std::mem::take(&mut state.home.home_airport),
                     ..Home::default()
                 };
                 state.session = Some(session);

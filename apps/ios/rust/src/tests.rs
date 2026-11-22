@@ -471,3 +471,64 @@ fn an_expired_session_on_trips_signs_out() {
     assert!(core.home().account.is_none());
     assert!(core.home().trips.is_empty());
 }
+
+#[test]
+fn the_home_airport_is_kept_on_this_iphone_across_sign_outs() {
+    let f = Fixture::new(server());
+    let core = f.open();
+    assert_eq!(core.home().home_airport, "");
+    assert!(block_on(core.set_home_airport("Edinburgh".into())).is_err());
+    let home = block_on(core.set_home_airport("edi".into())).unwrap();
+    assert_eq!(home.home_airport, "EDI");
+
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+    assert_eq!(core.home().home_airport, "EDI");
+    block_on(core.sign_out()).unwrap();
+    assert_eq!(core.home().home_airport, "EDI");
+    drop(core);
+
+    let reopened = f.open();
+    assert_eq!(reopened.home().home_airport, "EDI");
+    assert_eq!(reopened.home().last_server, SERVER);
+}
+
+#[test]
+fn a_flight_search_sends_its_query_and_reads_estimates() {
+    let url = format!(
+        "{SERVER}/api/travel/search/flights?from=EDI&to=BCN&depart=2026-12-22&return=2026-12-29&adults=2&cabin=economy&sort=best"
+    );
+    let f = Fixture::new(server().route(
+        Method::Get,
+        url.clone(),
+        ok(serde_json::json!({
+            "estimate": true, "currency": "GBP", "note": "Estimates, not live prices.",
+            "options": [{
+                "id": "f0",
+                "outbound": { "from": "EDI", "to": "BCN", "departs": "07:20", "arrives": "11:05",
+                    "arrivesDayOffset": 0, "durationMinutes": 165, "via": [] },
+                "inbound": { "from": "BCN", "to": "EDI", "departs": "18:40", "arrives": "20:25",
+                    "arrivesDayOffset": 0, "durationMinutes": 165, "via": [] },
+                "pricePerPersonMinor": 14700, "totalMinor": 29400, "tags": ["best", "cheapest"]
+            }]
+        })),
+    ));
+    let core = f.open();
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+    let results = block_on(core.search_flights(FlightSearch {
+        from: "EDI".into(),
+        to: "BCN".into(),
+        depart: "2026-12-22".into(),
+        return_date: Some("2026-12-29".into()),
+        adults: 2,
+        cabin: Cabin::Economy,
+        sort: FlightSort::Best,
+    }))
+    .unwrap();
+    assert_eq!(results.note, "Estimates, not live prices.");
+    assert_eq!(results.options[0].price, "£294 est.");
+    assert_eq!(results.options[0].per_person, "£147 per person");
+    assert_eq!(results.options[0].outbound.stops, "Nonstop");
+    assert_eq!(results.options[0].tags, vec!["Best", "Cheapest"]);
+    let sent = f.sent().into_iter().find(|r| r.url == url).unwrap();
+    assert!(bearer(&sent).is_some());
+}

@@ -45,4 +45,11 @@ final class AppModelTests: XCTestCase {
         let date = calendar.date(from: DateComponents(year: 2027, month: 4, day: 1, hour: 12))!
         XCTAssertEqual(AppModel.isoDay(date), "2027-04-01")
     }
+
+    func testSearchDatesRoundTrip() throws {
+        let date = try XCTUnwrap(AppModel.date(isoDay: "2026-12-22"))
+        XCTAssertEqual(AppModel.isoDay(date), "2026-12-22")
+        XCTAssertEqual(AppModel.isoMonth(date), "2026-12")
+        XCTAssertNil(AppModel.date(isoDay: "next week"))
+    }
 }

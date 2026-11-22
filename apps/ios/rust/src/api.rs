@@ -159,6 +159,130 @@ pub struct ApiTrip {
     pub notes: Option<String>,
 }
 
+// Travel search (docs/app-api.md, "Search with estimates"). Every answer is
+// our own simulation: `note` says so and the app shows it.
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiAirport {
+    pub code: String,
+    pub city: String,
+    pub name: String,
+    pub country_code: String,
+    pub destination_slug: Option<String>,
+    pub lat: f64,
+    pub lon: f64,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+pub struct ApiAirports {
+    pub origins: Vec<ApiAirport>,
+    pub destinations: Vec<ApiAirport>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiLeg {
+    pub from: String,
+    pub to: String,
+    pub departs: String,
+    pub arrives: String,
+    pub arrives_day_offset: i32,
+    pub duration_minutes: u32,
+    pub via: Vec<String>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiFlight {
+    pub id: String,
+    pub outbound: ApiLeg,
+    pub inbound: Option<ApiLeg>,
+    pub price_per_person_minor: u64,
+    pub total_minor: u64,
+    pub tags: Vec<String>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ApiFlights {
+    pub note: String,
+    pub options: Vec<ApiFlight>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiStay {
+    pub id: String,
+    pub label: String,
+    pub area: String,
+    pub city: String,
+    pub nightly_minor: u64,
+    pub nights: u32,
+    pub rooms: u32,
+    pub total_minor: u64,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ApiStays {
+    pub note: String,
+    pub options: Vec<ApiStay>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiCar {
+    pub id: String,
+    pub label: String,
+    pub seats: u32,
+    pub bags: u32,
+    pub automatic: bool,
+    pub daily_minor: u64,
+    pub days: u32,
+    pub total_minor: u64,
+    pub pick_up: String,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ApiCars {
+    pub note: String,
+    pub options: Vec<ApiCar>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiPackage {
+    pub id: String,
+    pub stay: ApiStay,
+    pub total_minor: u64,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ApiPackages {
+    pub note: String,
+    pub flight: ApiFlight,
+    pub options: Vec<ApiPackage>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiPricePin {
+    pub code: String,
+    pub city: String,
+    pub country_code: String,
+    pub destination_slug: String,
+    pub lat: f64,
+    pub lon: f64,
+    pub price_per_person_minor: u64,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+pub struct ApiPriceMap {
+    pub note: String,
+    pub from: String,
+    pub month: String,
+    pub pins: Vec<ApiPricePin>,
+}
+
 #[derive(Deserialize)]
 struct Destinations {
     destinations: Vec<ApiDestinationSummary>,
@@ -284,6 +408,24 @@ impl Api<'_> {
     pub fn destination(&self, slug: &str) -> Result<ApiDestinationDetail, AppError> {
         let path = format!("/api/travel/destinations/{}", encode(slug));
         self.json(Method::Get, &path, None)
+    }
+
+    pub fn airports(&self) -> Result<ApiAirports, AppError> {
+        self.json(Method::Get, "/api/travel/airports", None)
+    }
+
+    /// A GET search: `params` become the query string.
+    pub fn search<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        params: &[(&str, String)],
+    ) -> Result<T, AppError> {
+        let query = params
+            .iter()
+            .map(|(key, value)| format!("{key}={}", encode(value)))
+            .collect::<Vec<_>>()
+            .join("&");
+        self.json(Method::Get, &format!("{path}?{query}"), None)
     }
 
     pub fn trips(&self) -> Result<Vec<ApiTrip>, AppError> {
