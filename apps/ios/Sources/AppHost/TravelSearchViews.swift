@@ -350,6 +350,7 @@ struct FlightResultsScreen: View {
     let model: AppModel
     @State var search: FlightSearch
     @State private var results: FlightResults?
+    @State private var request = 0
     @State private var loading = true
 
     var body: some View {
@@ -389,11 +390,12 @@ struct FlightResultsScreen: View {
     }
 
     private func load() async {
-        // A slower answer for a sort that's no longer chosen is dropped.
-        let requested = search
+        // Only the latest request updates the screen.
+        request += 1
+        let current = request
         loading = true
-        defer { if requested == search { loading = false } }
-        if let loaded = await model.searchFlights(requested), requested == search { results = loaded }
+        defer { if current == request { loading = false } }
+        if let loaded = await model.searchFlights(search), current == request { results = loaded }
     }
 }
 
@@ -481,6 +483,7 @@ struct StayResultsScreen: View {
     let guests: Int
     @State private var sort = StaySort.cheapest
     @State private var results: StayResults?
+    @State private var request = 0
     @State private var loading = true
 
     var body: some View {
@@ -512,12 +515,13 @@ struct StayResultsScreen: View {
     }
 
     private func load() async {
-        // A slower answer for a sort that's no longer chosen is dropped.
-        let requested = sort
+        // Only the latest request updates the screen.
+        request += 1
+        let current = request
         loading = true
-        defer { if requested == sort { loading = false } }
-        if let loaded = await model.searchStays(city: city, checkIn: checkIn, checkOut: checkOut, guests: guests, sort: requested),
-            requested == sort
+        defer { if current == request { loading = false } }
+        if let loaded = await model.searchStays(city: city, checkIn: checkIn, checkOut: checkOut, guests: guests, sort: sort),
+            current == request
         {
             results = loaded
         }
