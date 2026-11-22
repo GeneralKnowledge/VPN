@@ -100,6 +100,14 @@ export function middleware(req: NextRequest) {
     return nextWithProduct(req, product);
   }
 
+  // Referral links and the test partner's page work on every host, so a deployment without a
+  // Travel hostname yet (a test server, the app's API host) can still follow them.
+  if (product !== "travel" && (pathname.startsWith("/go/") || pathname === "/partner-preview")) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/travel${pathname}`;
+    return rewriteWithProduct(req, product, url);
+  }
+
   if (product === "travel") {
     if (pathname === "/admin" || pathname.startsWith("/admin/")) {
       const vpnBase = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");

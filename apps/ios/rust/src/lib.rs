@@ -26,14 +26,14 @@ mod api;
 mod travel;
 mod travel_search;
 
-pub use travel::{
-    DestinationDetail, DestinationSummary, EsimPlan, Fact, PartnerGroup, PartnerLink, Trip,
-};
+pub use travel::{DestinationDetail, DestinationSummary, EsimPlan, Fact, Trip};
 pub use travel_search::{
     Airport, Airports, Cabin, CarResult, CarResults, FlightLeg, FlightResult, FlightResults,
     FlightSearch, FlightSort, PackageResult, PackageResults, PriceMap, PricePin, StayResult,
     StayResults, StaySort,
 };
+// Travel partner links (phase 2).
+pub use travel::{PartnerGroup, PartnerLink};
 
 // Keychain, directories, notifications, permissions and deep links, as
 // `crate::native`; the Swift side is ForgeKit's ForgeNative.
