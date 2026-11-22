@@ -235,6 +235,7 @@ struct RandomTripScreen: View {
                 } label: {
                     Label(kept.contains(part) ? "Kept" : "Keep", systemImage: kept.contains(part) ? "lock.fill" : "lock.open")
                 }
+                .disabled(model.busy)
                 .accessibilityLabel(kept.contains(part) ? "Stop keeping the \(part.title.lowercased())" : "Keep the \(part.title.lowercased())")
                 .accessibilityIdentifier("randomTrip.keep.\(part.rawValue)")
             }
