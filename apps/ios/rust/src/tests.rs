@@ -348,6 +348,25 @@ fn travel_server() -> StaticClient {
                     "packages": [{ "code": "MOCK-JP-3GB-15D", "name": "Japan 3GB 15 Days", "countryCode": "JP",
                         "countryName": "Japan", "dataVolume": "3 GB", "validity": "15 days", "price": 999, "currency": "GBP" }],
                     "plansUrl": "https://sim.example.com/pricing?country=JP"
+                },
+                "partners": {
+                    "notice": "We may earn a commission if you book through these links.",
+                    "groups": [
+                        { "category": "flights", "title": "Flights", "links": [
+                            { "id": "lnk_1", "partnerName": "Test Partner", "label": "Search flights to Japan on Test Partner",
+                              "url": "https://travel.example.com/go/lnk_1", "test": true, "disclosure": "Test Partner is not a real company." },
+                            { "id": "lnk_x", "partnerName": "Odd", "label": "Not a web link",
+                              "url": "javascript:alert(1)", "test": false, "disclosure": "Odd." }
+                        ]},
+                        { "category": "stays", "title": "Places to stay", "links": [
+                            { "id": "lnk_2", "partnerName": "Test Partner", "label": "Search places to stay in Japan on Test Partner",
+                              "url": "https://travel.example.com/go/lnk_2", "test": true, "disclosure": "Test Partner is not a real company." }
+                        ]},
+                        { "category": "cars", "title": "Car hire", "links": [
+                            { "id": "lnk_y", "partnerName": "Odd", "label": "Not a web link either",
+                              "url": "file:///etc/passwd", "test": false, "disclosure": "Odd." }
+                        ]}
+                    ]
                 }
             })),
         )
@@ -394,6 +413,23 @@ fn explore_loads_destinations_and_a_destination_with_our_esim_plans() {
     assert_eq!(
         japan.esim_plans_url,
         "https://sim.example.com/pricing?country=JP"
+    );
+    assert!(japan.partner_notice.contains("commission"));
+    let titles: Vec<&str> = japan
+        .partner_groups
+        .iter()
+        .map(|g| g.title.as_str())
+        .collect();
+    assert_eq!(titles, ["Flights", "Places to stay"]);
+    assert_eq!(japan.partner_groups[0].links.len(), 1);
+    assert_eq!(
+        japan.partner_groups[0].links[0].url,
+        "https://travel.example.com/go/lnk_1"
+    );
+    assert!(japan.partner_groups[0].links[0].test);
+    assert_eq!(
+        japan.partner_disclosures,
+        ["Test Partner is not a real company."]
     );
 
     // An unknown destination is the server's 404, shown as it wrote it.

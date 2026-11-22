@@ -188,11 +188,11 @@ Reuben said go on 2026-11-22 ("Do whatever you can do now") for the parts that n
 - **Tables:** `outbound_links` (one row per partner, category, destination and placement, with the URL the adapter built; its id is a hash of those public facts, so a page view doesn't add rows) and `partner_events` (`outbound_click` with a random click id; no user, IP address, user agent or trip).
 - **`/go/<id>` on the Travel host:** records the click and redirects to the stored URL with the click id added. It reads nothing else from the request, so it isn't an open redirect. An unknown link, or a partner that is paused or switched off, gets a plain "This link isn't available" page.
 - **Retention:** the reconcile job (`/api/reconcile`, which cron already calls) deletes click records older than 90 days.
-- **Disclosure:** each destination page's "Flights, stays and getting around" section lists the links with the commission notice right above them and each partner's own disclosure below. The test partner is badged "Test partner". The destination API returns the same links for the app.
+- **Disclosure:** each destination page's "Flights, stays and getting around" section lists the links with the commission notice right above them and each partner's own disclosure below. The test partner is badged "Test partner". The destination API returns the same links for the app, which lists them under "Book with partners" on each destination screen and opens them in Safari.
 - **Consent, per mechanism:** our own click record is first-party, server-side and sets no cookie, so it needs no consent under PECR (stated on the cookies page). We load no partner scripts or pixels. A partner's cookies are set on the partner's own site under its own notice. Before each real partner goes live, check its programme for anything that would run on our pages; that would need a consent choice first.
 - **Policy pages:** the draft privacy and cookie pages say what a click record holds and for how long. They're still drafts for review before launch.
 
-Still to do before a real partner: the programme sign-ups (Travelpayouts first), one adapter per network, reading each programme's terms, a person reviewing the privacy and cookie wording, and partner links in the iPhone app's destination screen.
+Still to do before a real partner: the programme sign-ups (Travelpayouts first), one adapter per network, reading each programme's terms, and a person reviewing the privacy and cookie wording.
 
 ### Longer term: trip-aware recommendations
 

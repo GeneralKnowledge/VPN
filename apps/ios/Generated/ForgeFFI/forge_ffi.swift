@@ -1792,6 +1792,18 @@ public struct DestinationDetail: Equatable, Hashable {
      * The eSIM site's plans page for this country.
      */
     public var esimPlansUrl: String
+    /**
+     * Shown right next to the partner links whenever there are any.
+     */
+    public var partnerNotice: String
+    /**
+     * Empty when no partner is switched on.
+     */
+    public var partnerGroups: [PartnerGroup]
+    /**
+     * Each partner's own disclosure, once per partner, shown under the links.
+     */
+    public var partnerDisclosures: [String]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -1807,7 +1819,16 @@ public struct DestinationDetail: Equatable, Hashable {
          */esimAvailable: Bool, esimPlans: [EsimPlan], 
         /**
          * The eSIM site's plans page for this country.
-         */esimPlansUrl: String) {
+         */esimPlansUrl: String, 
+        /**
+         * Shown right next to the partner links whenever there are any.
+         */partnerNotice: String, 
+        /**
+         * Empty when no partner is switched on.
+         */partnerGroups: [PartnerGroup], 
+        /**
+         * Each partner's own disclosure, once per partner, shown under the links.
+         */partnerDisclosures: [String]) {
         self.slug = slug
         self.name = name
         self.summary = summary
@@ -1818,6 +1839,9 @@ public struct DestinationDetail: Equatable, Hashable {
         self.esimAvailable = esimAvailable
         self.esimPlans = esimPlans
         self.esimPlansUrl = esimPlansUrl
+        self.partnerNotice = partnerNotice
+        self.partnerGroups = partnerGroups
+        self.partnerDisclosures = partnerDisclosures
     }
 
     
@@ -1845,7 +1869,10 @@ public struct FfiConverterTypeDestinationDetail: FfiConverterRustBuffer {
                 travelAdviceUrl: FfiConverterString.read(from: &buf), 
                 esimAvailable: FfiConverterBool.read(from: &buf), 
                 esimPlans: FfiConverterSequenceTypeEsimPlan.read(from: &buf), 
-                esimPlansUrl: FfiConverterString.read(from: &buf)
+                esimPlansUrl: FfiConverterString.read(from: &buf), 
+                partnerNotice: FfiConverterString.read(from: &buf), 
+                partnerGroups: FfiConverterSequenceTypePartnerGroup.read(from: &buf), 
+                partnerDisclosures: FfiConverterSequenceString.read(from: &buf)
         )
     }
 
@@ -1860,6 +1887,9 @@ public struct FfiConverterTypeDestinationDetail: FfiConverterRustBuffer {
         FfiConverterBool.write(value.esimAvailable, into: &buf)
         FfiConverterSequenceTypeEsimPlan.write(value.esimPlans, into: &buf)
         FfiConverterString.write(value.esimPlansUrl, into: &buf)
+        FfiConverterString.write(value.partnerNotice, into: &buf)
+        FfiConverterSequenceTypePartnerGroup.write(value.partnerGroups, into: &buf)
+        FfiConverterSequenceString.write(value.partnerDisclosures, into: &buf)
     }
 }
 
@@ -2756,6 +2786,142 @@ public func FfiConverterTypePackageResults_lift(_ buf: RustBuffer) throws -> Pac
 #endif
 public func FfiConverterTypePackageResults_lower(_ value: PackageResults) -> RustBuffer {
     return FfiConverterTypePackageResults.lower(value)
+}
+
+
+/**
+ * Partner links for one category ("Flights", "Places to stay", "Car hire").
+ */
+public struct PartnerGroup: Equatable, Hashable {
+    public var title: String
+    public var links: [PartnerLink]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(title: String, links: [PartnerLink]) {
+        self.title = title
+        self.links = links
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension PartnerGroup: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePartnerGroup: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PartnerGroup {
+        return
+            try PartnerGroup(
+                title: FfiConverterString.read(from: &buf), 
+                links: FfiConverterSequenceTypePartnerLink.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: PartnerGroup, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.title, into: &buf)
+        FfiConverterSequenceTypePartnerLink.write(value.links, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePartnerGroup_lift(_ buf: RustBuffer) throws -> PartnerGroup {
+    return try FfiConverterTypePartnerGroup.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePartnerGroup_lower(_ value: PartnerGroup) -> RustBuffer {
+    return FfiConverterTypePartnerGroup.lower(value)
+}
+
+
+/**
+ * A referral link to a travel partner. It never carries a price.
+ */
+public struct PartnerLink: Equatable, Hashable {
+    /**
+     * "Search flights to Japan on Test Partner".
+     */
+    public var label: String
+    /**
+     * Our Travel site's `/go/` address; open it in the browser.
+     */
+    public var url: String
+    /**
+     * A test partner, not a real company: the screen says so.
+     */
+    public var test: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * "Search flights to Japan on Test Partner".
+         */label: String, 
+        /**
+         * Our Travel site's `/go/` address; open it in the browser.
+         */url: String, 
+        /**
+         * A test partner, not a real company: the screen says so.
+         */test: Bool) {
+        self.label = label
+        self.url = url
+        self.test = test
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension PartnerLink: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePartnerLink: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PartnerLink {
+        return
+            try PartnerLink(
+                label: FfiConverterString.read(from: &buf), 
+                url: FfiConverterString.read(from: &buf), 
+                test: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: PartnerLink, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.label, into: &buf)
+        FfiConverterString.write(value.url, into: &buf)
+        FfiConverterBool.write(value.test, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePartnerLink_lift(_ buf: RustBuffer) throws -> PartnerLink {
+    return try FfiConverterTypePartnerLink.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePartnerLink_lower(_ value: PartnerLink) -> RustBuffer {
+    return FfiConverterTypePartnerLink.lower(value)
 }
 
 
@@ -4035,6 +4201,56 @@ fileprivate struct FfiConverterSequenceTypePackageResult: FfiConverterRustBuffer
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypePackageResult.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypePartnerGroup: FfiConverterRustBuffer {
+    typealias SwiftType = [PartnerGroup]
+
+    public static func write(_ value: [PartnerGroup], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypePartnerGroup.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [PartnerGroup] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [PartnerGroup]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypePartnerGroup.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypePartnerLink: FfiConverterRustBuffer {
+    typealias SwiftType = [PartnerLink]
+
+    public static func write(_ value: [PartnerLink], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypePartnerLink.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [PartnerLink] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [PartnerLink]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypePartnerLink.read(from: &buf))
         }
         return seq
     }
