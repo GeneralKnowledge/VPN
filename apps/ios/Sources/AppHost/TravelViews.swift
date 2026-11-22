@@ -12,25 +12,28 @@ struct ExploreScreen: View {
     var body: some View {
         NavigationStack {
             List {
-                if model.home.destinations.isEmpty {
-                    HStack {
-                        Text(model.busy ? "Loading destinations…" : "No destinations yet. Pull down to try again.")
-                        if model.busy {
-                            Spacer()
-                            ProgressView()
+                SearchTilesSection(model: model)
+                Section("Destinations") {
+                    if model.home.destinations.isEmpty {
+                        HStack {
+                            Text(model.busy ? "Loading destinations…" : "No destinations yet. Pull down to try again.")
+                            if model.busy {
+                                Spacer()
+                                ProgressView()
+                            }
                         }
+                        .foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(.secondary)
-                }
-                ForEach(model.home.destinations, id: \.slug) { destination in
-                    NavigationLink(value: destination.slug) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(destination.name).font(.headline)
-                            Text(destination.summary).font(.subheadline).foregroundStyle(.secondary)
+                    ForEach(model.home.destinations, id: \.slug) { destination in
+                        NavigationLink(value: destination.slug) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(destination.name).font(.headline)
+                                Text(destination.summary).font(.subheadline).foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
+                        .accessibilityIdentifier("explore.destination.\(destination.slug)")
                     }
-                    .accessibilityIdentifier("explore.destination.\(destination.slug)")
                 }
             }
             .navigationTitle("Explore")
@@ -74,7 +77,12 @@ struct DestinationScreen: View {
         .task { if detail == nil { await load() } }
         .sheet(isPresented: $savingTrip) {
             if let detail {
-                SaveTripSheet(model: model, destination: detail, isPresented: $savingTrip) {
+                SaveTripSheet(
+                    model: model,
+                    destinationSlug: detail.slug,
+                    destinationName: detail.name,
+                    isPresented: $savingTrip
+                ) {
                     savedMessage = "Saved to your trips."
                 }
             }
@@ -142,6 +150,21 @@ struct DestinationScreen: View {
         }
 
         Section {
+            ForEach(SearchKind.allCases) { kind in
+                NavigationLink {
+                    SearchScreen(model: model, kind: kind, destinationSlug: detail.slug)
+                } label: {
+                    Label(kind.title, systemImage: kind.systemImage)
+                }
+                .accessibilityIdentifier("destination.search.\(kind.rawValue)")
+            }
+        } header: {
+            Text("Plan the trip")
+        } footer: {
+            Text("Our estimates, not live prices. Nothing can be booked here yet.")
+        }
+
+        Section {
             Button {
                 savingTrip = true
             } label: {
@@ -159,15 +182,40 @@ struct DestinationScreen: View {
 
 struct SaveTripSheet: View {
     let model: AppModel
-    let destination: DestinationDetail
+    let destinationSlug: String
+    let destinationName: String
     @Binding var isPresented: Bool
     let onSaved: () -> Void
 
-    @State private var hasDates = false
-    @State private var start = Date()
-    @State private var end = Date().addingTimeInterval(7 * 24 * 3600)
+    @State private var hasDates: Bool
+    /// Off for a one-way search: the trip then has a start and no end.
+    @State private var hasEnd: Bool
+    @State private var start: Date
+    @State private var end: Date
     @State private var notes = ""
     @State private var error: String?
+
+    /// `initialStart` and `initialEnd` fill in the dates, from a search.
+    init(
+        model: AppModel,
+        destinationSlug: String,
+        destinationName: String,
+        initialStart: Date? = nil,
+        initialEnd: Date? = nil,
+        isPresented: Binding<Bool>,
+        onSaved: @escaping () -> Void
+    ) {
+        self.model = model
+        self.destinationSlug = destinationSlug
+        self.destinationName = destinationName
+        _isPresented = isPresented
+        self.onSaved = onSaved
+        let start = initialStart ?? Date()
+        _hasDates = State(initialValue: initialStart != nil)
+        _hasEnd = State(initialValue: initialStart == nil || initialEnd != nil)
+        _start = State(initialValue: start)
+        _end = State(initialValue: initialEnd ?? start.addingTimeInterval(7 * 24 * 3600))
+    }
 
     var body: some View {
         NavigationStack {
@@ -178,8 +226,12 @@ struct SaveTripSheet: View {
                     if hasDates {
                         DatePicker("From", selection: $start, displayedComponents: .date)
                             .accessibilityIdentifier("saveTrip.start")
-                        DatePicker("To", selection: $end, in: start..., displayedComponents: .date)
-                            .accessibilityIdentifier("saveTrip.end")
+                        Toggle("End Date", isOn: $hasEnd)
+                            .accessibilityIdentifier("saveTrip.hasEnd")
+                        if hasEnd {
+                            DatePicker("To", selection: $end, in: start..., displayedComponents: .date)
+                                .accessibilityIdentifier("saveTrip.end")
+                        }
                     }
                 }
                 Section {
@@ -196,7 +248,7 @@ struct SaveTripSheet: View {
                     }
                 }
             }
-            .navigationTitle(destination.name)
+            .navigationTitle(destinationName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -215,9 +267,9 @@ struct SaveTripSheet: View {
     private func save() {
         Task {
             error = await model.saveTrip(
-                destinationSlug: destination.slug,
+                destinationSlug: destinationSlug,
                 start: hasDates ? start : nil,
-                end: hasDates ? max(start, end) : nil,
+                end: hasDates && hasEnd ? max(start, end) : nil,
                 notes: notes
             )
             if error == nil {

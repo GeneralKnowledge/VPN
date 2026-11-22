@@ -76,3 +76,16 @@ The Travel routes answer on the Travel host for the website, and, like eSIM, on 
 
 Trips are personal data: never log their contents.
 
+### Search with estimates
+
+Simulated estimates from our own model (TRAVEL-HUB.md, phase 1b), not partner prices. Every answer carries `{ estimate: true, currency: "GBP", note }`: show the note, and label every figure as an estimate. Money is in pence. A search the model can't estimate (a past date, an unknown airport, check-out before check-in) is a `400` whose `error` is a sentence to show.
+
+| Call | Does |
+|---|---|
+| `GET /api/travel/airports` | `{ origins: [airport], destinations: [airport] }`, each `{ code, city, name, countryCode, destinationSlug, lat, lon }` |
+| `GET /api/travel/search/flights?from&to&depart&return?&adults=1&cabin=economy&sort=best` | `{ options: [{ id, outbound: leg, inbound: leg \| null, pricePerPersonMinor, totalMinor, tags }] }`; a leg is `{ from, to, departs, arrives, arrivesDayOffset, durationMinutes, via }` in local times. `cabin`: economy, premium, business, first. `sort` and `tags`: best, cheapest, fastest |
+| `GET /api/travel/search/stays?city&checkIn&checkOut&guests=2&sort=cheapest` | `{ options: [{ id, kind, label, area, city, nightlyMinor, nights, rooms, totalMinor }] }`. `city` is a destination airport code. `sort`: cheapest, comfort |
+| `GET /api/travel/search/cars?city&pickUp&dropOff` | `{ options: [{ id, carClass, label, seats, bags, automatic, dailyMinor, days, totalMinor, pickUp }] }` |
+| `GET /api/travel/search/packages?from&to&depart&return&adults=2` | `{ flight, options: [{ id, stay, totalMinor }] }`: the cheapest estimated flight with each place to stay |
+| `GET /api/travel/price-map?from&month=YYYY-MM` | `{ from, month, pins: [{ code, city, countryCode, destinationSlug, lat, lon, pricePerPersonMinor }] }`: the cheapest estimated economy return per person in that month |
+

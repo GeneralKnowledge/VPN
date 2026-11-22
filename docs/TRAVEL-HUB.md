@@ -21,7 +21,7 @@ Travel Hub is the travel discovery and planning layer, in four parts:
 
 1. **eSIM and VPN stay separate products.** Each keeps its own catalogue, checkout, Stripe objects, provider, webhooks, order tables and support flow ([MULTI-PRODUCT.md](./MULTI-PRODUCT.md)). Travel Hub never sells either one itself: it links into the product's own checkout. Travel Hub has no checkout and no billing of its own.
 2. **The eSIM launch comes first.** Stripe test-mode orders, verified-payment provisioning and the eSIM tab in the iPhone app are a separate launch-critical stream. No Travel Hub phase may change eSIM checkout, webhooks or provisioning; where Travel Hub needs eSIM data it reads the public package list (`GET /api/esim/packages`).
-3. **A link is not an offer.** Travel Hub shows a price only when a partner gave it to us in a live result, with the time it was fetched. A referral link ("Search Japan hotels on Partner X") never carries a price, a "from £" figure we made up, or a ranking that implies we compared it. No "price comparison" wording until we actually have live comparable results.
+3. **A link is not an offer.** Travel Hub shows a partner's price only when that partner gave it to us in a live result, with the time it was fetched. Our own simulated estimates ([phase 1b](#phase-1b-search-with-simulated-estimates)) are the one other kind of figure: always labelled "estimate", never shown as a partner's price, never on a referral link. A referral link ("Search Japan hotels on Partner X") never carries a price, a "from £" figure we made up, or a ranking that implies we compared it. No "price comparison" wording until we actually have live comparable results.
 4. **Disclosure is visible, and commission never ranks results.** Every page with referral links says, near the links, that we may earn a commission. Sort orders are price, duration, rating or distance, never commission rate. Our own eSIM is labelled as ours.
 5. **Insurance is a referral only, after review.** See [Insurance](#insurance).
 6. **No new app slot.** The free Apple team allows 3 sideloaded apps and all 3 are used. Travel Hub goes into the existing iPhone app in `apps/ios` as tabs (see below), and into the existing Next.js app on the web.
@@ -137,6 +137,7 @@ Each phase is one or a few PRs, with its own tests, and ends with a working stat
 |---|---|---|---|
 | 0 | This plan | Merged | Review the open questions |
 | 1 | Travel host on the web, destination pages for the first ten countries from curated data, saved trips (web + API), Explore and Trips tabs in the iPhone app. Mock partner only | A signed-in person can open Japan, see our eSIM packages, save the trip on the web and see it on the phone | Nothing (destinations decided) |
+| 1b | Search in the iPhone app with simulated estimates: flights, stays, cars, flight + hotel, and a map of estimated prices from your home airport ([below](#phase-1b-search-with-simulated-estimates)) | A signed-in person searches Edinburgh to Barcelona for December, sees estimated options sorted by price or duration, opens the price map, and saves the search as a trip | Nothing |
 | 2 | `travel-partners` package, `/go/` redirect and click records, disclosure component, consent and policy page updates, first `link` partners (flights, hotels) | A real partner link works end to end in test, with a recorded click and visible disclosure | Programme sign-ups (he applies, or says go) |
 | 3 | eSIM in journeys: trip-aware package suggestions, "connectivity" item on a trip, activation guidance; reads the eSIM product, changes nothing in its checkout | Starting from a trip, a person reaches eSIM checkout in one tap | eSIM launch stream finished first |
 | 4 | Travel essentials: parking, transfers, car hire, activities as `link` partners | Two essentials categories live | Partner approvals |
@@ -145,6 +146,39 @@ Each phase is one or a few PRs, with its own tests, and ends with a working stat
 | Later | Trip-aware recommendations (below) | | |
 
 Phase 1 can start alongside the eSIM stream because it touches neither payments nor provisioning. Phases 3 onward wait for the eSIM launch. Phases are taken one at a time; phase 1 is the next milestone and needs no affiliate sign-ups or paid APIs.
+
+### Phase 1b: search with simulated estimates
+
+Reuben asked (2026-11-22) for the search experience of a travel app in our iPhone app now, "even if the results are simulated or limited": a search form for Flights, Stays, Cars and Flight + Hotel, result lists, and a map of the cheapest prices from his home airport. We have no partner feeds yet (phase 2 and 6), so phase 1b builds the whole experience on our own estimate model and swaps in real results later without changing the screens.
+
+**What the estimates are.** A deterministic model in `packages/travel-search`, not data from anyone:
+
+- Flights: great-circle distance between airports, a per-kilometre fare by distance band, a month (season) factor, a short-notice factor, a cabin factor and a small stable variation per route and date. Nonstop options only where the distance or the origin hub makes one plausible; otherwise one stop via a real hub airport. Durations come from distance at cruising speed plus a fixed allowance, and layovers. The same search always gives the same answer.
+- Stays: a nightly figure per country for a typical 3-star hotel, scaled by type (hostel to 5-star) and season.
+- Cars: a daily figure per country, scaled by car class.
+- Flight + Hotel: the cheapest estimated flight plus stays of each type.
+- Price map: for each destination airport, the cheapest estimated return in economy for the chosen month from the home airport.
+
+**How they are shown.**
+
+- Every result screen carries a banner: "Estimates, not live prices. Nothing here can be booked yet." Every figure reads "£147 est." (or "about £147" in VoiceOver).
+- No airline, hotel or rental company names, logos, review scores or "deal" badges: inventing those would present made-up offers as real ones. Options are described by what they are ("Nonstop", "1 stop via AMS", "4-star hotel, city centre", "Medium car, 5 seats").
+- Sort orders are Best (a fixed mix of price and duration, documented in the code), Cheapest and Fastest. Nothing else ranks results.
+- No booking or referral links in this phase. When partner links arrive (phase 2), a result can add "Check live prices at Partner X" beside the estimate. That link never carries our estimate, and the estimate never claims to be the partner's price.
+- Any result can become a trip: "Save as a Trip" pre-fills the destination and dates.
+
+**Where it lives.**
+
+| Piece | Where |
+|---|---|
+| Airports (UK origins, airports of the ten destinations, stop-over hubs) and the estimate model | `packages/travel-search` (pure TypeScript, unit tested) |
+| `GET /api/travel/airports`, `GET /api/travel/search/flights`, `/stays`, `/cars`, `/packages`, `GET /api/travel/price-map` | `apps/web/src/app/api/travel/`, signed-in app or Travel host, like the other travel routes |
+| Search records, formatting, the home airport (saved in the app's settings) | `apps/ios/rust/src/travel_search.rs` |
+| Explore: four search tiles, the price map (MapKit) and the destinations list; search forms and result screens | `apps/ios/Sources/AppHost/TravelSearchViews.swift` |
+
+Web search pages on the Travel host can follow on the same API; this phase is the app.
+
+**Later.** When a live adapter exists (phase 6), a route returns its results with `source` and `fetchedAt`, and the app shows those instead of the estimate for that search. Estimates stay as the fallback, still labelled.
 
 ### Longer term: trip-aware recommendations
 
