@@ -401,7 +401,10 @@ function rebuildUsersForOptionalEmail(sqlite: Database.Database) {
   if (!cols.length) return;
   const email = cols.find((c) => c.name === "email");
   const hasUsername = cols.some((c) => c.name === "username");
-  if (hasUsername && email && email.notnull === 0) return;
+  if (hasUsername && email && email.notnull === 0) {
+    // Already the new shape, unless the username column was only just added and is still empty.
+    if (!sqlite.prepare(`SELECT 1 FROM users WHERE username IS NULL LIMIT 1`).get()) return;
+  }
 
   // foreign_keys can't change inside a transaction, so switch it off first. The rebuild itself
   // is one transaction: a failure leaves the old table as it was, ready for another try.
