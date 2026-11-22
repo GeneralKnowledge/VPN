@@ -49,6 +49,17 @@ describe("travel host routing", () => {
     expect(middleware(req("/trips", "travel.localhost")).headers.get("x-middleware-rewrite")).toBe(
       "http://travel.localhost/travel/trips",
     );
+    expect(middleware(req("/go/lnk_0", "travel.localhost")).headers.get("x-middleware-rewrite")).toBe(
+      "http://travel.localhost/travel/go/lnk_0",
+    );
+    expect(middleware(req("/partner-preview", "travel.localhost")).headers.get("x-middleware-rewrite")).toBe(
+      "http://travel.localhost/travel/partner-preview",
+    );
+    // Referral links also work where there is no Travel hostname yet.
+    expect(middleware(req("/go/lnk_0", "vpn.localhost")).headers.get("x-middleware-rewrite")).toBe(
+      "http://vpn.localhost/travel/go/lnk_0",
+    );
+    expect(middleware(req("/go", "vpn.localhost")).headers.get("x-middleware-rewrite")).toBeNull();
   });
 
   it("sends admin to the VPN host and hides admin APIs", async () => {

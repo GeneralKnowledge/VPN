@@ -37,6 +37,21 @@ test("a destination page shows essentials, our eSIM plans and a budget", async (
   await expect(page.getByText("£1,000.00")).toBeVisible();
 });
 
+test("a destination's partner links say we may earn a commission and go through /go/", async ({ page }) => {
+  await page.goto(`${ORIGIN}/destinations/japan`);
+  await expect(page.getByRole("note")).toContainText(/may earn a commission/);
+  const flights = page.getByRole("list", { name: /Flights partners for Japan/ });
+  const link = flights.getByRole("link", { name: "Search flights to Japan on Test Partner" });
+  await expect(link).toHaveAttribute("href", /^\/go\/lnk_[0-9a-f]{24}$/);
+  await expect(link).toHaveAttribute("rel", /sponsored/);
+  await link.click();
+  await expect(page).toHaveURL(/\/partner-preview\?category=flights&destination=japan&subid=clk_[0-9a-f]{16}$/);
+  await expect(page.getByRole("heading", { name: /partner.s site would open/ })).toBeVisible();
+
+  const missing = await page.request.get(`${ORIGIN}/go/lnk_000000000000000000000000`, { maxRedirects: 0 });
+  expect(missing.status()).toBe(404);
+});
+
 test("travel host has no dashboard, and other hosts have no travel pages", async ({ page }) => {
   await page.goto(`${ORIGIN}/dashboard`);
   await expect(page).toHaveURL(`${ORIGIN}/`);

@@ -5,9 +5,11 @@ import { entryRequirementsUrl, getDestination, isReviewed } from "@northstar/des
 import { Badge } from "@/components/ui";
 import { getSessionUser } from "@/lib/auth";
 import { formatMoney } from "@/lib/format";
-import { appUrl } from "@/lib/providers";
+import { partnerLinksFor } from "@/lib/partner-links";
+import { appUrl, getDb, getTravelPartners } from "@/lib/providers";
 import { esimPlansUrl, packagesForDestination } from "@/lib/travel";
 import { BudgetEstimate } from "./budget-estimate";
+import { PartnerLinks } from "./partner-links";
 import { SaveTripForm } from "./save-trip-form";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -54,6 +56,13 @@ export default async function DestinationPage({ params }: Props) {
   const esimBase = appUrl("esim");
   const reviewed = isReviewed(destination);
   const user = await getSessionUser();
+  const partners = await partnerLinksFor(
+    getDb(),
+    getTravelPartners(),
+    destination,
+    "destination-page",
+    appUrl("travel"),
+  );
 
   const facts: [string, string][] = [
     ["Currency", `${destination.currency.name} (${destination.currency.code})`],
@@ -132,10 +141,14 @@ export default async function DestinationPage({ params }: Props) {
       </Section>
 
       <Section id="getting-there" title="Flights, stays and getting around">
-        <p className="text-sm text-muted">
-          Searches with travel partners are coming. We&apos;ll only show a price when a partner gives us a
-          live one, and we&apos;ll always say when we may earn a commission.
-        </p>
+        {partners.groups.length === 0 ? (
+          <p className="text-sm text-muted">
+            Searches with travel partners are coming. We&apos;ll only show a price when a partner gives us a
+            live one, and we&apos;ll always say when we may earn a commission.
+          </p>
+        ) : (
+          <PartnerLinks destinationName={destination.name} links={partners} />
+        )}
       </Section>
 
       <Section id="stay-safe-online" title="Stay safe online" ours>

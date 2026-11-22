@@ -231,6 +231,11 @@ public final class AppModel {
         return await fetch { core in try await core.priceMap(from: from, month: month) }
     }
 
+    /// A random trip; keep `seed` for one "Surprise me" and change rolls or locks.
+    public func randomTrip(criteria: TripCriteria, seed: String, rolls: TripRolls, locks: TripLocks) async -> RandomTrip? {
+        await fetch { core in try await core.randomTrip(criteria: criteria, seed: seed, rolls: rolls, locks: locks) }
+    }
+
     /// `YYYY-MM` for the month `date` falls in here.
     public static func isoMonth(_ date: Date) -> String {
         String(Self.isoDay(date).prefix(7))

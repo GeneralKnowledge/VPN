@@ -139,9 +139,36 @@ pub struct ApiDestinationEsim {
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiPartnerLink {
+    pub partner_name: String,
+    pub label: String,
+    pub url: String,
+    pub test: bool,
+    pub disclosure: String,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ApiPartnerGroup {
+    pub title: String,
+    pub links: Vec<ApiPartnerLink>,
+}
+
+/// Referral links to travel partners (phase 2). Older servers send none.
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Default)]
+pub struct ApiDestinationPartners {
+    #[serde(default)]
+    pub notice: String,
+    #[serde(default)]
+    pub groups: Vec<ApiPartnerGroup>,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ApiDestinationDetail {
     pub destination: ApiDestination,
     pub esim: ApiDestinationEsim,
+    #[serde(default)]
+    pub partners: ApiDestinationPartners,
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]

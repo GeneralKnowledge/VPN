@@ -33,7 +33,7 @@ const ESIM_MARKETING = new Set([
  */
 function travelRewrite(pathname: string): string | null {
   if (pathname === "/") return "/travel";
-  for (const prefix of ["/destinations", "/trips"]) {
+  for (const prefix of ["/destinations", "/trips", "/go", "/partner-preview"]) {
     if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return `/travel${pathname}`;
   }
   return null;
@@ -98,6 +98,14 @@ export function middleware(req: NextRequest) {
     pathname.includes(".")
   ) {
     return nextWithProduct(req, product);
+  }
+
+  // Referral links and the test partner's page work on every host, so a deployment without a
+  // Travel hostname yet (a test server, the app's API host) can still follow them.
+  if (product !== "travel" && (pathname.startsWith("/go/") || pathname === "/partner-preview")) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/travel${pathname}`;
+    return rewriteWithProduct(req, product, url);
   }
 
   if (product === "travel") {

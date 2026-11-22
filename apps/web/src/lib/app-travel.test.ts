@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDb, migrate, users } from "@northstar/db";
 import { MockEsimProvider } from "@northstar/esim-provider";
+import { createPartnerAdapters } from "@northstar/travel-partners";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -15,6 +16,7 @@ vi.mock("@/lib/providers", () => ({
   getEnv: () => ({ AUTH_SECRET: "test-secret-test-secret-test-secret" }),
   isProduction: () => false,
   getEsimProvider: () => new MockEsimProvider(),
+  getTravelPartners: () => createPartnerAdapters(["mock"], { travelBaseUrl: "https://travel.example.com" }),
   appUrl: (p: string) => `https://${p}.example.com`,
   track: () => undefined,
 }));
@@ -37,6 +39,7 @@ import { GET as staysRoute } from "@/app/api/travel/search/stays/route";
 import { GET as carsRoute } from "@/app/api/travel/search/cars/route";
 import { GET as packagesRoute } from "@/app/api/travel/search/packages/route";
 import { GET as priceMapRoute } from "@/app/api/travel/price-map/route";
+import { GET as randomTripRoute } from "@/app/api/travel/random-trip/route";
 import { addDays, todayInUk } from "@northstar/travel-search";
 
 function body(url: string, method: string, data: unknown) {
@@ -94,11 +97,18 @@ describe("Travel API from the native app", () => {
     const japan = (await (await destination(new Request("http://x"), params({ slug: "japan" }))).json()) as {
       destination: { countryCode: string; entryRequirementsUrl: string; reviewed: boolean };
       esim: { available: boolean; packages: unknown[]; plansUrl: string };
+      partners: { notice: string; groups: Array<{ category: string; links: Array<{ url: string; label: string; test: boolean }> }> };
     };
     expect(japan.destination.countryCode).toBe("JP");
     expect(japan.destination.reviewed).toBe(false);
     expect(japan.esim.packages.length).toBeGreaterThan(0);
     expect(japan.esim.plansUrl).toBe("https://esim.example.com/pricing?country=JP");
+    expect(japan.partners.notice).toMatch(/commission/);
+    expect(japan.partners.groups.map((g) => g.category)).toEqual(["flights", "stays", "cars"]);
+    const flight = japan.partners.groups[0]!.links[0]!;
+    expect(flight.url).toMatch(/^https:\/\/travel\.example\.com\/go\/lnk_[0-9a-f]{24}$/);
+    expect(flight.label).toBe("Search flights to Japan on Test Partner");
+    expect(flight.test).toBe(true);
 
     expect((await destination(new Request("http://x"), params({ slug: "atlantis" }))).status).toBe(404);
   });
@@ -196,6 +206,34 @@ describe("Travel API from the native app", () => {
       )).json()) as { options: Array<{ pricePerPersonMinor: number; totalMinor: number; inbound: unknown }> };
       expect(flights.options[0]!.totalMinor).toBe(flights.options[0]!.pricePerPersonMinor * 2);
       expect(flights.options[0]!.inbound).not.toBeNull();
+    });
+
+    it("plans a random trip with partner links for things to do", async () => {
+      expect((await randomTripRoute(get("/api/travel/random-trip?from=EDI&seed=a"))).status).toBe(404);
+      await signedInAs("alice");
+      const month = depart.slice(0, 7);
+      const res = await randomTripRoute(get(`/api/travel/random-trip?from=EDI&region=europe&month=${month}&budget=900&seed=a1`));
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as {
+        estimate: boolean;
+        trip: { depart: string; perPersonMinor: number; current: { where: string }; upgrades: unknown[] };
+        thingsToDo: { notice: string; links: Array<{ label: string; url: string }> };
+      };
+      expect(json.estimate).toBe(true);
+      expect(json.trip.depart.startsWith(month)).toBe(true);
+      expect(json.trip.perPersonMinor).toBeLessThanOrEqual(900_00);
+      expect(json.thingsToDo.notice).toMatch(/commission/);
+      expect(json.thingsToDo.links[0]!.label).toMatch(/^Search things to do in .+ on Test Partner$/);
+      expect(json.thingsToDo.links[0]!.url).toMatch(/^https:\/\/travel\.example\.com\/go\/lnk_/);
+
+      const locked = await randomTripRoute(
+        get(`/api/travel/random-trip?from=EDI&region=europe&month=${month}&budget=900&seed=a1&rollWhere=5&lockWhere=${json.trip.current.where}`),
+      );
+      expect(((await locked.json()) as { trip: { current: { where: string } } }).trip.current.where).toBe(json.trip.current.where);
+
+      const tooLow = await randomTripRoute(get(`/api/travel/random-trip?from=EDI&region=asia&budget=50&seed=a1`));
+      expect(tooLow.status).toBe(400);
+      expect(((await tooLow.json()) as { error: string }).error).toMatch(/^Nothing fits £50 per person/);
     });
 
     it("explains a search it can't estimate", async () => {
