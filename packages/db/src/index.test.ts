@@ -39,3 +39,41 @@ describe("payments.product backfill", () => {
     ]);
   });
 });
+
+describe("users from before usernames", () => {
+  it("migrates a database whose users table has no username column", async () => {
+    const Database = (await import("better-sqlite3")).default;
+    const fsm = await import("node:fs");
+    const osm = await import("node:os");
+    const pathm = await import("node:path");
+    const { migrate: run } = await import("./migrate");
+    const dir = fsm.mkdtempSync(pathm.join(osm.tmpdir(), "northstar-username-"));
+    const file = pathm.join(dir, "old.db");
+    process.env.NORTHSTAR_ROOT = dir;
+    // The users table as it was before usernames: email required, no username.
+    const raw = new Database(file);
+    raw.exec(`CREATE TABLE users (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      email_verified_at INTEGER,
+      password_hash TEXT NOT NULL,
+      name TEXT,
+      role TEXT NOT NULL DEFAULT 'customer',
+      lifecycle TEXT NOT NULL DEFAULT 'customer',
+      referral_code TEXT NOT NULL,
+      referred_by_user_id TEXT,
+      deleted_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO users (id, email, password_hash, referral_code) VALUES ('u1', 'Jo.Smith@example.com', 'x', 'R1');`);
+    raw.close();
+    run(`file:${file}`);
+    const check = new Database(file, { readonly: true });
+    const user = check.prepare(`SELECT username, email FROM users WHERE id = 'u1'`).get();
+    const index = check.prepare(`SELECT name FROM sqlite_master WHERE name = 'users_username_uidx'`).get();
+    check.close();
+    expect(user).toEqual({ username: "jo_smith", email: "Jo.Smith@example.com" });
+    expect(index).toEqual({ name: "users_username_uidx" });
+  });
+});

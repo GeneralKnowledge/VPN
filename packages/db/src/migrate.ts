@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
   updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
 );
-CREATE UNIQUE INDEX IF NOT EXISTS users_username_uidx ON users(username);
+-- users_username_uidx is created after ALTERS: older databases have no username column yet.
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_uidx ON users(email);
 CREATE UNIQUE INDEX IF NOT EXISTS users_referral_uidx ON users(referral_code);
 CREATE INDEX IF NOT EXISTS users_role_idx ON users(role);
@@ -463,6 +463,7 @@ export function migrate(databaseUrl = process.env.DATABASE_URL ?? "file:./data/n
       err instanceof Error ? err.message : err,
     );
   }
+  sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_username_uidx ON users(username)`);
   try {
     sqlite.exec(
       `CREATE UNIQUE INDEX IF NOT EXISTS checkout_idempotency_uidx ON checkout_sessions(idempotency_key)`,
