@@ -39,3 +39,62 @@ describe("payments.product backfill", () => {
     ]);
   });
 });
+
+describe("users from before usernames", () => {
+  it("migrates a database whose users table has no username column", async () => {
+    const Database = (await import("better-sqlite3")).default;
+    const fsm = await import("node:fs");
+    const osm = await import("node:os");
+    const pathm = await import("node:path");
+    const { migrate: run } = await import("./migrate");
+    const dir = fsm.mkdtempSync(pathm.join(osm.tmpdir(), "northstar-username-"));
+    const file = pathm.join(dir, "old.db");
+    process.env.NORTHSTAR_ROOT = dir;
+    // The users table as it was before usernames: email required, no username.
+    const raw = new Database(file);
+    raw.exec(`CREATE TABLE users (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      email_verified_at INTEGER,
+      password_hash TEXT NOT NULL,
+      name TEXT,
+      role TEXT NOT NULL DEFAULT 'customer',
+      lifecycle TEXT NOT NULL DEFAULT 'customer',
+      referral_code TEXT NOT NULL,
+      referred_by_user_id TEXT,
+      deleted_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO users (id, email, password_hash, referral_code, created_at) VALUES
+      ('u1', 'Jo.Smith@example.com', 'x', 'R1', 1),
+      ('u2', 'jo.smith@example.org', 'x', 'R2', 2),
+      ('u3', 'jo_smith_u2@example.net', 'x', 'R3', 3);`);
+    raw.close();
+    run(`file:${file}`);
+    const check = new Database(file, { readonly: true });
+    const rows = check.prepare(`SELECT id, username, email FROM users ORDER BY id`).all();
+    const index = check.prepare(`SELECT name FROM sqlite_master WHERE name = 'users_username_uidx'`).get();
+    check.close();
+    // Two emails with the same local part still get distinct usernames, and a generated name
+    // never takes one that another user's email already gives (u3's "jo_smith_u2").
+    expect(rows).toEqual([
+      { id: "u1", username: "jo_smith", email: "Jo.Smith@example.com" },
+      { id: "u2", username: "jo_smith_u2_2", email: "jo.smith@example.org" },
+      { id: "u3", username: "jo_smith_u2", email: "jo_smith_u2@example.net" },
+    ]);
+    expect(index).toEqual({ name: "users_username_uidx" });
+  });
+});
+
+describe("legacyUsernames", () => {
+  it("keeps a username someone chose, even when an earlier user's email gives the same name", async () => {
+    const { legacyUsernames } = await import("./migrate");
+    const names = legacyUsernames([
+      { id: "u1", username: null, email: "bob@example.com" },
+      { id: "u2", username: "bob", email: "robert@example.org" },
+    ]);
+    expect(names.get("u2")).toBe("bob");
+    expect(names.get("u1")).toBe("bob_u1");
+  });
+});

@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type Database from "better-sqlite3";
 import { createDb } from "./client";
 
 const SQL = `
@@ -20,7 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
   updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
 );
-CREATE UNIQUE INDEX IF NOT EXISTS users_username_uidx ON users(username);
+-- users_username_uidx is created after ALTERS: older databases have no username column yet.
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_uidx ON users(email);
 CREATE UNIQUE INDEX IF NOT EXISTS users_referral_uidx ON users(referral_code);
 CREATE INDEX IF NOT EXISTS users_role_idx ON users(role);
@@ -365,18 +366,57 @@ const ALTERS = [
  * Older DBs created users.email as NOT NULL without username. Rebuild once so email can be
  * null (Diamond/Iron) and username is required + unique.
  */
-function rebuildUsersForOptionalEmail(sqlite: {
-  exec: (sql: string) => void;
-  prepare: (sql: string) => { all: () => unknown[] };
-}) {
+/**
+ * A unique username for each user: their own, else their email's local part, else their id. When
+ * a name is taken, later users (by creation time) get `<name>_<id>`, then a counter if even that
+ * is taken.
+ */
+export function legacyUsernames(
+  rows: ReadonlyArray<{ id: string; username: string | null; email: string | null }>,
+): Map<string, string> {
+  const base = (r: (typeof rows)[number]) =>
+    r.username?.trim() ||
+    (r.email ?? "").split("@")[0]!.replace(/\./g, "_").toLowerCase() ||
+    r.id;
+  // Every base name is reserved, so a generated name never takes one. Users who already chose a
+  // username go first, so one derived from an email can't take their login name.
+  const taken = new Set(rows.map(base));
+  const claimed = new Set<string>();
+  const names = new Map<string, string>();
+  const chosen = (r: (typeof rows)[number]) => Boolean(r.username?.trim());
+  for (const row of [...rows.filter(chosen), ...rows.filter((r) => !chosen(r))]) {
+    let name = base(row);
+    if (claimed.has(name)) {
+      name = `${base(row)}_${row.id}`;
+      for (let n = 2; taken.has(name) || claimed.has(name); n++) name = `${base(row)}_${row.id}_${n}`;
+    }
+    claimed.add(name);
+    names.set(row.id, name);
+  }
+  return names;
+}
+
+function rebuildUsersForOptionalEmail(sqlite: Database.Database) {
   const cols = sqlite.prepare(`pragma table_info(users)`).all() as Array<{ name: string; notnull: number }>;
   if (!cols.length) return;
   const email = cols.find((c) => c.name === "email");
-  const hasUsername = cols.some((c) => c.name === "username");
-  if (hasUsername && email && email.notnull === 0) return;
+  // Already the new shape only when username is NOT NULL: a column the ALTERS just added is
+  // nullable (and empty), even on an empty table.
+  const username = cols.find((c) => c.name === "username");
+  if (username && username.notnull === 1 && email && email.notnull === 0) return;
 
+  // foreign_keys can't change inside a transaction, so switch it off first. The rebuild itself
+  // is one transaction: a failure leaves the old table as it was, ready for another try.
   sqlite.exec(`PRAGMA foreign_keys = OFF;`);
-  sqlite.exec(`
+  sqlite.exec(`BEGIN`);
+  try {
+    const rows = sqlite
+      .prepare(`SELECT id, ${username ? "username" : "NULL AS username"}, email FROM users ORDER BY created_at, id`)
+      .all() as Array<{ id: string; username: string | null; email: string | null }>;
+    sqlite.exec(`CREATE TEMP TABLE legacy_usernames (id TEXT PRIMARY KEY, username TEXT NOT NULL)`);
+    const add = sqlite.prepare(`INSERT INTO legacy_usernames (id, username) VALUES (?, ?)`);
+    for (const [id, name] of legacyUsernames(rows)) add.run(id, name);
+    sqlite.exec(`
     CREATE TABLE users_new (
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL,
@@ -401,11 +441,7 @@ function rebuildUsersForOptionalEmail(sqlite: {
     )
     SELECT
       id,
-      COALESCE(
-        NULLIF(username, ''),
-        lower(replace(substr(email, 1, instr(email || '@', '@') - 1), '.', '_')),
-        id
-      ),
+      (SELECT username FROM legacy_usernames WHERE legacy_usernames.id = users.id),
       email,
       email_verified_at,
       password_hash,
@@ -421,13 +457,20 @@ function rebuildUsersForOptionalEmail(sqlite: {
       updated_at
     FROM users;
     DROP TABLE users;
+    DROP TABLE temp.legacy_usernames;
     ALTER TABLE users_new RENAME TO users;
     CREATE UNIQUE INDEX IF NOT EXISTS users_username_uidx ON users(username);
     CREATE UNIQUE INDEX IF NOT EXISTS users_email_uidx ON users(email);
     CREATE UNIQUE INDEX IF NOT EXISTS users_referral_uidx ON users(referral_code);
     CREATE INDEX IF NOT EXISTS users_role_idx ON users(role);
   `);
-  sqlite.exec(`PRAGMA foreign_keys = ON;`);
+    sqlite.exec(`COMMIT`);
+  } catch (err) {
+    sqlite.exec(`ROLLBACK`);
+    throw err;
+  } finally {
+    sqlite.exec(`PRAGMA foreign_keys = ON;`);
+  }
 }
 
 function monorepoRoot(): string {
@@ -458,11 +501,15 @@ export function migrate(databaseUrl = process.env.DATABASE_URL ?? "file:./data/n
   try {
     rebuildUsersForOptionalEmail(sqlite);
   } catch (err) {
-    console.warn(
+    // The rebuild rolled back. Stop here: carrying on would leave users without usernames.
+    console.error(
       "[db] could not rebuild users for optional email / username",
       err instanceof Error ? err.message : err,
     );
+    void close();
+    throw err;
   }
+  sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_username_uidx ON users(username)`);
   try {
     sqlite.exec(
       `CREATE UNIQUE INDEX IF NOT EXISTS checkout_idempotency_uidx ON checkout_sessions(idempotency_key)`,
