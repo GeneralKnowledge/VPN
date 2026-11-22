@@ -117,6 +117,65 @@ public final class AppModel {
         await perform { core in try await core.deleteTrip(tripId: trip.id) }
     }
 
+    // MARK: eSIM (its own product and checkout, separate from the VPN)
+
+    public func loadEsimPackages() async {
+        await perform { core in try await core.loadEsimPackages() }
+    }
+
+    public func loadEsimOrders() async {
+        guard signedIn else { return }
+        await perform { core in try await core.loadEsimOrders() }
+    }
+
+    /// The packages for one country, cheapest first.
+    public func esimPackages(country code: String) -> [EsimPackage] {
+        home.esimPackages.filter { $0.countryCode == code }
+    }
+
+    /// Starts buying a package: the server sets the price and returns the
+    /// checkout to open, or nil with `errorMessage` set.
+    public func buyEsim(_ plan: EsimPackage) async -> EsimCheckout? {
+        await fetch { core in try await core.buyEsim(packageCode: plan.code) }
+    }
+
+    /// Development servers only (mock billing): completes a test payment.
+    public func completeTestPayment(_ checkout: EsimCheckout) async {
+        await perform { core in try await core.completeTestPayment(sessionId: checkout.sessionId) }
+    }
+
+    /// True while a watch for order updates runs, so only one does.
+    private var watchingOrders = false
+
+    /// After a payment, checks the orders every few seconds for up to two
+    /// minutes while one is still being paid for or made.
+    public func watchEsimOrders() async {
+        guard !watchingOrders else { return }
+        watchingOrders = true
+        defer { watchingOrders = false }
+        await loadEsimOrders()
+        for _ in 0..<24 {
+            guard home.esimOrders.contains(where: \.inProgress) else { return }
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            if Task.isCancelled { return }
+            do {
+                home = try await core.loadEsimOrders()
+            } catch {
+                // Quiet: the list stays as it was and pulling down retries.
+                return
+            }
+        }
+    }
+
+    /// This device's model identifier, such as `iPhone16,2`.
+    public static func modelIdentifier() -> String {
+        var info = utsname()
+        uname(&info)
+        return withUnsafeBytes(of: &info.machine) { raw in
+            String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+        }
+    }
+
     // MARK: Travel search (simulated estimates)
 
     /// Airports for the search forms; nil until `loadAirports` answers.

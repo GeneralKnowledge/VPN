@@ -2,7 +2,7 @@
 //! there, and the customer's saved trips (docs/TRAVEL-HUB.md).
 //!
 //! Travel sells nothing. eSIM plans shown here are read from the eSIM
-//! catalogue; buying one happens on the eSIM site (or the eSIM tab, later),
+//! catalogue; buying one happens in the eSIM tab ([`crate::esim`]) or on the eSIM site,
 //! with its own checkout. Trips are personal data: never log their contents.
 
 use crate::api::{ApiDestinationDetail, ApiEsimPackage, ApiTrip};
