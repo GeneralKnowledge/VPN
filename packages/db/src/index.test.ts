@@ -68,17 +68,20 @@ describe("users from before usernames", () => {
     );
     INSERT INTO users (id, email, password_hash, referral_code, created_at) VALUES
       ('u1', 'Jo.Smith@example.com', 'x', 'R1', 1),
-      ('u2', 'jo.smith@example.org', 'x', 'R2', 2);`);
+      ('u2', 'jo.smith@example.org', 'x', 'R2', 2),
+      ('u3', 'jo_smith_u2@example.net', 'x', 'R3', 3);`);
     raw.close();
     run(`file:${file}`);
     const check = new Database(file, { readonly: true });
     const rows = check.prepare(`SELECT id, username, email FROM users ORDER BY id`).all();
     const index = check.prepare(`SELECT name FROM sqlite_master WHERE name = 'users_username_uidx'`).get();
     check.close();
-    // Two emails with the same local part still get distinct usernames.
+    // Two emails with the same local part still get distinct usernames, and a generated name
+    // never takes one that another user's email already gives (u3's "jo_smith_u2").
     expect(rows).toEqual([
       { id: "u1", username: "jo_smith", email: "Jo.Smith@example.com" },
-      { id: "u2", username: "jo_smith_u2", email: "jo.smith@example.org" },
+      { id: "u2", username: "jo_smith_u2_2", email: "jo.smith@example.org" },
+      { id: "u3", username: "jo_smith_u2", email: "jo_smith_u2@example.net" },
     ]);
     expect(index).toEqual({ name: "users_username_uidx" });
   });

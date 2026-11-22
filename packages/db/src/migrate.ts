@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type Database from "better-sqlite3";
 import { createDb } from "./client";
 
 const SQL = `
@@ -365,10 +366,35 @@ const ALTERS = [
  * Older DBs created users.email as NOT NULL without username. Rebuild once so email can be
  * null (Diamond/Iron) and username is required + unique.
  */
-function rebuildUsersForOptionalEmail(sqlite: {
-  exec: (sql: string) => void;
-  prepare: (sql: string) => { all: () => unknown[] };
-}) {
+/**
+ * A unique username for each user: their own, else their email's local part, else their id. When
+ * a name is taken, later users (by creation time) get `<name>_<id>`, then a counter if even that
+ * is taken.
+ */
+export function legacyUsernames(
+  rows: ReadonlyArray<{ id: string; username: string | null; email: string | null }>,
+): Map<string, string> {
+  const base = (r: (typeof rows)[number]) =>
+    r.username?.trim() ||
+    (r.email ?? "").split("@")[0]!.replace(/\./g, "_").toLowerCase() ||
+    r.id;
+  // Names users already have are claimed first, so a generated name never takes one.
+  const taken = new Set(rows.map(base));
+  const claimed = new Set<string>();
+  const names = new Map<string, string>();
+  for (const row of rows) {
+    let name = base(row);
+    if (claimed.has(name)) {
+      name = `${base(row)}_${row.id}`;
+      for (let n = 2; taken.has(name) || claimed.has(name); n++) name = `${base(row)}_${row.id}_${n}`;
+    }
+    claimed.add(name);
+    names.set(row.id, name);
+  }
+  return names;
+}
+
+function rebuildUsersForOptionalEmail(sqlite: Database.Database) {
   const cols = sqlite.prepare(`pragma table_info(users)`).all() as Array<{ name: string; notnull: number }>;
   if (!cols.length) return;
   const email = cols.find((c) => c.name === "email");
@@ -380,6 +406,12 @@ function rebuildUsersForOptionalEmail(sqlite: {
   sqlite.exec(`PRAGMA foreign_keys = OFF;`);
   sqlite.exec(`BEGIN`);
   try {
+    const rows = sqlite
+      .prepare(`SELECT id, ${hasUsername ? "username" : "NULL AS username"}, email FROM users ORDER BY created_at, id`)
+      .all() as Array<{ id: string; username: string | null; email: string | null }>;
+    sqlite.exec(`CREATE TEMP TABLE legacy_usernames (id TEXT PRIMARY KEY, username TEXT NOT NULL)`);
+    const add = sqlite.prepare(`INSERT INTO legacy_usernames (id, username) VALUES (?, ?)`);
+    for (const [id, name] of legacyUsernames(rows)) add.run(id, name);
     sqlite.exec(`
     CREATE TABLE users_new (
       id TEXT PRIMARY KEY,
@@ -405,9 +437,7 @@ function rebuildUsersForOptionalEmail(sqlite: {
     )
     SELECT
       id,
-      -- Two emails can share a local part (jo@a.com, jo@b.org): the first keeps it, later ones
-      -- add their id, which is unique.
-      CASE WHEN row_number() OVER (PARTITION BY base ORDER BY created_at, id) = 1 THEN base ELSE base || '_' || id END,
+      (SELECT username FROM legacy_usernames WHERE legacy_usernames.id = users.id),
       email,
       email_verified_at,
       password_hash,
@@ -421,15 +451,9 @@ function rebuildUsersForOptionalEmail(sqlite: {
       deleted_at,
       created_at,
       updated_at
-    FROM (
-      SELECT *, COALESCE(
-        NULLIF(username, ''),
-        NULLIF(lower(replace(substr(email, 1, instr(email || '@', '@') - 1), '.', '_')), ''),
-        id
-      ) AS base
-      FROM users
-    );
+    FROM users;
     DROP TABLE users;
+    DROP TABLE temp.legacy_usernames;
     ALTER TABLE users_new RENAME TO users;
     CREATE UNIQUE INDEX IF NOT EXISTS users_username_uidx ON users(username);
     CREATE UNIQUE INDEX IF NOT EXISTS users_email_uidx ON users(email);
@@ -473,10 +497,13 @@ export function migrate(databaseUrl = process.env.DATABASE_URL ?? "file:./data/n
   try {
     rebuildUsersForOptionalEmail(sqlite);
   } catch (err) {
-    console.warn(
+    // The rebuild rolled back. Stop here: carrying on would leave users without usernames.
+    console.error(
       "[db] could not rebuild users for optional email / username",
       err instanceof Error ? err.message : err,
     );
+    void close();
+    throw err;
   }
   sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_username_uidx ON users(username)`);
   try {
