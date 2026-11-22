@@ -33,6 +33,7 @@ import { GET as destinations } from "@/app/api/travel/destinations/route";
 import { GET as destination } from "@/app/api/travel/destinations/[slug]/route";
 import { GET as listTrips, POST as createTrip } from "@/app/api/travel/trips/route";
 import { DELETE as deleteTrip, GET as getTrip, PATCH as patchTrip } from "@/app/api/travel/trips/[id]/route";
+import { GET as tripConnectivity } from "@/app/api/travel/trips/[id]/connectivity/route";
 import { GET as airportsRoute } from "@/app/api/travel/airports/route";
 import { GET as flightsRoute } from "@/app/api/travel/search/flights/route";
 import { GET as staysRoute } from "@/app/api/travel/search/stays/route";
@@ -104,7 +105,14 @@ describe("Travel API from the native app", () => {
     expect(japan.esim.packages.length).toBeGreaterThan(0);
     expect(japan.esim.plansUrl).toBe("https://esim.example.com/pricing?country=JP");
     expect(japan.partners.notice).toMatch(/commission/);
-    expect(japan.partners.groups.map((g) => g.category)).toEqual(["flights", "stays", "cars"]);
+    expect(japan.partners.groups.map((g) => g.category)).toEqual([
+      "flights",
+      "stays",
+      "cars",
+      "transfers",
+      "activities",
+      "parking",
+    ]);
     const flight = japan.partners.groups[0]!.links[0]!;
     expect(flight.url).toMatch(/^https:\/\/travel\.example\.com\/go\/lnk_[0-9a-f]{24}$/);
     expect(flight.label).toBe("Search flights to Japan on Test Partner");
@@ -137,6 +145,46 @@ describe("Travel API from the native app", () => {
 
     expect((await deleteTrip(new Request("http://x"), params({ id: trip.id }))).status).toBe(200);
     expect((await getTrip(new Request("http://x"), params({ id: trip.id }))).status).toBe(404);
+  });
+
+  it("suggests an eSIM for a saved trip's dates, and only to its owner", async () => {
+    await signedInAs("alice");
+    const created = await createTrip(
+      body("http://x/api/travel/trips", "POST", { destinationSlug: "usa", startDate: "2027-05-01", endDate: "2027-05-06" }),
+    );
+    const { trip } = (await created.json()) as { trip: { id: string } };
+    const res = await tripConnectivity(new Request("http://x"), params({ id: trip.id }));
+    expect(res.status).toBe(200);
+    const { connectivity } = (await res.json()) as {
+      connectivity: {
+        available: boolean;
+        tripDays: number;
+        covers: boolean;
+        suggested: { code: string; price: number } | null;
+        others: Array<{ code: string }>;
+        plansUrl: string;
+        steps: string[];
+      };
+    };
+    expect(connectivity).toMatchObject({ available: true, tripDays: 6, covers: true });
+    expect(connectivity.suggested?.code).toBe("MOCK-US-1GB-7D");
+    expect(connectivity.others.map((p) => p.code)).toContain("MOCK-US-5GB-30D");
+    expect(connectivity.plansUrl).toBe("https://esim.example.com/pricing?country=US");
+    expect(connectivity.steps.length).toBeGreaterThan(0);
+
+    // Spain's only plan is the Europe one: the link must open the plans page where it's listed.
+    const spain = await createTrip(
+      body("http://x/api/travel/trips", "POST", { destinationSlug: "spain", startDate: "2027-06-01", endDate: "2027-06-10" }),
+    );
+    const spainTrip = ((await spain.json()) as { trip: { id: string } }).trip;
+    const eu = (await (await tripConnectivity(new Request("http://x"), params({ id: spainTrip.id }))).json()) as {
+      connectivity: { suggested: { code: string } | null; plansUrl: string };
+    };
+    expect(eu.connectivity.suggested?.code).toBe("MOCK-EU-5GB-30D");
+    expect(eu.connectivity.plansUrl).toBe("https://esim.example.com/pricing?country=EU");
+
+    await signedInAs("bob");
+    expect((await tripConnectivity(new Request("http://x"), params({ id: trip.id }))).status).toBe(404);
   });
 
   it("refuses bad input", async () => {

@@ -30,6 +30,12 @@ export default function TravelHomePage() {
               <Link href="/destinations">
                 <Button size="lg">Browse destinations</Button>
               </Link>
+              <Link
+                href="/search"
+                className="inline-flex h-12 items-center justify-center rounded-md px-6 text-base font-medium text-foreground transition hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sea"
+              >
+                Search with estimates
+              </Link>
             </div>
           </div>
         </div>

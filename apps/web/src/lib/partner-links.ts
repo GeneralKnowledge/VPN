@@ -16,8 +16,18 @@ import { newId } from "./utils";
 /** Raw click records are deleted after this many days (docs/TRAVEL-HUB.md, referral tracking). */
 export const CLICK_RETENTION_DAYS = 90;
 
-/** The categories a destination shows, in this order. */
-export const DESTINATION_CATEGORIES: readonly PartnerCategory[] = ["flights", "stays", "cars"];
+/**
+ * The categories a destination shows, in this order: getting there and staying first, then the
+ * travel essentials (phase 4: airport transfers, things to do, UK airport parking).
+ */
+export const DESTINATION_CATEGORIES: readonly PartnerCategory[] = [
+  "flights",
+  "stays",
+  "cars",
+  "transfers",
+  "activities",
+  "parking",
+];
 
 export type PartnerLink = {
   id: string;

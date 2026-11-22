@@ -94,6 +94,11 @@ public final class AppModel {
         }
     }
 
+    /// A saved trip's "Stay connected" item, or nil with `errorMessage` set.
+    public func tripConnectivity(_ trip: Trip) async -> TripConnectivity? {
+        await fetch { core in try await core.tripConnectivity(tripId: trip.id) }
+    }
+
     /// Saves a trip. Returns nil when it worked, or the message to show in
     /// the sheet (which stays open so nothing typed is lost).
     public func saveTrip(destinationSlug: String, start: Date?, end: Date?, notes: String) async -> String? {

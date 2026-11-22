@@ -140,7 +140,7 @@ export default async function DestinationPage({ params }: Props) {
         </p>
       </Section>
 
-      <Section id="getting-there" title="Flights, stays and getting around">
+      <Section id="getting-there" title="Flights, stays and travel essentials">
         {partners.groups.length === 0 ? (
           <p className="text-sm text-muted">
             Searches with travel partners are coming. We&apos;ll only show a price when a partner gives us a

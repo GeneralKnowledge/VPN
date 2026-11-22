@@ -1,6 +1,6 @@
 # Travel Hub plan
 
-Status: phases 1 and 1b are done. Phase 2 is being built against a test partner only ([Phase 2 as built](#phase-2-as-built)); no affiliate programme has been applied to or contacted. Agreed direction from Reuben, 2026-11-17; names are provisional.
+Status: phases 1, 1b and 1c are done. Phase 2 runs against a test partner only ([Phase 2 as built](#phase-2-as-built)); no affiliate programme has been applied to or contacted. Phase 3's trip-aware eSIM suggestion is built ([Phase 3 as built](#phase-3-as-built)), and phase 4's essentials run on the test partner ([Phase 4 as built](#phase-4-as-built)). Agreed direction from Reuben, 2026-11-17; names are provisional.
 
 ## In one paragraph
 
@@ -177,7 +177,7 @@ Reuben asked (2026-11-22) for the search experience of a travel app in our iPhon
 | Search records, formatting, the home airport (saved in the app's settings) | `apps/ios/rust/src/travel_search.rs` |
 | Explore: four search tiles, the price map (MapKit) and the destinations list; search forms and result screens | `apps/ios/Sources/AppHost/TravelSearchViews.swift` |
 
-Web search pages on the Travel host can follow on the same API; this phase is the app.
+**On the web** (added 2026-11-22): `/search` on the Travel host has the same five searches (flights, stays, cars, flight + hotel, and Surprise me with re-roll links), run on the server from the same estimate model as the app (`apps/web/src/lib/web-search.ts`). It's a plain GET form, so a search is a shareable link. Every figure reads "est." under the estimate note; there's no price map on the web yet.
 
 **Later.** When a live adapter exists (phase 6), a route returns its results with `source` and `fetchedAt`, and the app shows those instead of the estimate for that search. Estimates stay as the fallback, still labelled.
 
@@ -215,11 +215,25 @@ Reuben said go on 2026-11-22 ("Do whatever you can do now") for the parts that n
 - **Tables:** `outbound_links` (one row per partner, category, destination and placement, with the URL the adapter built; its id is a hash of those public facts, so a page view doesn't add rows) and `partner_events` (`outbound_click` with a random click id; no user, IP address, user agent or trip).
 - **`/go/<id>` on the Travel host:** records the click and redirects to the stored URL with the click id added. It reads nothing else from the request, so it isn't an open redirect. An unknown link, or a partner that is paused or switched off, gets a plain "This link isn't available" page.
 - **Retention:** the reconcile job (`/api/reconcile`, which cron already calls) deletes click records older than 90 days.
-- **Disclosure:** each destination page's "Flights, stays and getting around" section lists the links with the commission notice right above them and each partner's own disclosure below. The test partner is badged "Test partner". The destination API returns the same links for the app, which lists them under "Book with partners" on each destination screen and opens them in Safari.
+- **Disclosure:** each destination page's "Flights, stays and travel essentials" section lists the links with the commission notice right above them and each partner's own disclosure below. The test partner is badged "Test partner". The destination API returns the same links for the app, which lists them under "Book with partners" on each destination screen and opens them in Safari.
 - **Consent, per mechanism:** our own click record is first-party, server-side and sets no cookie, so it needs no consent under PECR (stated on the cookies page). We load no partner scripts or pixels. A partner's cookies are set on the partner's own site under its own notice. Before each real partner goes live, check its programme for anything that would run on our pages; that would need a consent choice first.
 - **Policy pages:** the draft privacy and cookie pages say what a click record holds and for how long. They're still drafts for review before launch.
 
 Still to do before a real partner: the programme sign-ups (Travelpayouts first), one adapter per network, reading each programme's terms, and a person reviewing the privacy and cookie wording.
+
+### Phase 3 as built
+
+Reuben asked on 2026-11-22 for bigger strides through the plans where nothing outside is needed. Phase 3 only reads the eSIM product, so it went ahead before the eSIM launch: it changes nothing in eSIM checkout, webhooks, payments or provisioning.
+
+- **The suggestion** (`apps/web/src/lib/trip-connectivity.ts`, pure and tested): a trip with both dates gets the cheapest of our plans for that destination that lasts the whole stay (both days counted), with the country's own plan ahead of a regional one at the same price. When no plan lasts that long, it suggests the longest one and says plainly that a second plan is needed. Without dates it asks for them and lists the plans. Commission plays no part.
+- **Activation guidance:** four general steps for an iPhone (check it's unlocked, install on Wi-Fi before leaving, switch the line on when you land with roaming on for that line only, leave roaming off on the home SIM). They're general guidance, not the provider's instructions.
+- **Web:** each trip on My trips has a "Stay connected" box (badged as our product) with the suggested plan, why, a link to that country's plans on the eSIM site, and the setup steps.
+- **App:** a trip now opens its own screen: dates, notes, the destination's essentials, the suggested plan with a Buy button, the other plans, and the setup steps. Buy uses the eSIM tab's own confirmation and checkout (the same `POST /api/esim/checkout`), so a trip reaches eSIM checkout in one tap plus the confirmation.
+- **API:** `GET /api/travel/trips/:id/connectivity` ([app-api.md](./app-api.md#travel)).
+
+### Phase 4 as built
+
+The essentials categories run end to end on the test partner, like phase 2: **airport transfers**, **things to do** and **UK airport parking** sit after flights, stays and car hire on every destination page (web) and destination screen (app), with the same commission notice, `/go/<id>` click records and disclosure. Parking is searched from the UK side, so its link reads "Search UK airport parking". "Done when two essentials categories are live" still needs real partners approved for them; until then these are test links only.
 
 ### Longer term: trip-aware recommendations
 

@@ -110,3 +110,19 @@ test("a signed-in person saves a trip and sees it under My trips", async ({ page
   await trip.getByRole("button", { name: "Delete Greece trip" }).click();
   await expect(page.getByText(note)).toHaveCount(0);
 });
+
+test("search gives labelled estimates, and Surprise me plans a whole trip", async ({ page }) => {
+  await page.goto(`${ORIGIN}/search?type=stays`);
+  await expect(page.getByRole("heading", { name: "Search", level: 1 })).toBeVisible();
+  await page.getByLabel("Where").selectOption("BCN");
+  await page.getByRole("button", { name: "Search" }).click();
+  const results = page.getByRole("region", { name: "Results" });
+  await expect(results.getByRole("note")).toHaveText(/Estimates, not live prices/);
+  await expect(results.getByText(/est\.$/).first()).toBeVisible();
+
+  await page.getByRole("link", { name: "Surprise me" }).click();
+  await page.getByRole("button", { name: "Surprise me" }).click();
+  await expect(page.getByText(/per person$/).first()).toBeVisible();
+  await page.getByRole("link", { name: "Another stay" }).click();
+  await expect(page).toHaveURL(/rollStay=1/);
+});

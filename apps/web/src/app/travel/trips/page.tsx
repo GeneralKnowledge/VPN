@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Badge } from "@/components/ui";
 import { getSessionUser } from "@/lib/auth";
+import { formatMoney } from "@/lib/format";
+import { tripConnectivity, type TripConnectivity } from "@/lib/trip-connectivity";
 import { formatTripDates } from "@/lib/trip-dates";
-import { getDb } from "@/lib/providers";
+import { appUrl, getDb } from "@/lib/providers";
 import { listTrips } from "@/lib/trips";
 import { LogoutButton } from "@/app/dashboard/logout-button";
 import { DeleteTripButton } from "./delete-trip-button";
@@ -13,6 +16,8 @@ export default async function TripsPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const trips = await listTrips(getDb(), user.id);
+  const esimBase = appUrl("esim");
+  const connectivity = await Promise.all(trips.map((trip) => tripConnectivity(trip, esimBase)));
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
@@ -37,7 +42,7 @@ export default async function TripsPage() {
         </div>
       ) : (
         <ul className="mt-10 space-y-4" aria-label="Saved trips">
-          {trips.map((trip) => (
+          {trips.map((trip, i) => (
             <li key={trip.id} className="rounded-xl border border-border bg-surface p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -49,10 +54,52 @@ export default async function TripsPage() {
                 <DeleteTripButton id={trip.id} name={trip.destination.name} />
               </div>
               {trip.notes ? <p className="mt-3 whitespace-pre-wrap text-sm">{trip.notes}</p> : null}
+              <StayConnected name={trip.destination.name} connectivity={connectivity[i]!} />
             </li>
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** Phase 3: the eSIM plan we'd suggest for this trip. Buying happens on the eSIM site's own checkout. */
+function StayConnected({ name, connectivity }: { name: string; connectivity: TripConnectivity }) {
+  const plan = connectivity.suggested;
+  return (
+    <div className="mt-4 rounded-lg bg-surface-2 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-medium">Stay connected</h3>
+        <Badge tone="sea">Our product</Badge>
+      </div>
+      {plan ? (
+        <p className="mt-2 text-sm">
+          <span className="font-medium">{plan.name}</span>
+          <span className="text-muted">
+            {" "}
+            · {plan.dataVolume}
+            {plan.validity ? ` · ${plan.validity}` : ""} · {formatMoney(plan.price, plan.currency)}
+          </span>
+        </p>
+      ) : null}
+      <p className="mt-1 text-sm text-muted">{connectivity.note}</p>
+      {connectivity.available && (plan || connectivity.others.length > 0) ? (
+        <p className="mt-2 text-sm">
+          <a href={connectivity.plansUrl}>
+            <span className="font-medium text-sea underline">
+              {plan ? "Buy it on Northstar SIM" : `See ${name} plans on Northstar SIM`}
+            </span>
+          </a>
+        </p>
+      ) : null}
+      <details className="mt-2 text-sm">
+        <summary className="cursor-pointer text-muted">Setting up an eSIM</summary>
+        <ol className="mt-2 list-decimal space-y-1 pl-5">
+          {connectivity.steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+      </details>
     </div>
   );
 }

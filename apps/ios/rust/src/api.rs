@@ -187,6 +187,25 @@ pub struct ApiTrip {
     pub notes: Option<String>,
 }
 
+/// A saved trip's "Stay connected" item (docs/app-api.md).
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiTripConnectivity {
+    pub available: bool,
+    pub trip_days: Option<u32>,
+    pub suggested: Option<ApiEsimPackage>,
+    pub covers: bool,
+    pub note: String,
+    pub others: Vec<ApiEsimPackage>,
+    pub plans_url: String,
+    pub steps: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct TripConnectivityAnswer {
+    connectivity: ApiTripConnectivity,
+}
+
 // Travel search (docs/app-api.md, "Search with estimates"). Every answer is
 // our own simulation: `note` says so and the app shows it.
 
@@ -476,6 +495,12 @@ impl Api<'_> {
         });
         self.send(Method::Post, "/api/travel/trips", Some(body))
             .map(|_| ())
+    }
+
+    pub fn trip_connectivity(&self, id: &str) -> Result<ApiTripConnectivity, AppError> {
+        let path = format!("/api/travel/trips/{}/connectivity", encode(id));
+        self.json::<TripConnectivityAnswer>(Method::Get, &path, None)
+            .map(|a| a.connectivity)
     }
 
     pub fn delete_trip(&self, id: &str) -> Result<(), AppError> {
