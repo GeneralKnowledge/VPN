@@ -378,11 +378,13 @@ export function legacyUsernames(
     r.username?.trim() ||
     (r.email ?? "").split("@")[0]!.replace(/\./g, "_").toLowerCase() ||
     r.id;
-  // Names users already have are claimed first, so a generated name never takes one.
+  // Every base name is reserved, so a generated name never takes one. Users who already chose a
+  // username go first, so one derived from an email can't take their login name.
   const taken = new Set(rows.map(base));
   const claimed = new Set<string>();
   const names = new Map<string, string>();
-  for (const row of rows) {
+  const chosen = (r: (typeof rows)[number]) => Boolean(r.username?.trim());
+  for (const row of [...rows.filter(chosen), ...rows.filter((r) => !chosen(r))]) {
     let name = base(row);
     if (claimed.has(name)) {
       name = `${base(row)}_${row.id}`;

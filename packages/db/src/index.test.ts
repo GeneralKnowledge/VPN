@@ -86,3 +86,15 @@ describe("users from before usernames", () => {
     expect(index).toEqual({ name: "users_username_uidx" });
   });
 });
+
+describe("legacyUsernames", () => {
+  it("keeps a username someone chose, even when an earlier user's email gives the same name", async () => {
+    const { legacyUsernames } = await import("./migrate");
+    const names = legacyUsernames([
+      { id: "u1", username: null, email: "bob@example.com" },
+      { id: "u2", username: "bob", email: "robert@example.org" },
+    ]);
+    expect(names.get("u2")).toBe("bob");
+    expect(names.get("u1")).toBe("bob_u1");
+  });
+});
