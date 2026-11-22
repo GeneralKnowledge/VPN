@@ -375,8 +375,12 @@ function rebuildUsersForOptionalEmail(sqlite: {
   const hasUsername = cols.some((c) => c.name === "username");
   if (hasUsername && email && email.notnull === 0) return;
 
+  // foreign_keys can't change inside a transaction, so switch it off first. The rebuild itself
+  // is one transaction: a failure leaves the old table as it was, ready for another try.
   sqlite.exec(`PRAGMA foreign_keys = OFF;`);
-  sqlite.exec(`
+  sqlite.exec(`BEGIN`);
+  try {
+    sqlite.exec(`
     CREATE TABLE users_new (
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL,
@@ -401,11 +405,9 @@ function rebuildUsersForOptionalEmail(sqlite: {
     )
     SELECT
       id,
-      COALESCE(
-        NULLIF(username, ''),
-        lower(replace(substr(email, 1, instr(email || '@', '@') - 1), '.', '_')),
-        id
-      ),
+      -- Two emails can share a local part (jo@a.com, jo@b.org): the first keeps it, later ones
+      -- add their id, which is unique.
+      CASE WHEN row_number() OVER (PARTITION BY base ORDER BY created_at, id) = 1 THEN base ELSE base || '_' || id END,
       email,
       email_verified_at,
       password_hash,
@@ -419,7 +421,14 @@ function rebuildUsersForOptionalEmail(sqlite: {
       deleted_at,
       created_at,
       updated_at
-    FROM users;
+    FROM (
+      SELECT *, COALESCE(
+        NULLIF(username, ''),
+        NULLIF(lower(replace(substr(email, 1, instr(email || '@', '@') - 1), '.', '_')), ''),
+        id
+      ) AS base
+      FROM users
+    );
     DROP TABLE users;
     ALTER TABLE users_new RENAME TO users;
     CREATE UNIQUE INDEX IF NOT EXISTS users_username_uidx ON users(username);
@@ -427,7 +436,13 @@ function rebuildUsersForOptionalEmail(sqlite: {
     CREATE UNIQUE INDEX IF NOT EXISTS users_referral_uidx ON users(referral_code);
     CREATE INDEX IF NOT EXISTS users_role_idx ON users(role);
   `);
-  sqlite.exec(`PRAGMA foreign_keys = ON;`);
+    sqlite.exec(`COMMIT`);
+  } catch (err) {
+    sqlite.exec(`ROLLBACK`);
+    throw err;
+  } finally {
+    sqlite.exec(`PRAGMA foreign_keys = ON;`);
+  }
 }
 
 function monorepoRoot(): string {

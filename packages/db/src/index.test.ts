@@ -66,14 +66,20 @@ describe("users from before usernames", () => {
       created_at INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL DEFAULT 0
     );
-    INSERT INTO users (id, email, password_hash, referral_code) VALUES ('u1', 'Jo.Smith@example.com', 'x', 'R1');`);
+    INSERT INTO users (id, email, password_hash, referral_code, created_at) VALUES
+      ('u1', 'Jo.Smith@example.com', 'x', 'R1', 1),
+      ('u2', 'jo.smith@example.org', 'x', 'R2', 2);`);
     raw.close();
     run(`file:${file}`);
     const check = new Database(file, { readonly: true });
-    const user = check.prepare(`SELECT username, email FROM users WHERE id = 'u1'`).get();
+    const rows = check.prepare(`SELECT id, username, email FROM users ORDER BY id`).all();
     const index = check.prepare(`SELECT name FROM sqlite_master WHERE name = 'users_username_uidx'`).get();
     check.close();
-    expect(user).toEqual({ username: "jo_smith", email: "Jo.Smith@example.com" });
+    // Two emails with the same local part still get distinct usernames.
+    expect(rows).toEqual([
+      { id: "u1", username: "jo_smith", email: "Jo.Smith@example.com" },
+      { id: "u2", username: "jo_smith_u2", email: "jo.smith@example.org" },
+    ]);
     expect(index).toEqual({ name: "users_username_uidx" });
   });
 });
