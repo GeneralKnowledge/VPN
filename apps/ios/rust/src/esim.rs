@@ -254,12 +254,20 @@ pub(crate) fn countries(packages: &[EsimPackage]) -> Vec<EsimCountry> {
     list
 }
 
+/// True for an `LPA:` activation code. Never slices inside a character.
+fn is_lpa(code: &str) -> bool {
+    code.len() > 4
+        && code
+            .get(..4)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("LPA:"))
+}
+
 /// The link that opens iOS's eSIM setup with the plan filled in. Apple's
 /// universal link takes the `LPA:1$…` activation code as `carddata`; an
 /// `https` activation link is opened as it is.
 pub(crate) fn install_url(activation: &str) -> Option<String> {
     let activation = activation.trim();
-    if activation.len() > 4 && activation[..4].eq_ignore_ascii_case("LPA:") {
+    if is_lpa(activation) {
         Some(format!(
             "https://esimsetup.apple.com/esim_qrcode_provisioning?carddata={}",
             encode(activation)
@@ -273,9 +281,7 @@ pub(crate) fn install_url(activation: &str) -> Option<String> {
 
 fn profile(api: ApiEsimProfile) -> EsimProfile {
     let code = api.activation_url.filter(|s| !s.trim().is_empty());
-    let is_lpa = code
-        .as_deref()
-        .is_some_and(|c| c.len() > 4 && c[..4].eq_ignore_ascii_case("LPA:"));
+    let is_lpa = code.as_deref().is_some_and(is_lpa);
     EsimProfile {
         iccid: api.iccid,
         qr_payload: if is_lpa { code.clone() } else { None },
@@ -360,9 +366,11 @@ fn is_test_checkout(url: &str) -> bool {
 /// "Will this phone work?" from the model identifier (`iPhone16,2`) and,
 /// when iOS answered, CoreTelephony's `supportsEmbeddedSIM`.
 ///
-/// iOS's answer wins. Without it the model decides: every iPhone from the
-/// XS and XR (`iPhone11,*`) on has eSIM, except models sold in mainland
-/// China, Hong Kong and Macau, which the identifier can't tell apart.
+/// A "yes" from iOS is trusted. A "no" isn't, because Apple keeps those
+/// CoreTelephony calls for carrier apps, so then (and without an answer)
+/// the model decides: every iPhone from the XS and XR (`iPhone11,*`) on has
+/// eSIM, except models sold in mainland China, Hong Kong and Macau, which
+/// the identifier can't tell apart.
 #[uniffi::export]
 pub fn esim_compatibility(
     model_identifier: String,
@@ -382,13 +390,15 @@ pub fn esim_compatibility(
             detail: "iOS says this phone can add an eSIM.".into(),
             tips: vec![unlocked],
         },
-        Some(false) => EsimCompatibility {
-            verdict: EsimVerdict::No,
-            title: "This phone doesn't support eSIM".into(),
-            detail: "iOS says this phone can't add an eSIM. iPhones sold in mainland China, Hong Kong and Macau use two physical SIMs instead. If Settings → Mobile Service shows Add eSIM, it does support one.".into(),
-            tips: vec![eid],
+        // Apple keeps CoreTelephony's eSIM calls for carrier apps, so a
+        // "no" from it isn't proof: only the model rules a phone out.
+        Some(false) if iphone_major.is_some_and(|major| major >= 11) => EsimCompatibility {
+            verdict: EsimVerdict::Unsure,
+            title: "This iPhone should support eSIM".into(),
+            detail: "iOS didn't confirm it here. Every iPhone from the XS and XR on has eSIM, except models sold in mainland China, Hong Kong and Macau. If Settings → Mobile Service shows Add eSIM, it does.".into(),
+            tips: vec![unlocked, eid],
         },
-        None => match iphone_major {
+        Some(false) | None => match iphone_major {
             Some(major) if major >= 11 => EsimCompatibility {
                 verdict: EsimVerdict::Yes,
                 title: "This iPhone should support eSIM".into(),
@@ -457,13 +467,19 @@ impl AppCore {
         }
         self.rt
             .command("buy-esim", move |state| {
-                let (checkout, orders) = state.signed_in(|api| {
-                    let checkout = api.esim_checkout(&code)?;
-                    // The new order shows as waiting for payment.
-                    Ok((checkout, api.esim_orders()?))
-                })?;
-                apply_orders(&mut state.home, orders);
-                state.publish();
+                let checkout = state.signed_in(|api| api.esim_checkout(&code))?;
+                // Show the new order as waiting for payment. The checkout
+                // exists on the server now, so a failed reload must not
+                // lose it: the list catches up on the next load.
+                match state.signed_in(|api| api.esim_orders()) {
+                    Ok(orders) => {
+                        apply_orders(&mut state.home, orders);
+                        state.publish();
+                    }
+                    Err(err) => {
+                        forge_runtime::logging::info!(target: "vpn", "orders reload after checkout failed: {err}")
+                    }
+                }
                 if !checkout.url.starts_with("https://") {
                     return Err(AppError::Server {
                         reason: "the checkout link wasn't https".into(),
@@ -513,13 +529,19 @@ mod tests {
         );
         assert_eq!(install_url("http://provider.example.com/a/1"), None);
         assert_eq!(install_url("ABC-123"), None);
+        // Never panics inside a multi-byte character.
+        assert_eq!(install_url("€€"), None);
+        assert_eq!(install_url("LP€:1$x"), None);
     }
 
     #[test]
     fn ios_answer_wins_over_the_model() {
         let yes = esim_compatibility("iPhone8,1".into(), Some(true));
         assert_eq!(yes.verdict, EsimVerdict::Yes);
-        let no = esim_compatibility("iPhone16,2".into(), Some(false));
+        // A "no" from iOS isn't proof on a model that has eSIM.
+        let unsure = esim_compatibility("iPhone16,2".into(), Some(false));
+        assert_eq!(unsure.verdict, EsimVerdict::Unsure);
+        let no = esim_compatibility("iPhone10,3".into(), Some(false));
         assert_eq!(no.verdict, EsimVerdict::No);
     }
 

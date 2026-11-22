@@ -675,3 +675,20 @@ fn esim_orders_are_forgotten_on_sign_out() {
     let home = block_on(core.sign_out()).unwrap();
     assert!(home.esim_orders.is_empty());
 }
+
+#[test]
+fn a_checkout_survives_a_failed_orders_reload() {
+    let f = Fixture::new(server().route(
+        Method::Post,
+        format!("{SERVER}/api/esim/checkout"),
+        ok(serde_json::json!({
+            "url": "https://checkout.stripe.com/c/pay/cs_test_1", "sessionId": "cs_test_1",
+            "orderId": "o1", "amount": 999, "currency": "GBP"
+        })),
+    ));
+    let core = f.open();
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+    // No orders route: the reload fails, the checkout still opens.
+    let checkout = block_on(core.buy_esim("MOCK-JP-3GB-15D".into())).unwrap();
+    assert_eq!(checkout.session_id, "cs_test_1");
+}

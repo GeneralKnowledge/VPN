@@ -5195,9 +5195,11 @@ public func appErrorKind(error: AppError) -> ErrorKind  {
  * "Will this phone work?" from the model identifier (`iPhone16,2`) and,
  * when iOS answered, CoreTelephony's `supportsEmbeddedSIM`.
  *
- * iOS's answer wins. Without it the model decides: every iPhone from the
- * XS and XR (`iPhone11,*`) on has eSIM, except models sold in mainland
- * China, Hong Kong and Macau, which the identifier can't tell apart.
+ * A "yes" from iOS is trusted. A "no" isn't, because Apple keeps those
+ * CoreTelephony calls for carrier apps, so then (and without an answer)
+ * the model decides: every iPhone from the XS and XR (`iPhone11,*`) on has
+ * eSIM, except models sold in mainland China, Hong Kong and Macau, which
+ * the identifier can't tell apart.
  */
 public func esimCompatibility(modelIdentifier: String, supportsEmbeddedSim: Bool?) -> EsimCompatibility  {
     return try!  FfiConverterTypeEsimCompatibility_lift(try! rustCall() {
@@ -5227,7 +5229,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_northstar_vpn_core_checksum_func_app_error_kind() != 60798) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_northstar_vpn_core_checksum_func_esim_compatibility() != 42446) {
+    if (uniffi_northstar_vpn_core_checksum_func_esim_compatibility() != 6650) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_northstar_vpn_core_checksum_method_appcore_add_this_iphone() != 26853) {

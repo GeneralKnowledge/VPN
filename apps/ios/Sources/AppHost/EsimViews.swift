@@ -330,21 +330,21 @@ struct EsimOrderScreen: View {
 }
 
 /// The QR code for the activation code, made on the phone; the provider's
-/// image when there is no code to draw.
+/// image when there is no code to draw. The provider's image carries the
+/// same secret, so it is fetched with an ephemeral session (no disk cache)
+/// and held only by this view, which signing out removes.
 private struct QRCodeView: View {
     let payload: String?
     let imageURL: String?
+    @State private var providerImage: Image?
+    @State private var loading = false
 
     var body: some View {
         Group {
-            if let image = localImage {
+            if let image = localImage ?? providerImage {
                 image.resizable().interpolation(.none).scaledToFit()
-            } else if let imageURL, let url = URL(string: imageURL) {
-                AsyncImage(url: url) { image in
-                    image.resizable().interpolation(.none).scaledToFit()
-                } placeholder: {
-                    ProgressView()
-                }
+            } else if loading {
+                ProgressView()
             } else {
                 Text("QR code not ready yet").foregroundStyle(.secondary)
             }
@@ -353,6 +353,30 @@ private struct QRCodeView: View {
         .padding(8)
         .background(.white)
         .accessibilityLabel("eSIM QR code")
+        .task(id: imageURL) { await loadProviderImage() }
+    }
+
+    private func loadProviderImage() async {
+        #if canImport(UIKit)
+            guard payload == nil, let imageURL, let url = URL(string: imageURL) else { return }
+            loading = true
+            defer { loading = false }
+            let data: Data
+            if url.scheme == "data" {
+                // `data:image/png;base64,…`: nothing to fetch.
+                guard let comma = imageURL.firstIndex(of: ","),
+                    let decoded = Data(base64Encoded: String(imageURL[imageURL.index(after: comma)...]))
+                else { return }
+                data = decoded
+            } else {
+                guard url.scheme == "https" else { return }
+                let session = URLSession(configuration: .ephemeral)
+                defer { session.finishTasksAndInvalidate() }
+                guard let fetched = try? await session.data(from: url) else { return }
+                data = fetched.0
+            }
+            if let image = UIImage(data: data) { providerImage = Image(uiImage: image) }
+        #endif
     }
 
     private var localImage: Image? {
