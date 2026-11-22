@@ -31,6 +31,13 @@ import { GET as destinations } from "@/app/api/travel/destinations/route";
 import { GET as destination } from "@/app/api/travel/destinations/[slug]/route";
 import { GET as listTrips, POST as createTrip } from "@/app/api/travel/trips/route";
 import { DELETE as deleteTrip, GET as getTrip, PATCH as patchTrip } from "@/app/api/travel/trips/[id]/route";
+import { GET as airportsRoute } from "@/app/api/travel/airports/route";
+import { GET as flightsRoute } from "@/app/api/travel/search/flights/route";
+import { GET as staysRoute } from "@/app/api/travel/search/stays/route";
+import { GET as carsRoute } from "@/app/api/travel/search/cars/route";
+import { GET as packagesRoute } from "@/app/api/travel/search/packages/route";
+import { GET as priceMapRoute } from "@/app/api/travel/price-map/route";
+import { addDays, todayInUk } from "@northstar/travel-search";
 
 function body(url: string, method: string, data: unknown) {
   return new Request(url, {
@@ -150,5 +157,55 @@ describe("Travel API from the native app", () => {
 
     await signedInAs("alice");
     expect((await getTrip(new Request("http://x"), params({ id: trip.id }))).status).toBe(200);
+  });
+
+  describe("search with estimates", () => {
+    const depart = addDays(todayInUk(), 60);
+    const back = addDays(depart, 7);
+    const get = (path: string) => new Request(`http://x${path}`);
+
+    it("needs the app or the Travel host", async () => {
+      expect((await airportsRoute()).status).toBe(404);
+      expect((await flightsRoute(get(`/api/travel/search/flights?from=EDI&to=BCN&depart=${depart}`))).status).toBe(404);
+    });
+
+    it("lists airports for the forms", async () => {
+      await signedInAs("alice");
+      const json = (await (await airportsRoute()).json()) as { origins: Array<{ code: string }>; destinations: Array<{ destinationSlug: string }> };
+      expect(json.origins.map((a) => a.code)).toContain("EDI");
+      expect(json.destinations.every((a) => a.destinationSlug)).toBe(true);
+    });
+
+    it("labels every answer as an estimate", async () => {
+      await signedInAs("alice");
+      const answers = await Promise.all([
+        flightsRoute(get(`/api/travel/search/flights?from=edi&to=BCN&depart=${depart}&return=${back}&adults=2&sort=cheapest`)),
+        staysRoute(get(`/api/travel/search/stays?city=BCN&checkIn=${depart}&checkOut=${back}`)),
+        carsRoute(get(`/api/travel/search/cars?city=BCN&pickUp=${depart}&dropOff=${back}`)),
+        packagesRoute(get(`/api/travel/search/packages?from=EDI&to=BCN&depart=${depart}&return=${back}`)),
+        priceMapRoute(get(`/api/travel/price-map?from=EDI&month=${depart.slice(0, 7)}`)),
+      ]);
+      for (const res of answers) {
+        expect(res.status).toBe(200);
+        const json = (await res.json()) as { estimate: boolean; note: string };
+        expect(json.estimate).toBe(true);
+        expect(json.note).toMatch(/Estimates/);
+      }
+      const flights = (await (await flightsRoute(
+        get(`/api/travel/search/flights?from=EDI&to=BCN&depart=${depart}&return=${back}&adults=2&sort=cheapest`),
+      )).json()) as { options: Array<{ pricePerPersonMinor: number; totalMinor: number; inbound: unknown }> };
+      expect(flights.options[0]!.totalMinor).toBe(flights.options[0]!.pricePerPersonMinor * 2);
+      expect(flights.options[0]!.inbound).not.toBeNull();
+    });
+
+    it("explains a search it can't estimate", async () => {
+      await signedInAs("alice");
+      const past = await flightsRoute(get("/api/travel/search/flights?from=EDI&to=BCN&depart=2020-01-01"));
+      expect(past.status).toBe(400);
+      expect(((await past.json()) as { error: string }).error).toBe("The departure date is in the past.");
+      const bad = await staysRoute(get(`/api/travel/search/stays?city=BARCELONA&checkIn=${depart}&checkOut=${back}`));
+      expect(bad.status).toBe(400);
+      expect(((await bad.json()) as { error: string }).error).toMatch(/^City: /);
+    });
   });
 });

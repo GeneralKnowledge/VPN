@@ -17,6 +17,7 @@
     "@northstar/config": "workspace:*",
     "@northstar/db": "workspace:*",
     "@northstar/destinations": "workspace:*",
+    "@northstar/travel-search": "workspace:*",
     "@northstar/email": "workspace:*",
     "@northstar/esim-provider": "workspace:*",
     "@northstar/vpn-provider": "workspace:*",
