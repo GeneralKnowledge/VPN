@@ -400,11 +400,10 @@ function rebuildUsersForOptionalEmail(sqlite: Database.Database) {
   const cols = sqlite.prepare(`pragma table_info(users)`).all() as Array<{ name: string; notnull: number }>;
   if (!cols.length) return;
   const email = cols.find((c) => c.name === "email");
-  const hasUsername = cols.some((c) => c.name === "username");
-  if (hasUsername && email && email.notnull === 0) {
-    // Already the new shape, unless the username column was only just added and is still empty.
-    if (!sqlite.prepare(`SELECT 1 FROM users WHERE username IS NULL LIMIT 1`).get()) return;
-  }
+  // Already the new shape only when username is NOT NULL: a column the ALTERS just added is
+  // nullable (and empty), even on an empty table.
+  const username = cols.find((c) => c.name === "username");
+  if (username && username.notnull === 1 && email && email.notnull === 0) return;
 
   // foreign_keys can't change inside a transaction, so switch it off first. The rebuild itself
   // is one transaction: a failure leaves the old table as it was, ready for another try.
@@ -412,7 +411,7 @@ function rebuildUsersForOptionalEmail(sqlite: Database.Database) {
   sqlite.exec(`BEGIN`);
   try {
     const rows = sqlite
-      .prepare(`SELECT id, ${hasUsername ? "username" : "NULL AS username"}, email FROM users ORDER BY created_at, id`)
+      .prepare(`SELECT id, ${username ? "username" : "NULL AS username"}, email FROM users ORDER BY created_at, id`)
       .all() as Array<{ id: string; username: string | null; email: string | null }>;
     sqlite.exec(`CREATE TEMP TABLE legacy_usernames (id TEXT PRIMARY KEY, username TEXT NOT NULL)`);
     const add = sqlite.prepare(`INSERT INTO legacy_usernames (id, username) VALUES (?, ?)`);
