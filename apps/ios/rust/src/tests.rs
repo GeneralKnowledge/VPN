@@ -526,7 +526,7 @@ fn a_flight_search_sends_its_query_and_reads_estimates() {
     .unwrap();
     assert_eq!(results.note, "Estimates, not live prices.");
     assert_eq!(results.options[0].price, "£294 est.");
-    assert_eq!(results.options[0].per_person, "£147 per person");
+    assert_eq!(results.options[0].per_person, "£147 per person est.");
     assert_eq!(results.options[0].outbound.stops, "Nonstop");
     assert_eq!(results.options[0].tags, vec!["Best", "Cheapest"]);
     let sent = f.sent().into_iter().find(|r| r.url == url).unwrap();

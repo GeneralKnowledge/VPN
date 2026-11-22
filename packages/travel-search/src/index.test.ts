@@ -122,6 +122,17 @@ describe("flights", () => {
     expect(nonstop.outbound.arrivesDayOffset).toBe(Math.floor(local / 1440));
   });
 
+  it("never returns before the outbound lands", () => {
+    // Japan is a day away from Edinburgh: a same-day return is impossible.
+    expect(() => estimateFlights(query({ to: "HND", returnDate: "2026-12-22" }), today)).toThrow(/arrive/);
+    // A same-day return to Barcelona works for the options that leave late enough.
+    for (const o of estimateFlights(query({ returnDate: "2026-12-22" }), today)) {
+      const [ah, am] = o.outbound.arrives.split(":").map(Number);
+      const [dh, dm] = o.inbound!.departs.split(":").map(Number);
+      expect(dh! * 60 + dm!).toBeGreaterThanOrEqual(o.outbound.arrivesDayOffset * 1440 + ah! * 60 + am! + 60);
+    }
+  });
+
   it("refuses searches it can't estimate", () => {
     expect(() => estimateFlights(query({ to: "EDI" }), today)).toThrow(EstimateError);
     expect(() => estimateFlights(query({ to: "XXX" }), today)).toThrow(EstimateError);
@@ -192,6 +203,10 @@ describe("price map", () => {
     expect(pins.every((p) => Number.isFinite(p.pricePerPersonMinor) && p.pricePerPersonMinor > 0)).toBe(true);
     const price = (c: string) => pins.find((p) => p.code === c)!.pricePerPersonMinor;
     expect(price("BCN")).toBeLessThan(price("HND"));
+  });
+
+  it("still has prices late in the month", () => {
+    expect(estimatePriceMap("EDI", "2026-12", "2026-12-28")).toHaveLength(destinationAirports().length);
   });
 
   it("refuses months it can't estimate", () => {

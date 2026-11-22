@@ -256,15 +256,25 @@ function hubsFor(a: Airport, b: Airport): Airport[] {
   return (near.length > 0 ? near : scored.slice(0, 1)).map((s) => s.hub);
 }
 
+function minutesOf(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
 function clock(minutes: number): string {
   const m = ((minutes % 1440) + 1440) % 1440;
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
-/** `spread` moves options on the same routing apart, so they don't all leave at the same time. */
-function makeLeg(a: Airport, b: Airport, via: Airport | null, key: string, spread: number): Leg {
+/**
+ * `spread` moves options on the same routing apart, so they don't all leave at the same time.
+ * `earliest` (local minutes after midnight) moves the departure to the first slot at or after it,
+ * for a return on the day the outbound lands.
+ */
+function makeLeg(a: Airport, b: Airport, via: Airport | null, key: string, spread: number, earliest = 0): Leg {
   const slot = Math.floor(unit(`${key}:time`) * SLOTS.length) + spread * 4;
-  const departs = SLOTS[slot % SLOTS.length] ?? "10:10";
+  const picked = SLOTS[slot % SLOTS.length] ?? "10:10";
+  const departs = minutesOf(picked) >= earliest ? picked : (SLOTS.find((s) => minutesOf(s) >= earliest) ?? picked);
   const [h, m] = departs.split(":").map(Number);
   const start = (h ?? 0) * 60 + (m ?? 0);
   const duration = via
@@ -338,13 +348,24 @@ export function estimateFlights(query: FlightQuery, today: string): FlightOption
     let fare = legFare(from, to, via, query.depart, today, query.cabin, `${key}:out:${spread}`);
     let inbound: Leg | null = null;
     if (query.returnDate !== null) {
-      inbound = makeLeg(to, from, via, `${key}:in`, spread);
+      // On the day the outbound lands, the return leaves at least an hour after it.
+      const landed = outbound.arrivesDayOffset * 1440 + minutesOf(outbound.arrives);
+      const earliest = landed + 60 - daysBetween(query.depart, query.returnDate) * 1440;
+      inbound = makeLeg(to, from, via, `${key}:in`, spread, earliest);
       fare += legFare(to, from, via, query.returnDate, today, query.cabin, `${key}:in:${spread}`);
     }
     const perPerson = pounds(fare);
     return { id: `f${i}`, outbound, inbound, pricePerPersonMinor: perPerson, totalMinor: perPerson * query.adults, tags: [] };
   });
-  return tagAndSort(options, query.sort);
+  // Any return that still can't leave after the outbound lands (no slot late enough) is dropped.
+  const possible = options.filter((o) => {
+    if (!o.inbound || query.returnDate === null) return true;
+    const landed = o.outbound.arrivesDayOffset * 1440 + minutesOf(o.outbound.arrives);
+    const leaves = daysBetween(query.depart, query.returnDate) * 1440 + minutesOf(o.inbound.departs);
+    return leaves >= landed + 60;
+  });
+  if (possible.length === 0) throw new EstimateError("the return is before you'd arrive; choose a later return date");
+  return tagAndSort(possible, query.sort);
 }
 
 // ---------------------------------------------------------------------------
@@ -496,10 +517,13 @@ export function estimatePriceMap(from: string, monthIso: string, today: string):
   if (!/^\d{4}-\d{2}$/.test(monthIso) || Number.isNaN(dayValue(`${monthIso}-01`))) {
     throw new EstimateError("the month isn't a month");
   }
-  const dates = MAP_DAYS.map((d) => `${monthIso}-${String(d).padStart(2, "0")}`).filter((date) => {
+  const usable = (date: string) => {
     const ahead = daysBetween(today, date);
     return ahead >= 0 && ahead + 7 <= MAX_DAYS_AHEAD;
-  });
+  };
+  const dates = MAP_DAYS.map((d) => `${monthIso}-${String(d).padStart(2, "0")}`).filter(usable);
+  // Late in the month every sample day may have passed: use today instead.
+  if (dates.length === 0 && today.startsWith(monthIso) && usable(today)) dates.push(today);
   if (dates.length === 0) throw new EstimateError("choose a month in the next year");
 
   return destinationAirports().map((dest) => {

@@ -389,9 +389,11 @@ struct FlightResultsScreen: View {
     }
 
     private func load() async {
+        // A slower answer for a sort that's no longer chosen is dropped.
+        let requested = search
         loading = true
-        defer { loading = false }
-        if let loaded = await model.searchFlights(search) { results = loaded }
+        defer { if requested == search { loading = false } }
+        if let loaded = await model.searchFlights(requested), requested == search { results = loaded }
     }
 }
 
@@ -510,9 +512,13 @@ struct StayResultsScreen: View {
     }
 
     private func load() async {
+        // A slower answer for a sort that's no longer chosen is dropped.
+        let requested = sort
         loading = true
-        defer { loading = false }
-        if let loaded = await model.searchStays(city: city, checkIn: checkIn, checkOut: checkOut, guests: guests, sort: sort) {
+        defer { if requested == sort { loading = false } }
+        if let loaded = await model.searchStays(city: city, checkIn: checkIn, checkOut: checkOut, guests: guests, sort: requested),
+            requested == sort
+        {
             results = loaded
         }
     }
@@ -580,6 +586,11 @@ struct CarResultsScreen: View {
         }
         .navigationTitle("Cars at \(city)")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                SaveSearchButton(model: model, airportCode: city, start: pickUp, end: dropOff)
+            }
+        }
         .task { if results == nil { await load() } }
         .refreshable { await load() }
     }
@@ -644,6 +655,7 @@ struct PriceMapScreen: View {
     let model: AppModel
     @State private var month = PriceMapScreen.months[1]
     @State private var map: PriceMap?
+    @State private var failed = false
     @State private var showList = false
     @State private var selected: PricePin?
     @State private var position = MapCameraPosition.region(
@@ -753,18 +765,33 @@ struct PriceMapScreen: View {
     }
 
     private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            headerText
+            if failed {
+                Button("Try Again") { Task { await load() } }
+                    .font(.footnote.bold())
+                    .accessibilityIdentifier("priceMap.retry")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
+    }
+
+    private var headerText: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Estimated cheapest return per person, economy, from \(model.home.homeAirport) in \(month.formatted(.dateTime.month(.wide)))")
                 .font(.footnote.bold())
             Text(map?.note ?? "Estimates, not live prices.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            if model.busy { ProgressView().controlSize(.small) }
+            if failed {
+                Text("The estimates couldn't be loaded.").font(.caption).foregroundStyle(.red)
+            } else if model.busy {
+                ProgressView().controlSize(.small)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("priceMap.header")
     }
@@ -797,7 +824,14 @@ struct PriceMapScreen: View {
             return
         }
         if model.airports == nil { await model.loadAirports() }
-        if let loaded = await model.priceMap(from: model.home.homeAirport, month: month) { map = loaded }
+        // Never show one month's or airport's pins under another's heading.
+        let (from, requested) = (model.home.homeAirport, month)
+        map = nil
+        failed = false
+        let loaded = await model.priceMap(from: from, month: requested)
+        guard from == model.home.homeAirport, requested == month else { return }
+        map = loaded
+        failed = loaded == nil
     }
 }
 

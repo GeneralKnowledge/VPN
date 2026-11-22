@@ -2191,7 +2191,7 @@ public struct FlightResult: Equatable, Hashable {
      */
     public var price: String
     /**
-     * "£147 per person" when more than one travels; empty otherwise.
+     * "£147 per person est." when more than one travels; empty otherwise.
      */
     public var perPerson: String
     /**
@@ -2206,7 +2206,7 @@ public struct FlightResult: Equatable, Hashable {
          * "£294 est." for everyone travelling.
          */price: String, 
         /**
-         * "£147 per person" when more than one travels; empty otherwise.
+         * "£147 per person est." when more than one travels; empty otherwise.
          */perPerson: String, 
         /**
          * "Best", "Cheapest", "Fastest".

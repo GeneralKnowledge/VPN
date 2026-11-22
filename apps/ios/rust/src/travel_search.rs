@@ -106,7 +106,7 @@ pub struct FlightResult {
     pub inbound: Option<FlightLeg>,
     /// "£294 est." for everyone travelling.
     pub price: String,
-    /// "£147 per person" when more than one travels; empty otherwise.
+    /// "£147 per person est." when more than one travels; empty otherwise.
     pub per_person: String,
     /// "Best", "Cheapest", "Fastest".
     pub tags: Vec<String>,
@@ -264,7 +264,7 @@ fn leg(api: ApiLeg) -> FlightLeg {
 
 pub(crate) fn flight(api: ApiFlight) -> FlightResult {
     let per_person = if api.total_minor > api.price_per_person_minor {
-        format!("{} per person", pounds(api.price_per_person_minor))
+        format!("{} per person est.", pounds(api.price_per_person_minor))
     } else {
         String::new()
     };
@@ -625,7 +625,7 @@ mod tests {
         assert_eq!(result.outbound.day_note, "+1");
         assert_eq!(result.outbound.duration, "13h 40m");
         assert_eq!(result.price, "£1,024 est.");
-        assert_eq!(result.per_person, "£512 per person");
+        assert_eq!(result.per_person, "£512 per person est.");
         // Only the tags we know how to explain are shown.
         assert_eq!(result.tags, vec!["Cheapest"]);
     }

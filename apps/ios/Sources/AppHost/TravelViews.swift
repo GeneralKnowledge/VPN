@@ -188,6 +188,8 @@ struct SaveTripSheet: View {
     let onSaved: () -> Void
 
     @State private var hasDates: Bool
+    /// Off for a one-way search: the trip then has a start and no end.
+    @State private var hasEnd: Bool
     @State private var start: Date
     @State private var end: Date
     @State private var notes = ""
@@ -210,6 +212,7 @@ struct SaveTripSheet: View {
         self.onSaved = onSaved
         let start = initialStart ?? Date()
         _hasDates = State(initialValue: initialStart != nil)
+        _hasEnd = State(initialValue: initialStart == nil || initialEnd != nil)
         _start = State(initialValue: start)
         _end = State(initialValue: initialEnd ?? start.addingTimeInterval(7 * 24 * 3600))
     }
@@ -223,8 +226,12 @@ struct SaveTripSheet: View {
                     if hasDates {
                         DatePicker("From", selection: $start, displayedComponents: .date)
                             .accessibilityIdentifier("saveTrip.start")
-                        DatePicker("To", selection: $end, in: start..., displayedComponents: .date)
-                            .accessibilityIdentifier("saveTrip.end")
+                        Toggle("End Date", isOn: $hasEnd)
+                            .accessibilityIdentifier("saveTrip.hasEnd")
+                        if hasEnd {
+                            DatePicker("To", selection: $end, in: start..., displayedComponents: .date)
+                                .accessibilityIdentifier("saveTrip.end")
+                        }
                     }
                 }
                 Section {
@@ -262,7 +269,7 @@ struct SaveTripSheet: View {
             error = await model.saveTrip(
                 destinationSlug: destinationSlug,
                 start: hasDates ? start : nil,
-                end: hasDates ? max(start, end) : nil,
+                end: hasDates && hasEnd ? max(start, end) : nil,
                 notes: notes
             )
             if error == nil {
