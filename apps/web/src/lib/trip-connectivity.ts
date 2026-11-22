@@ -135,10 +135,12 @@ export async function tripConnectivity(trip: TripView, esimBase: string): Promis
       steps: ESIM_SETUP_STEPS,
     };
   }
+  const suggestion = suggestEsim(esim.packages, tripDays(trip.startDate, trip.endDate), countryCode);
   return {
-    ...suggestEsim(esim.packages, tripDays(trip.startDate, trip.endDate), countryCode),
+    ...suggestion,
     available: true,
-    plansUrl,
+    // The suggested plan's own country or region, so a regional plan (EU) is listed on the page.
+    plansUrl: suggestion.suggested ? esimPlansUrl(esimBase, suggestion.suggested.countryCode) : plansUrl,
     steps: ESIM_SETUP_STEPS,
   };
 }

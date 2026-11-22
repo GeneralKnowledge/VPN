@@ -123,7 +123,14 @@ function SearchForm({ type, params }: { type: SearchType; params: Params }) {
             date("return", "return", "Return", end)
           ) : (
             <Field id="return" label="Return (leave empty for one way)">
-              <Input id="return" name="return" type="date" min={min} defaultValue={params.return ?? end} />
+              <Input
+                id="return"
+                name="return"
+                type="date"
+                min={min}
+                // A one-way search keeps its empty return; only a fresh form gets the default.
+                defaultValue={params.depart ? (params.return ?? "") : end}
+              />
             </Field>
           )}
           {count("adults", "adults", "Adults", type === "packages" ? 2 : 1)}
@@ -252,7 +259,8 @@ function Results({ type, params, result }: { type: SearchType; params: Params; r
       </p>
     );
   }
-  const adults = Number(params.adults ?? (type === "packages" ? 2 : 1)) || 1;
+  // The same default the schemas use when Adults is left empty.
+  const adults = Number(params.adults) || (type === "packages" ? 2 : 1);
 
   return (
     <section aria-label="Results" className="mt-8 space-y-4">

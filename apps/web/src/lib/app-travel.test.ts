@@ -172,6 +172,17 @@ describe("Travel API from the native app", () => {
     expect(connectivity.plansUrl).toBe("https://esim.example.com/pricing?country=US");
     expect(connectivity.steps.length).toBeGreaterThan(0);
 
+    // Spain's only plan is the Europe one: the link must open the plans page where it's listed.
+    const spain = await createTrip(
+      body("http://x/api/travel/trips", "POST", { destinationSlug: "spain", startDate: "2027-06-01", endDate: "2027-06-10" }),
+    );
+    const spainTrip = ((await spain.json()) as { trip: { id: string } }).trip;
+    const eu = (await (await tripConnectivity(new Request("http://x"), params({ id: spainTrip.id }))).json()) as {
+      connectivity: { suggested: { code: string } | null; plansUrl: string };
+    };
+    expect(eu.connectivity.suggested?.code).toBe("MOCK-EU-5GB-30D");
+    expect(eu.connectivity.plansUrl).toBe("https://esim.example.com/pricing?country=EU");
+
     await signedInAs("bob");
     expect((await tripConnectivity(new Request("http://x"), params({ id: trip.id }))).status).toBe(404);
   });
