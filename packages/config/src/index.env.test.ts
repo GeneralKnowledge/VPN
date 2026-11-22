@@ -136,6 +136,19 @@ describe("blank values", () => {
     expect(env.ESIM_USD_TO_GBP).toBeUndefined();
   });
 
+  it("reads the travel partners, and keeps the test partner out of production", () => {
+    expect(parseEnv({ ...base, APP_ENV: "development" }).TRAVEL_PARTNERS).toEqual(["mock"]);
+    expect(parseEnv({ ...base, TRAVEL_PARTNERS: " Mock , other" }).TRAVEL_PARTNERS).toEqual(["mock", "other"]);
+    expect(parseEnv({ ...base, TRAVEL_PARTNERS: "none" }).TRAVEL_PARTNERS).toEqual([]);
+    expect(parseEnv({ ...base, TRAVEL_PARTNERS: "" }).TRAVEL_PARTNERS).toEqual([]);
+    expect(parseEnv(base).TRAVEL_PARTNERS).toEqual([]);
+    expect(productionEnvProblems(parseEnv({ ...base, TRAVEL_PARTNERS: "mock" })).join("\n")).toMatch(/TRAVEL_PARTNERS/);
+    expect(productionEnvProblems(parseEnv({ ...base, TRAVEL_PARTNERS: "none" })).join("\n")).not.toMatch(/TRAVEL_PARTNERS/);
+    expect(
+      productionEnvProblems(parseEnv({ ...base, TRAVEL_PARTNERS: "mock", ALLOW_MOCK_BILLING_IN_PRODUCTION: "true" })).join("\n"),
+    ).not.toMatch(/TRAVEL_PARTNERS/);
+  });
+
   it("still rejects a value that is set but wrong", () => {
     expect(() => parseEnv({ ...base, APP_ENV: "development", SUPPORT_INBOX_EMAIL: "not-an-email" })).toThrow();
   });

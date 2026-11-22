@@ -164,6 +164,35 @@ struct DestinationScreen: View {
             Text("Our estimates, not live prices. Nothing can be booked here yet.")
         }
 
+        if !detail.partnerGroups.isEmpty {
+            Section {
+                Text(detail.partnerNotice)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                ForEach(Array(detail.partnerGroups.enumerated()), id: \.offset) { groupIndex, group in
+                    ForEach(Array(group.links.enumerated()), id: \.offset) { linkIndex, link in
+                        if let url = URL(string: link.url) {
+                            Link(destination: url) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(link.label)
+                                    Text(link.test ? "\(group.title) · Test partner, not a real company" : group.title)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityHint("Opens the partner's site in Safari")
+                            .accessibilityIdentifier("destination.partner.\(groupIndex).\(linkIndex)")
+                        }
+                    }
+                }
+            } header: {
+                Text("Book with partners")
+            } footer: {
+                Text((detail.partnerDisclosures + ["You book with the partner, not with us."]).joined(separator: " "))
+            }
+        }
+
         Section {
             Button {
                 savingTrip = true
@@ -195,13 +224,14 @@ struct SaveTripSheet: View {
     @State private var notes = ""
     @State private var error: String?
 
-    /// `initialStart` and `initialEnd` fill in the dates, from a search.
+    /// `initialStart` and `initialEnd` fill in the dates, from a search; `initialNotes` the notes.
     init(
         model: AppModel,
         destinationSlug: String,
         destinationName: String,
         initialStart: Date? = nil,
         initialEnd: Date? = nil,
+        initialNotes: String = "",
         isPresented: Binding<Bool>,
         onSaved: @escaping () -> Void
     ) {
@@ -215,6 +245,7 @@ struct SaveTripSheet: View {
         _hasEnd = State(initialValue: initialStart == nil || initialEnd != nil)
         _start = State(initialValue: start)
         _end = State(initialValue: initialEnd ?? start.addingTimeInterval(7 * 24 * 3600))
+        _notes = State(initialValue: initialNotes)
     }
 
     var body: some View {

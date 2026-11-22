@@ -6,11 +6,11 @@ import { HttpError } from "./http";
  * Runs one estimate search (docs/TRAVEL-HUB.md, phase 1b): reads the query string, turns a search
  * the model can't estimate into a 400 a customer can read, and marks the answer as an estimate.
  */
-export function estimateResponse<S extends z.ZodTypeAny>(
+export async function estimateResponse<S extends z.ZodTypeAny>(
   req: Request,
   schema: S,
-  run: (query: z.output<S>, today: string) => Record<string, unknown>,
-): Response {
+  run: (query: z.output<S>, today: string) => Record<string, unknown> | Promise<Record<string, unknown>>,
+): Promise<Response> {
   const params = Object.fromEntries(new URL(req.url).searchParams);
   const parsed = schema.safeParse(params);
   if (!parsed.success) {
@@ -18,7 +18,7 @@ export function estimateResponse<S extends z.ZodTypeAny>(
     throw new HttpError(400, sentence(issue ? `${issue.path.join(".")}: ${issue.message}` : "invalid search"));
   }
   try {
-    const result = run(parsed.data, todayInUk());
+    const result = await run(parsed.data, todayInUk());
     return Response.json(
       { estimate: true, currency: "GBP", note: ESTIMATE_NOTE, ...result },
       { headers: { "Cache-Control": "private, max-age=300" } },

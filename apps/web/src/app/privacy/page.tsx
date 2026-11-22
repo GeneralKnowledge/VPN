@@ -20,6 +20,11 @@ export default function PrivacyPage() {
           <li>User rights and contact for privacy requests</li>
           <li>Access tiers (email vs username, Stripe vs crypto prepaid) and what each stores</li>
           <li>Self-serve account deletion and what is wiped vs kept for accounting</li>
+          <li>
+            Travel partner links: a click on one is recorded with the link, the partner, the destination and
+            a random click id (no account, IP address or device), the click id is passed to the partner so
+            it can report bookings, and raw click records are deleted after 90 days
+          </li>
         </ul>
         <p>Until reviewed, do not publish production privacy guarantees.</p>
       </div>

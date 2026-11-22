@@ -348,6 +348,25 @@ fn travel_server() -> StaticClient {
                     "packages": [{ "code": "MOCK-JP-3GB-15D", "name": "Japan 3GB 15 Days", "countryCode": "JP",
                         "countryName": "Japan", "dataVolume": "3 GB", "validity": "15 days", "price": 999, "currency": "GBP" }],
                     "plansUrl": "https://sim.example.com/pricing?country=JP"
+                },
+                "partners": {
+                    "notice": "We may earn a commission if you book through these links.",
+                    "groups": [
+                        { "category": "flights", "title": "Flights", "links": [
+                            { "id": "lnk_1", "partnerName": "Test Partner", "label": "Search flights to Japan on Test Partner",
+                              "url": "https://travel.example.com/go/lnk_1", "test": true, "disclosure": "Test Partner is not a real company." },
+                            { "id": "lnk_x", "partnerName": "Odd", "label": "Not a web link",
+                              "url": "javascript:alert(1)", "test": false, "disclosure": "Odd." }
+                        ]},
+                        { "category": "stays", "title": "Places to stay", "links": [
+                            { "id": "lnk_2", "partnerName": "Test Partner", "label": "Search places to stay in Japan on Test Partner",
+                              "url": "https://travel.example.com/go/lnk_2", "test": true, "disclosure": "Test Partner is not a real company." }
+                        ]},
+                        { "category": "cars", "title": "Car hire", "links": [
+                            { "id": "lnk_y", "partnerName": "Odd", "label": "Not a web link either",
+                              "url": "file:///etc/passwd", "test": false, "disclosure": "Odd." }
+                        ]}
+                    ]
                 }
             })),
         )
@@ -394,6 +413,23 @@ fn explore_loads_destinations_and_a_destination_with_our_esim_plans() {
     assert_eq!(
         japan.esim_plans_url,
         "https://sim.example.com/pricing?country=JP"
+    );
+    assert!(japan.partner_notice.contains("commission"));
+    let titles: Vec<&str> = japan
+        .partner_groups
+        .iter()
+        .map(|g| g.title.as_str())
+        .collect();
+    assert_eq!(titles, ["Flights", "Places to stay"]);
+    assert_eq!(japan.partner_groups[0].links.len(), 1);
+    assert_eq!(
+        japan.partner_groups[0].links[0].url,
+        "https://travel.example.com/go/lnk_1"
+    );
+    assert!(japan.partner_groups[0].links[0].test);
+    assert_eq!(
+        japan.partner_disclosures,
+        ["Test Partner is not a real company."]
     );
 
     // An unknown destination is the server's 404, shown as it wrote it.
@@ -531,4 +567,103 @@ fn a_flight_search_sends_its_query_and_reads_estimates() {
     assert_eq!(results.options[0].tags, vec!["Best", "Cheapest"]);
     let sent = f.sent().into_iter().find(|r| r.url == url).unwrap();
     assert!(bearer(&sent).is_some());
+}
+
+#[test]
+fn a_random_trip_sends_criteria_rolls_and_locks_and_reads_the_trip() {
+    let url = format!(
+        "{SERVER}/api/travel/random-trip?from=EDI&seed=s1&nights=7&adults=2&region=europe&month=2026-12&budget=500&rollStay=2&lockWhere=BCN"
+    );
+    let f = Fixture::new(server().route(
+        Method::Get,
+        url.clone(),
+        ok(serde_json::json!({
+            "estimate": true, "currency": "GBP", "note": "Estimates, not live prices.",
+            "trip": {
+                "destination": { "code": "BCN", "city": "Barcelona", "countryCode": "ES", "destinationSlug": "spain" },
+                "depart": "2026-12-04", "returnDate": "2026-12-11", "nights": 7, "adults": 2,
+                "flight": {
+                    "id": "f1",
+                    "outbound": { "from": "EDI", "to": "BCN", "departs": "07:20", "arrives": "11:05",
+                        "arrivesDayOffset": 0, "durationMinutes": 165, "via": [] },
+                    "inbound": { "from": "BCN", "to": "EDI", "departs": "18:40", "arrives": "20:25",
+                        "arrivesDayOffset": 0, "durationMinutes": 165, "via": [] },
+                    "pricePerPersonMinor": 14700, "totalMinor": 29400, "tags": ["cheapest"]
+                },
+                "stay": { "id": "s3", "kind": "hotel3", "label": "3-star hotel", "area": "City centre", "city": "Barcelona",
+                    "nightlyMinor": 9800, "nights": 7, "rooms": 1, "totalMinor": 68600 },
+                "perPersonMinor": 49000, "totalMinor": 98000, "overBudgetByMinor": 0,
+                "warnings": ["December is a busy period, so prices are higher than usual."],
+                "current": { "where": "BCN", "when": "2026-12-04", "flight": "f1", "stay": "hotel3|City centre" },
+                "upgrades": [
+                    { "kind": "nicer-stay", "title": "4-star hotel", "deltaPerPersonMinor": 18000,
+                      "locks": { "where": "BCN", "when": "2026-12-04", "flight": "f1", "stay": "hotel4|City centre" } },
+                    { "kind": "cheaper-dates", "title": "Leave 2026-12-08, back 2026-12-15", "deltaPerPersonMinor": -4500,
+                      "locks": { "where": "BCN", "when": "2026-12-08", "flight": "f0", "stay": "hotel3|City centre" } }
+                ]
+            },
+            "thingsToDo": {
+                "notice": "We may earn a commission if you book through these links.",
+                "links": [{ "label": "Search things to do in Spain on Test Partner",
+                    "url": "https://travel.example.com/go/lnk_3", "test": true, "disclosure": "Test Partner is not a real company." }]
+            }
+        })),
+    ));
+    let core = f.open();
+    block_on(core.sign_in(SERVER.into(), "alice".into(), "pw".into())).unwrap();
+    let trip = block_on(core.random_trip(
+        TripCriteria {
+            from: "edi".into(),
+            region: TripRegion::Europe,
+            month: Some("2026-12".into()),
+            budget_pounds: Some(500),
+            nights: 7,
+            adults: 2,
+        },
+        "s1".into(),
+        TripRolls {
+            stay: 2,
+            ..TripRolls::default()
+        },
+        TripLocks {
+            destination: Some("BCN".into()),
+            ..TripLocks::default()
+        },
+    ))
+    .unwrap();
+    assert_eq!(trip.city, "Barcelona");
+    assert_eq!(trip.dates, "4 Dec to 11 Dec · 7 nights · 2 travellers");
+    assert_eq!(trip.per_person, "£490 per person est.");
+    assert_eq!(trip.total, "£980 est.");
+    assert_eq!(trip.over_budget, "");
+    assert_eq!(
+        trip.warnings,
+        vec!["December is a busy period, so prices are higher than usual.".to_string()]
+    );
+    assert_eq!(trip.current.stay.as_deref(), Some("hotel3|City centre"));
+    assert_eq!(trip.upgrades[0].change, "+£180 per person est.");
+    assert_eq!(trip.upgrades[1].change, "Save £45 per person est.");
+    assert_eq!(trip.upgrades[1].title, "Leave 8 Dec, back 15 Dec");
+    assert_eq!(trip.upgrades[1].locks.depart.as_deref(), Some("2026-12-08"));
+    assert_eq!(trip.things_to_do.len(), 1);
+    assert!(trip.things_to_do_notice.contains("commission"));
+    assert!(f.sent().into_iter().any(|r| r.url == url));
+
+    // Checked before anything is sent.
+    assert!(matches!(
+        block_on(core.random_trip(
+            TripCriteria {
+                from: "EDI".into(),
+                region: TripRegion::Anywhere,
+                month: None,
+                budget_pounds: None,
+                nights: 30,
+                adults: 1,
+            },
+            "s1".into(),
+            TripRolls::default(),
+            TripLocks::default(),
+        )),
+        Err(AppError::InvalidInput { .. })
+    ));
 }

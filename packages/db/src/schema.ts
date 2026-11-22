@@ -527,6 +527,47 @@ export const trips = sqliteTable(
   (t) => [index("trips_user_idx").on(t.userId)],
 );
 
+/**
+ * Travel Hub referral links (docs/TRAVEL-HUB.md, phase 2). One row per partner, category,
+ * destination and placement, written by a partner adapter. `/go/<id>` only ever redirects to the
+ * URL stored here, never to one taken from the request. Holds nothing about any person.
+ */
+export const outboundLinks = sqliteTable(
+  "outbound_links",
+  {
+    id: text("id").primaryKey(),
+    partnerId: text("partner_id").notNull(),
+    category: text("category").notNull(),
+    destinationSlug: text("destination_slug").notNull(),
+    placement: text("placement").notNull(),
+    url: text("url").notNull(),
+    ...timestamps,
+  },
+  (t) => [index("outbound_links_partner_idx").on(t.partnerId)],
+);
+
+/**
+ * Clicks on referral links (and, later, conversions a network reports). The id is the random click
+ * id we pass to the partner. No user, IP address, user agent, search text or trip: raw clicks are
+ * deleted after CLICK_RETENTION_DAYS (apps/web/src/lib/partner-links.ts).
+ */
+export const partnerEvents = sqliteTable(
+  "partner_events",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind", { enum: ["outbound_click"] }).notNull(),
+    linkId: text("link_id").notNull(),
+    partnerId: text("partner_id").notNull(),
+    category: text("category").notNull(),
+    destinationSlug: text("destination_slug").notNull(),
+    placement: text("placement").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`),
+  },
+  (t) => [index("partner_events_created_idx").on(t.createdAt), index("partner_events_partner_idx").on(t.partnerId)],
+);
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   subscriptions: many(subscriptions),
   vpnAccount: one(vpnAccounts),

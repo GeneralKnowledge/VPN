@@ -1,6 +1,6 @@
 # Travel Hub plan
 
-Status: phase 1 in progress (the Travel host, destination pages and saved trips on the web are built; the iPhone tabs are next). No affiliate programme has been applied to or contacted. Agreed direction from Reuben, 2026-11-17; names are provisional.
+Status: phases 1 and 1b are done. Phase 2 is being built against a test partner only ([Phase 2 as built](#phase-2-as-built)); no affiliate programme has been applied to or contacted. Agreed direction from Reuben, 2026-11-17; names are provisional.
 
 ## In one paragraph
 
@@ -138,6 +138,7 @@ Each phase is one or a few PRs, with its own tests, and ends with a working stat
 | 0 | This plan | Merged | Review the open questions |
 | 1 | Travel host on the web, destination pages for the first ten countries from curated data, saved trips (web + API), Explore and Trips tabs in the iPhone app. Mock partner only | A signed-in person can open Japan, see our eSIM packages, save the trip on the web and see it on the phone | Nothing (destinations decided) |
 | 1b | Search in the iPhone app with simulated estimates: flights, stays, cars, flight + hotel, and a map of estimated prices from your home airport ([below](#phase-1b-search-with-simulated-estimates)) | A signed-in person searches Edinburgh to Barcelona for December, sees estimated options sorted by price or duration, opens the price map, and saves the search as a trip | Nothing |
+| 1c | Random trip planner on the same estimates ([below](#phase-1c-random-trip-planner)) | A signed-in person asks for "Europe in December under £500", gets a whole trip, re-rolls the stay, locks the flight, takes an upgrade and saves it as a trip | Nothing |
 | 2 | `travel-partners` package, `/go/` redirect and click records, disclosure component, consent and policy page updates, first `link` partners (flights, hotels) | A real partner link works end to end in test, with a recorded click and visible disclosure | Programme sign-ups (he applies, or says go) |
 | 3 | eSIM in journeys: trip-aware package suggestions, "connectivity" item on a trip, activation guidance; reads the eSIM product, changes nothing in its checkout | Starting from a trip, a person reaches eSIM checkout in one tap | eSIM launch stream finished first |
 | 4 | Travel essentials: parking, transfers, car hire, activities as `link` partners | Two essentials categories live | Partner approvals |
@@ -179,6 +180,46 @@ Reuben asked (2026-11-22) for the search experience of a travel app in our iPhon
 Web search pages on the Travel host can follow on the same API; this phase is the app.
 
 **Later.** When a live adapter exists (phase 6), a route returns its results with `source` and `fetchedAt`, and the app shows those instead of the estimate for that search. Estimates stay as the fallback, still labelled.
+
+### Phase 1c: random trip planner
+
+Reuben's idea (2026-11-22): "You pick a criteria (or none) then hit give me a random trip ... a user could random each section or shortlist it and build a holiday. Sometimes people [aren't] sure where or when they exactly want to go." Comparison sites start from a fixed place and date; this starts from a budget and a mood.
+
+**Criteria, all optional:** home airport (from the app's settings), region (Europe, Asia, the Americas, the Middle East, or anywhere), month (or any of the next twelve), budget per person for flights and the stay together, nights (2 to 14, default 7) and travellers. "Europe in December under £500" is region + month + budget.
+
+**What comes back:** one trip, in sections:
+
+| Section | From | Re-roll | Lock |
+|---|---|---|---|
+| Where | a destination airport in the region, picked at random | another destination | keeps the city |
+| When | a departure date in the month, picked at random | another date | keeps the dates |
+| Flight | one of the estimated return flights that fits the budget | another flight that fits | keeps this flight (and so where and when) |
+| Stay | one of the estimated stays that fits what's left of the budget | another stay that fits | keeps this kind and area |
+| Things to do | partner links for the destination (phase 2), no prices | | |
+
+Each section has its own re-roll counter and its own lock, so the server stays stateless: the app sends the criteria, a random seed, the counters and the locks, and gets the same trip back for the same request. Locking the flight also locks where and when, since a flight belongs to one route and date.
+
+**Upgrades:** alongside the trip, up to three offers, each a change the app can apply as a lock, with its cost or saving per person: a nicer stay (the next kind up), a quicker flight (if the current one isn't the fastest), and cheaper dates (moving departure up to a week either way, kept only if it saves at least £10 per person). Upgrades may go over the budget; the screen says by how much.
+
+**Warnings:** the trip says when it leaves in a busy period (summer holidays and December, when our estimates run 15% or more above normal). When the budget is so tight that only hostels fit on those dates, it says so and gives the cheapest other stay, for example "December is a busy period, so only hostels fit £500 per person on these dates. Anything else starts at about £560 per person est." (Reuben, 2026-11-22). When nothing fits at all, the answer names the busy month too.
+
+**Rules:** every figure is our estimate and reads "est."; there is no booking, and nothing here is a partner's price. "Things to do" are referral links only, with the commission notice. When nothing fits the budget, the answer says the cheapest trip we can estimate for those criteria, so the person can raise the budget or widen the criteria. "Save as a trip" saves where and when, with the flight and stay in the notes as estimates.
+
+**Where it lives:** `planRandomTrip` in `packages/travel-search` (pure, tested), `GET /api/travel/random-trip` (docs/app-api.md), and a "Surprise Me" screen in the iPhone app's Explore tab (`RandomTripViews.swift`, Rust `random_trip.rs`). Re-rolling a part keeps the parts before it (re-rolling the stay keeps the place, dates and flight); "Keep" holds a part through later re-rolls. "Things to do" uses the test partner's `activities` links until a real partner is approved.
+
+### Phase 2 as built
+
+Reuben said go on 2026-11-22 ("Do whatever you can do now") for the parts that need no sign-up. So phase 2 runs end to end with a **test partner** and no real company:
+
+- **`packages/travel-partners`:** the `TravelPartner` type, a `PartnerAdapter` interface (it alone builds partner URLs and adds our click id), and `MockTravelPartner`, whose links open `/partner-preview` on our own Travel site. Partners are listed by name, never by commission. Partners live in code and config rather than a `travel_partners` table: there are none to manage yet, and `TRAVEL_PARTNERS` switches each one on or off (`none` for all). The test partner is the default outside production; production shows none unless `TRAVEL_PARTNERS` asks, and refuses `mock` without `ALLOW_MOCK_BILLING_IN_PRODUCTION=true`.
+- **Tables:** `outbound_links` (one row per partner, category, destination and placement, with the URL the adapter built; its id is a hash of those public facts, so a page view doesn't add rows) and `partner_events` (`outbound_click` with a random click id; no user, IP address, user agent or trip).
+- **`/go/<id>` on the Travel host:** records the click and redirects to the stored URL with the click id added. It reads nothing else from the request, so it isn't an open redirect. An unknown link, or a partner that is paused or switched off, gets a plain "This link isn't available" page.
+- **Retention:** the reconcile job (`/api/reconcile`, which cron already calls) deletes click records older than 90 days.
+- **Disclosure:** each destination page's "Flights, stays and getting around" section lists the links with the commission notice right above them and each partner's own disclosure below. The test partner is badged "Test partner". The destination API returns the same links for the app, which lists them under "Book with partners" on each destination screen and opens them in Safari.
+- **Consent, per mechanism:** our own click record is first-party, server-side and sets no cookie, so it needs no consent under PECR (stated on the cookies page). We load no partner scripts or pixels. A partner's cookies are set on the partner's own site under its own notice. Before each real partner goes live, check its programme for anything that would run on our pages; that would need a consent choice first.
+- **Policy pages:** the draft privacy and cookie pages say what a click record holds and for how long. They're still drafts for review before launch.
+
+Still to do before a real partner: the programme sign-ups (Travelpayouts first), one adapter per network, reading each programme's terms, and a person reviewing the privacy and cookie wording.
 
 ### Longer term: trip-aware recommendations
 

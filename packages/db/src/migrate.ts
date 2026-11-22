@@ -321,6 +321,29 @@ CREATE TABLE IF NOT EXISTS trips (
   updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
 );
 CREATE INDEX IF NOT EXISTS trips_user_idx ON trips(user_id);
+CREATE TABLE IF NOT EXISTS outbound_links (
+  id TEXT PRIMARY KEY,
+  partner_id TEXT NOT NULL,
+  category TEXT NOT NULL,
+  destination_slug TEXT NOT NULL,
+  placement TEXT NOT NULL,
+  url TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+  updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+);
+CREATE INDEX IF NOT EXISTS outbound_links_partner_idx ON outbound_links(partner_id);
+CREATE TABLE IF NOT EXISTS partner_events (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  link_id TEXT NOT NULL,
+  partner_id TEXT NOT NULL,
+  category TEXT NOT NULL,
+  destination_slug TEXT NOT NULL,
+  placement TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+);
+CREATE INDEX IF NOT EXISTS partner_events_created_idx ON partner_events(created_at);
+CREATE INDEX IF NOT EXISTS partner_events_partner_idx ON partner_events(partner_id);
 `;
 
 /** Additive migrations for existing SQLite databases */

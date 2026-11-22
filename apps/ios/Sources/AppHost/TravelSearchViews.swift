@@ -73,6 +73,13 @@ struct SearchTilesSection: View {
                 )
             }
             .accessibilityIdentifier("explore.priceMap")
+
+            NavigationLink {
+                RandomTripScreen(model: model)
+            } label: {
+                Label("Surprise Me: a Random Trip", systemImage: "dice")
+            }
+            .accessibilityIdentifier("explore.randomTrip")
         } header: {
             Text("Search")
         } footer: {
@@ -839,8 +846,8 @@ struct PriceMapScreen: View {
     }
 }
 
-/// Asked once: where searches and the price map start from.
-private struct HomeAirportPicker: View {
+/// Asked once: where searches, the price map and random trips start from.
+struct HomeAirportPicker: View {
     let model: AppModel
 
     var body: some View {

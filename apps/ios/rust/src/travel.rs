@@ -38,6 +38,24 @@ pub struct EsimPlan {
     pub price: String,
 }
 
+/// A referral link to a travel partner. It never carries a price.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct PartnerLink {
+    /// "Search flights to Japan on Test Partner".
+    pub label: String,
+    /// Our Travel site's `/go/` address; open it in the browser.
+    pub url: String,
+    /// A test partner, not a real company: the screen says so.
+    pub test: bool,
+}
+
+/// Partner links for one category ("Flights", "Places to stay", "Car hire").
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct PartnerGroup {
+    pub title: String,
+    pub links: Vec<PartnerLink>,
+}
+
 /// Everything a destination screen shows.
 #[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
 pub struct DestinationDetail {
@@ -55,6 +73,12 @@ pub struct DestinationDetail {
     pub esim_plans: Vec<EsimPlan>,
     /// The eSIM site's plans page for this country.
     pub esim_plans_url: String,
+    /// Shown right next to the partner links whenever there are any.
+    pub partner_notice: String,
+    /// Empty when no partner is switched on.
+    pub partner_groups: Vec<PartnerGroup>,
+    /// Each partner's own disclosure, once per partner, shown under the links.
+    pub partner_disclosures: Vec<String>,
 }
 
 /// A saved trip.
@@ -182,6 +206,32 @@ pub(crate) fn detail(api: ApiDestinationDetail) -> DestinationDetail {
         label: e.label,
         value: e.number,
     }));
+    let mut partner_disclosures: Vec<String> = Vec::new();
+    let partner_groups: Vec<PartnerGroup> = api
+        .partners
+        .groups
+        .into_iter()
+        .map(|group| PartnerGroup {
+            title: group.title,
+            links: group
+                .links
+                .into_iter()
+                // Only web links: the app opens them in the browser.
+                .filter(|link| link.url.starts_with("https://") || link.url.starts_with("http://"))
+                .map(|link| {
+                    if !partner_disclosures.contains(&link.disclosure) {
+                        partner_disclosures.push(link.disclosure);
+                    }
+                    PartnerLink {
+                        label: link.label,
+                        url: link.url,
+                        test: link.test,
+                    }
+                })
+                .collect(),
+        })
+        .filter(|group: &PartnerGroup| !group.links.is_empty())
+        .collect();
     DestinationDetail {
         slug: d.slug,
         name: d.name,
@@ -193,6 +243,13 @@ pub(crate) fn detail(api: ApiDestinationDetail) -> DestinationDetail {
         esim_available: api.esim.available,
         esim_plans: api.esim.packages.into_iter().map(plan).collect(),
         esim_plans_url: api.esim.plans_url,
+        partner_notice: if partner_groups.is_empty() {
+            String::new()
+        } else {
+            api.partners.notice
+        },
+        partner_groups,
+        partner_disclosures,
     }
 }
 
