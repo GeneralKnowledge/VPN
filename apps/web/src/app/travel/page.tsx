@@ -30,6 +30,11 @@ export default function TravelHomePage() {
               <Link href="/destinations">
                 <Button size="lg">Browse destinations</Button>
               </Link>
+              <Link href="/search">
+                <Button size="lg" variant="ghost">
+                  Search with estimates
+                </Button>
+              </Link>
             </div>
           </div>
         </div>

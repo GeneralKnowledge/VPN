@@ -49,6 +49,9 @@ describe("travel host routing", () => {
     expect(middleware(req("/trips", "travel.localhost")).headers.get("x-middleware-rewrite")).toBe(
       "http://travel.localhost/travel/trips",
     );
+    expect(middleware(req("/search", "travel.localhost")).headers.get("x-middleware-rewrite")).toBe(
+      "http://travel.localhost/travel/search",
+    );
     expect(middleware(req("/go/lnk_0", "travel.localhost")).headers.get("x-middleware-rewrite")).toBe(
       "http://travel.localhost/travel/go/lnk_0",
     );

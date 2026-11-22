@@ -177,7 +177,7 @@ Reuben asked (2026-11-22) for the search experience of a travel app in our iPhon
 | Search records, formatting, the home airport (saved in the app's settings) | `apps/ios/rust/src/travel_search.rs` |
 | Explore: four search tiles, the price map (MapKit) and the destinations list; search forms and result screens | `apps/ios/Sources/AppHost/TravelSearchViews.swift` |
 
-Web search pages on the Travel host can follow on the same API; this phase is the app.
+**On the web** (added 2026-11-22): `/search` on the Travel host has the same five searches (flights, stays, cars, flight + hotel, and Surprise me with re-roll links), run on the server from the same estimate model as the app (`apps/web/src/lib/web-search.ts`). It's a plain GET form, so a search is a shareable link. Every figure reads "est." under the estimate note; there's no price map on the web yet.
 
 **Later.** When a live adapter exists (phase 6), a route returns its results with `source` and `fetchedAt`, and the app shows those instead of the estimate for that search. Estimates stay as the fallback, still labelled.
 

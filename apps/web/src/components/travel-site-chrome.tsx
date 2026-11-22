@@ -8,6 +8,7 @@ import { Button } from "./ui";
 const baseNav = [
   { href: "/", label: "Explore" },
   { href: "/destinations", label: "Destinations" },
+  { href: "/search", label: "Search" },
 ];
 
 /**
